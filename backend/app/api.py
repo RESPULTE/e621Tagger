@@ -35,7 +35,7 @@ async def connect(request: Request, response: Response):
 def session_response(request, response, token, csrf):
     settings = request.app.state.settings
     response.set_cookie(
-        "studio_session",
+        settings.session_cookie_name,
         token,
         httponly=True,
         secure=settings.secure_cookie,
@@ -53,11 +53,12 @@ async def session(request: Request, session=Depends(auth.require_session)):
 
 @router.post("/auth/logout")
 async def logout(request: Request, response: Response):
+    cookie_name = request.app.state.settings.session_cookie_name
     async with request.app.state.db.transaction() as conn:
         await conn.execute(
-            "DELETE FROM sessions WHERE token_hash=?", (auth.token_hash(request.cookies.get("studio_session", "")),)
+            "DELETE FROM sessions WHERE token_hash=?", (auth.token_hash(request.cookies.get(cookie_name, "")),)
         )
-    response.delete_cookie("studio_session", path="/")
+    response.delete_cookie(cookie_name, path="/")
     return {"ok": True}
 
 

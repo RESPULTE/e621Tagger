@@ -54,6 +54,11 @@ class Settings(BaseSettings):
         return self
 
     @property
+    def session_cookie_name(self) -> str:
+        # HTTP must not overwrite a Secure cookie retained from a previous HTTPS deployment.
+        return "studio_session" if self.secure_cookie else "studio_session_http"
+
+    @property
     def user_agent(self) -> str:
         return f"HydraTrainingStudio/0.1 (by {self.e621_username or 'local-mock'} on e621)"
 

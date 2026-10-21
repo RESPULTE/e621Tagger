@@ -31,7 +31,7 @@ def token_hash(token: str) -> str:
 
 
 async def require_session(request: Request):
-    token = request.cookies.get("studio_session", "")
+    token = request.cookies.get(request.app.state.settings.session_cookie_name, "")
     row = await request.app.state.db.one(
         "SELECT * FROM sessions WHERE token_hash=? AND expires_at>?", (token_hash(token), time.time())
     )

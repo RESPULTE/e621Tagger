@@ -228,3 +228,21 @@ def test_private_passwordless_sessions_keep_origin_csrf_and_cookie_protection(tm
         replacement = client.post("/api/auth/connect")
         assert replacement.status_code == 200
         assert replacement.json()["csrf_token"] != response.json()["csrf_token"]
+
+
+def test_private_http_session_does_not_collide_with_previous_https_cookie(tmp_path):
+    settings = Settings(
+        _env_file=None, data_root=tmp_path, passwordless=True, mock_e621=True,
+        public_origin="http://testserver", secure_cookie=False,
+    )
+    with TestClient(create_app(settings, start_workers=False), base_url=settings.public_origin) as client:
+        client.cookies.set("studio_session", "previous-https-cookie")
+        client.headers["Origin"] = settings.public_origin
+        response = client.post("/api/auth/connect")
+        assert response.status_code == 200
+        cookie = response.headers["set-cookie"]
+        assert cookie.startswith("studio_session_http=") and "HttpOnly" in cookie and "Secure" not in cookie
+        assert client.get("/api/auth/session").status_code == 200
+        client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
+        assert client.post("/api/auth/logout").status_code == 200
+        assert client.get("/api/auth/session").status_code == 401

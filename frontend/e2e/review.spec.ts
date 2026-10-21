@@ -316,7 +316,19 @@ test("returning from a post restores the gallery scroll position", async ({
 test("private access reconnects without a password", async ({ page }) => {
   const options = await page.request.get("/api/auth/options");
   test.skip((await options.json()).password_required, "Password authentication deployment");
+  const origin = new URL(options.url()).origin;
+  if (origin.startsWith("http://")) {
+    await page.context().addCookies([{
+      name: "studio_session", value: "retained-https-cookie",
+      url: origin.replace(/^http:/, "https:"), secure: true,
+      httpOnly: true, sameSite: "Strict",
+    }]);
+  }
   await login(page);
+  if (origin.startsWith("http://")) {
+    const cookies = await page.context().cookies(origin);
+    expect(cookies.some(cookie => cookie.name === "studio_session_http" && !cookie.secure)).toBe(true);
+  }
   await expect(page.getByLabel("Studio password")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Sign out", exact: true })).toHaveCount(0);
   const before = await (await page.request.get("/api/auth/session")).json();
@@ -328,4 +340,33 @@ test("private access reconnects without a password", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Find a tag. Build a review set." })).toBeVisible();
   const after = await (await page.request.get("/api/auth/session")).json();
   expect(after.csrf_token).not.toBe(before.csrf_token);
+});
+
+test("additional query starts with the project selection and remains fully editable", async ({ page }) => {
+  await login(page);
+  const url = new URL(page.url());
+  if (url.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
+    expect(await page.evaluate(() => window.isSecureContext)).toBe(false);
+    expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe("undefined");
+  }
+  await createProject(page);
+  const query = page.getByRole("textbox", { name: "Additional discovery query" });
+  await expect(query).toHaveValue("dragon");
+  await query.fill("dragon score:>100");
+  const importButton = page.getByRole("button", { name: "Import 50", exact: true });
+  await expect(importButton).toBeEnabled();
+  const [request] = await Promise.all([
+    page.waitForRequest(request => request.url().endsWith("/discovery") && request.method() === "POST"),
+    importButton.click(),
+  ]);
+  expect(request.postDataJSON().query).toBe("dragon score:>100");
+  await expect(importButton).toBeEnabled();
+  await expect(query).toHaveValue("dragon score:>100");
+  await query.fill("score:>100");
+  const [withoutTag] = await Promise.all([
+    page.waitForRequest(request => request.url().endsWith("/discovery") && request.method() === "POST"),
+    importButton.click(),
+  ]);
+  expect(withoutTag.postDataJSON().query).toBe("score:>100");
+  expect(withoutTag.postDataJSON().request_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });

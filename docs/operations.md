@@ -6,7 +6,7 @@ Use `deploy/.env.example`. Generate an administrator hash with `python -m backen
 
 `STUDIO_PASSWORDLESS=true` explicitly enables automatic private-network sessions without a password hash. Use it only with a reverse proxy that allows your trusted LAN/VPN subnets and denies other clients, while the backend stays on loopback. Anyone on those allowed networks can use Studio. The UI obtains a secure session automatically through an Origin-checked POST; metadata, media and mutations still require that session, and mutations still require its CSRF token. Leave this option false for password authentication.
 
-Set the exact `STUDIO_PUBLIC_ORIGIN`, including scheme and port. Preserve that Host at the reverse proxy; forwarded headers are not trusted. HTTPS/secure cookies are defaults. HTTP requires explicit `STUDIO_SECURE_COOKIE=false` and is intended for loopback development. Compose binds loopback for use behind a private VPN/reverse proxy.
+Set the exact `STUDIO_PUBLIC_ORIGIN`, including scheme and port. Preserve that Host at the reverse proxy; forwarded headers are not trusted. HTTPS/secure cookies are defaults. Private HTTP requires explicit `STUDIO_SECURE_COOKIE=false` and an exact HTTP origin. It uses a separate `studio_session_http` cookie to avoid collisions with existing Secure cookies. Compose binds loopback for use behind a private VPN/reverse proxy.
 
 Exactly one backend instance may own a data root. Do not add Gunicorn workers or replicas. The persistent queue runs inside the API process; running jobs are requeued at startup and renew their leases during execution.
 

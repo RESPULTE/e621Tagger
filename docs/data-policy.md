@@ -10,4 +10,6 @@ Use private HTTPS. Authentication protects metadata, media, jobs and metrics. Se
 
 Private passwordless access is optional and disabled by default. With `STUDIO_PASSWORDLESS=true`, anyone allowed through the LAN/VPN proxy can obtain a session automatically. The proxy's network restrictions become the access boundary; session, Origin and CSRF protections still apply.
 
+The owner may explicitly choose private HTTP with `STUDIO_SECURE_COOKIE=false`; transport encryption and certificate verification are then deferred. HttpOnly/SameSite cookies, sessions and Origin/CSRF checks remain enabled.
+
 Media URLs must originate in e621 API responses; clients cannot submit arbitrary fetch URLs. Redirects undergo the same allowlist validation. Studio never modifies e621. Respect the [official API conventions](https://e621.net/help/api) and the rights attached to individual media. Do not redistribute cached media by default.

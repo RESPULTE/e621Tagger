@@ -43,10 +43,13 @@ Compose binds loopback by default. Put Studio behind private HTTPS through your 
 
 For automatic access on a trusted private network, set `STUDIO_PASSWORDLESS=true` and leave `STUDIO_PASSWORD_HASH` empty. Restrict the reverse proxy to your LAN/VPN clients and keep the backend bound to loopback. Studio then opens without a sign-in prompt while retaining sessions, secure cookies, exact Origin checks and CSRF tokens. Password authentication remains the default.
 
+For a private HTTP deployment, explicitly set its exact `http://` origin and `STUDIO_SECURE_COOKIE=false`. HTTP and HTTPS use separate session cookie names so a previous Secure cookie does not prevent reconnecting. Private HTTP mutation IDs still use cryptographically random UUIDs.
+
 ## Review workflow
 
 1. Search tags by name/category/popularity, or create a custom target using a query and/or up to 50 seed IDs.
 2. Import 50 metadata records; **Add next 50** resumes the cursor. Originals load only when a post is opened.
+   The additional-query field starts with the project's original selection. Edit the complete query to append terms such as `score:>100`, or remove the original tag when you want a broader search. Studio imports exactly the displayed query; existing candidates and labels are retained.
 3. Click a thumbnail for the original image or video. An e621-provided MP4 fallback is available where supplied upstream.
 4. Use `1` positive, `2` negative, `3` unsure, arrows to navigate, and `Z` to undo, or use the mobile buttons. Skip leaves the label unchanged.
 5. Labels and undo history survive restarts. Failed/conflicting saves show retry controls. Batch reviews affect only explicitly selected posts and commit atomically.

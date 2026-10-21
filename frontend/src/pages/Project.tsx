@@ -59,7 +59,10 @@ export function Project() {
   const [hideTags, setHideTags] = useState(
     localStorage.getItem("studio-hide-tags") === "true",
   );
-  const [discoveryQuery, setDiscoveryQuery] = useState("");
+  const [discoveryOverride, setDiscoveryOverride] = useState<{
+    project: number;
+    query: string;
+  } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
   const [retryImport, setRetryImport] = useState<(() => void) | null>(null);
@@ -69,6 +72,10 @@ export function Project() {
     queryFn: () => api<ProjectInfo>(`/projects/${projectId}`),
     refetchInterval: 2000,
   });
+  const discoveryQuery =
+    discoveryOverride?.project === projectId
+      ? discoveryOverride.query
+      : (project.data?.query ?? "");
   const activeImport =
     project.data?.jobs.some((job) =>
       ["pending", "running"].includes(String(job.status)),
@@ -397,8 +404,10 @@ export function Project() {
           <input
             aria-label="Additional discovery query"
             value={discoveryQuery}
-            onChange={(e) => setDiscoveryQuery(e.target.value)}
-            placeholder="Add candidates from another query…"
+            onChange={(e) =>
+              setDiscoveryOverride({ project: projectId, query: e.target.value })
+            }
+            placeholder="Full e621 query, e.g. dragon score:>100"
             maxLength={500}
           />
           <button
@@ -407,6 +416,9 @@ export function Project() {
             Import 50
           </button>
         </form>
+        <p className="muted">
+          Edit the full e621 query: add filters or remove terms before importing.
+        </p>
         {importError && (
           <p className="error" role="alert">
             {importError}{" "}
