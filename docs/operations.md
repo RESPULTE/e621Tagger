@@ -22,6 +22,10 @@ docker compose --env-file .env -f deploy/docker-compose.yml exec studio python -
 
 Use a new timestamped filename, retain generations and copy them to another device. Back up configuration with your normal secret storage. Thumbnails can be rebuilt; SQLite contains labels and provenance.
 
+`deploy/backup_compose.py` automates the online backup through an executable `<deployment-root>/studio-compose` wrapper that selects the correct project, environment and Compose files. It locks out overlapping backups, copies the result outside the volume, checks SQLite integrity, publishes without overwriting a file, and retains 30 days by default. Run it on the Ubuntu host with `python3 deploy/backup_compose.py --deployment-root /opt/hydra-studio`. A failed host copy leaves the volume backup available for recovery. At most three timestamped recovery copies are retained in the volume after successful snapshot verification, so repeated host-copy failures cannot accumulate unbounded generations.
+
+The supplied `hydra-studio-backup.service` and `.timer` target user `vector` and `/opt/hydra-studio/current`; adjust them for another deployment. Install into `/etc/systemd/system/`, reload systemd, and enable `hydra-studio-backup.timer`. The daily schedule is 03:15 Asia/Kuala_Lumpur with up to five minutes of jitter and missed-run recovery. Run the service once manually and inspect its journal before relying on the schedule. Host copies remain on the same physical server until copied to another device.
+
 To restore: stop Studio, preserve the current data root, restore the backup as `studio.sqlite3` in a fresh directory with correct ownership, and start against that directory. Never mix restored databases with stale WAL/SHM files or overwrite a running database.
 
 Disk-full/SQLite failures return an unacknowledged-save error. Free space and retry. Failed media writes never mark an asset valid. Failed thumbnail jobs cool down for five minutes. Retry imports using Add next 50 or the original query. A retry with the same request ID replays its receipt; a deliberate new import uses a new ID.

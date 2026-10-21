@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily Hydra Studio backup
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 Asia/Kuala_Lumpur
+RandomizedDelaySec=5m
+Persistent=true
+Unit=hydra-studio-backup.service
+
+[Install]
+WantedBy=timers.target

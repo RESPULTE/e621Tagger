@@ -1,0 +1,12 @@
+[Unit]
+Description=Hydra Studio verified online SQLite backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=vector
+SupplementaryGroups=docker
+UMask=0077
+WorkingDirectory=/opt/hydra-studio
+ExecStart=/usr/bin/python3 /opt/hydra-studio/current/deploy/backup_compose.py --deployment-root /opt/hydra-studio --retention-days 30
