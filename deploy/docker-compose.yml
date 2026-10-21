@@ -1,0 +1,29 @@
+services:
+  studio:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${STUDIO_BIND_ADDRESS:-127.0.0.1}:${STUDIO_PORT:-8000}:8000"
+    environment:
+      STUDIO_PASSWORD_HASH: ${STUDIO_PASSWORD_HASH:?Set the administrator password hash}
+      STUDIO_PUBLIC_ORIGIN: ${STUDIO_PUBLIC_ORIGIN:?Set the browser-facing origin}
+      STUDIO_SECURE_COOKIE: ${STUDIO_SECURE_COOKIE:-true}
+      STUDIO_E621_USERNAME: ${STUDIO_E621_USERNAME:-}
+      STUDIO_E621_API_KEY: ${STUDIO_E621_API_KEY:-}
+      STUDIO_MOCK_E621: ${STUDIO_MOCK_E621:-false}
+      STUDIO_CACHE_BYTES: ${STUDIO_CACHE_BYTES:-5368709120}
+      STUDIO_METADATA_INTERVAL: ${STUDIO_METADATA_INTERVAL:-1}
+      STUDIO_MEDIA_INTERVAL: ${STUDIO_MEDIA_INTERVAL:-0.25}
+      STUDIO_MEDIA_CONCURRENCY: ${STUDIO_MEDIA_CONCURRENCY:-4}
+    volumes:
+      - studio-data:/data
+    init: true
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+volumes:
+  studio-data:

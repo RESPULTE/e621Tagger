@@ -1,0 +1,7 @@
+# Keep source and generated contracts consistent on Windows and Ubuntu.
+* text=auto eol=lf
+*.mp4 binary
+*.webm binary
+*.png binary
+*.webp binary
+*.ico binary

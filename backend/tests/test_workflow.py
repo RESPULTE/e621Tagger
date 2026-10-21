@@ -1,0 +1,188 @@
+import json
+import time
+from uuid import uuid4
+
+from fastapi.testclient import TestClient
+
+from backend.app.main import create_app
+
+
+def run(client, coroutine):
+    return client.portal.call(lambda: coroutine)
+
+
+def project(client, custom=False):
+    body = {
+        "request_id": str(uuid4()),
+        "target_kind": "custom" if custom else "e621",
+        "name": "my_dragon" if custom else "drake",
+    }
+    if custom:
+        body.update(query="dragon", seed_ids=[42])
+    response = client.post("/api/projects", json=body)
+    assert response.status_code == 200, response.text
+    return response.json(), body
+
+
+def import_job(client, job_id):
+    app = client.app
+    job = run(client, app.state.db.one("SELECT * FROM jobs WHERE id=?", (job_id,)))
+    run(client, app.state.workers.discover(job, json.loads(job["payload_json"])))
+
+
+def test_alias_import_pagination_and_idempotent_project(client):
+    created, body = project(client)
+    assert created["display_name"] == "dragon"
+    assert client.post("/api/projects", json=body).json() == created
+    import_job(client, created["jobs"][0]["job_id"])
+    pid = created["id"]
+    page = client.get(f"/api/projects/{pid}/candidates").json()
+    assert len(page["items"]) == page["total"] == 50
+    assert all(item["state"] is None for item in page["items"])
+    assert page["items"][0]["sources"] == ["target: dragon"]
+    request = {"request_id": str(uuid4())}
+    discovery = client.post(f"/api/projects/{pid}/discovery", json=request).json()
+    assert client.post(f"/api/projects/{pid}/discovery", json=request).json() == discovery
+    import_job(client, discovery["job_id"])
+    # Re-executing the same completed page must not import another page.
+    assert client.get(f"/api/projects/{pid}").json()["counts"]["total"] == 100
+    page = client.get(f"/api/projects/{pid}/candidates?limit=30").json()
+    assert len(page["items"]) == 30 and page["next_cursor"]
+    second = client.get(f"/api/projects/{pid}/candidates?limit=30&cursor={page['next_cursor']}").json()
+    assert not {p["post_id"] for p in page["items"]} & {p["post_id"] for p in second["items"]}
+
+
+def test_labels_conflicts_atomic_batch_and_durable_undo(client):
+    created, _ = project(client)
+    import_job(client, created["jobs"][0]["job_id"])
+    pid = created["id"]
+    body = {"request_id": str(uuid4()), "expected_version": 0, "state": "positive"}
+    path = f"/api/projects/{pid}/labels/1000"
+    first = client.patch(path, json=body)
+    assert first.status_code == 200
+    assert client.patch(path, json=body).json() == first.json()
+    assert client.patch(path, json={**body, "state": "negative"}).status_code == 409
+    assert client.patch(path, json={**body, "request_id": str(uuid4())}).status_code == 409
+    response = client.post(
+        f"/api/projects/{pid}/labels/batch",
+        json={
+            "request_id": str(uuid4()),
+            "items": [
+                {"post_id": 999, "state": "negative", "expected_version": 0},
+                {"post_id": 1000, "state": "unsure", "expected_version": 0},
+            ],
+        },
+    )
+    assert response.status_code == 409
+    assert client.get(f"/api/projects/{pid}/candidates/999").json()["state"] is None
+    undo = {"request_id": str(uuid4()), "expected_version": 1, "event_id": first.json()["event_id"]}
+    undone = client.post(path + "/undo", json=undo)
+    assert undone.status_code == 200 and undone.json()["state"] is None and undone.json()["version"] == 2
+    assert client.post(path + "/undo", json=undo).json() == undone.json()
+    assert client.patch(path, json={**body, "request_id": str(uuid4()), "expected_version": 0}).status_code == 409
+    assert len(run(client, client.app.state.db.rows("SELECT * FROM label_events"))) == 2
+
+
+def test_custom_seeds_sources_and_project_specific_labels(client):
+    created, _ = project(client, True)
+    for job in created["jobs"]:
+        import_job(client, job["job_id"])
+    pid = created["id"]
+    seed = client.get(f"/api/projects/{pid}/candidates/42").json()
+    assert seed["sources"] == ["seed: seeds:42"]
+    assert (
+        client.patch(
+            f"/api/projects/{pid}/labels/42",
+            json={"request_id": str(uuid4()), "state": "negative", "expected_version": 0},
+        ).status_code
+        == 200
+    )
+    assert client.get(f"/api/projects/{pid}?state=negative").json()["counts"]["negative"] == 1
+    for route in (f"/api/projects/{pid}/candidates?rating=x", f"/api/projects/{pid}/candidates?after=garbage"):
+        assert client.get(route).status_code == 422
+    assert (
+        client.post(
+            f"/api/projects/{pid}/discovery",
+            json={"request_id": str(uuid4()), "query": "dragon order:score", "source_kind": "query"},
+        ).status_code
+        == 422
+    )
+
+
+def test_auth_csrf_host_and_retired_service_worker(client):
+    assert client.get("/api/projects", headers={"Host": "evil.example"}).status_code == 400
+    assert client.post("/api/auth/logout", headers={"Origin": "https://evil.example"}).status_code == 403
+    assert client.post("/api/auth/logout", headers={"X-CSRF-Token": "wrong"}).status_code == 403
+    response = client.get("/service-worker.js")
+    assert "unregister" in response.text and response.headers["cache-control"] == "no-store"
+    assert client.post("/api/auth/logout").status_code == 200
+    assert client.get("/api/projects").status_code == 401
+
+
+def test_restart_and_worker_recovery(settings):
+    app = create_app(settings, start_workers=True)
+    with TestClient(app, headers={"Origin": "http://testserver"}) as client:
+        from backend.tests.conftest import PASSWORD
+
+        login = client.post("/api/auth/login", json={"password": PASSWORD})
+        client.headers["X-CSRF-Token"] = login.json()["csrf_token"]
+        created, _ = project(client)
+        for _ in range(100):
+            if client.get(f"/api/projects/{created['id']}").json()["counts"]["total"] == 50:
+                break
+            time.sleep(0.1)
+        assert (
+            client.patch(
+                f"/api/projects/{created['id']}/labels/1000",
+                json={"request_id": str(uuid4()), "state": "unsure", "expected_version": 0},
+            ).status_code
+            == 200
+        )
+    with TestClient(create_app(settings), headers={"Origin": "http://testserver"}) as client:
+        login = client.post("/api/auth/login", json={"password": PASSWORD})
+        client.headers["X-CSRF-Token"] = login.json()["csrf_token"]
+        row = client.get(f"/api/projects/{created['id']}/candidates/1000").json()
+        assert row["state"] == "unsure" and row["version"] == 1
+
+
+def test_online_backup_and_sqlite_busy_save(client, settings, tmp_path):
+    import sqlite3
+
+    from backend.backup import backup
+
+    created, _ = project(client)
+    import_job(client, created["jobs"][0]["job_id"])
+    pid = created["id"]
+    path = f"/api/projects/{pid}/labels/1000"
+    body = {"request_id": str(uuid4()), "state": "positive", "expected_version": 0}
+    with sqlite3.connect(settings.data_root / "studio.sqlite3", isolation_level=None) as blocker:
+        blocker.execute("BEGIN IMMEDIATE")
+        failed = client.patch(path, json=body)
+        assert failed.status_code == 503
+        blocker.execute("ROLLBACK")
+    assert client.patch(path, json=body).status_code == 200
+    destination = tmp_path / "backup" / "studio.sqlite3"
+    backup(settings.data_root, destination)
+    with sqlite3.connect(destination) as restored:
+        assert restored.execute("SELECT state FROM labels").fetchone()[0] == "positive"
+        assert restored.execute("SELECT count(*) FROM label_events").fetchone()[0] == 1
+
+
+def test_auth_limits_and_project_isolation(client):
+    from backend.tests.conftest import PASSWORD
+
+    first, _ = project(client, True)
+    second, _ = project(client, True)
+    for created in (first, second):
+        for job in created["jobs"]:
+            import_job(client, job["job_id"])
+    response = client.patch(
+        f"/api/projects/{first['id']}/labels/42",
+        json={"request_id": str(uuid4()), "state": "positive", "expected_version": 0},
+    )
+    assert response.status_code == 200
+    assert client.get(f"/api/projects/{second['id']}/candidates/42").json()["state"] is None
+    assert client.get("/api/projects/999999").status_code == 404
+    for _ in range(10):
+        assert client.post("/api/auth/login", json={"password": "incorrect"}).status_code == 401
+    assert client.post("/api/auth/login", json={"password": PASSWORD}).status_code == 429

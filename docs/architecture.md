@@ -1,0 +1,29 @@
+# Architecture
+
+React and FastAPI share one origin. A single Uvicorn process owns the metadata scheduler, shared HTTP pools, media permits, job workers, SQLite connection and process lock. Shutdown cancels workers before closing clients and database. No neural model is loaded.
+
+`api.py` owns HTTP contracts and candidate queries. `reviews.py` owns transitions, receipts and undo. `jobs.py` owns discovery and durable jobs. `e621.py` owns metadata scheduling and tag resolution. `media.py` owns URL validation, thumbnail caching and original streaming. `auth.py` owns password verification and persisted sessions.
+
+SQLite uses WAL, foreign keys and a busy timeout. An async lock serializes short transactions and reads on one aiosqlite connection; network I/O never occurs inside a transaction. Version 1 initializes transactionally through `PRAGMA user_version`; future schema changes require explicit migrations. Newer databases are rejected.
+
+## Correctness
+
+- Each project/post has one candidate record and multiple discovery provenance records. MD5 is retained without silently merging reviews.
+- Labels store positive, negative or unsure. Unreviewed has no label record. Candidate revisions persist after undo to reject stale edits.
+- Every transition appends an event. Undo requires the current event/version and appends a new event. Batches and receipts commit atomically.
+- Request UUIDs bind to fingerprints and stored responses. Identical retries replay; reusing an ID with another operation returns 409.
+- Discovery commits metadata, candidates, provenance, cursor and job completion together. Jobs have deduplication keys, bounded retries, renewable leases and restart recovery.
+
+## Resource limits
+
+One metadata scheduler coalesces requests and prioritizes interactive searches in a queue of 64. Requests start at least one second apart, with four bounded attempts. Cooldowns persist across restarts and honor Retry-After.
+
+Media uses four shared permits, per-host request spacing/backoff, and at most 64 queued thumbnail jobs. A missing thumbnail returns 202 while queued; the frontend retries. Only visible rows plus one viewport of overscan mount and prefetch. Candidate pages default to 50 and cap at 100; the UI does not retain every candidate.
+
+Preview downloads cap at 8 MiB and 20 million pixels, decode off the event loop, and resize to 320 px WebP. Atomic rename precedes the valid-cache marker. SHA-256 detects corrupt derivatives. The default 5 GiB LRU cache evicts unreviewed thumbnails first, then reviewed thumbnails if required by the hard quota.
+
+Originals and video stream in bounded chunks, bypassing disk cache and Pillow. Range/If-Range and range response headers are preserved. Browsers decode media; MP4 fallbacks come from upstream metadata. Every media URL and redirect requires HTTPS and an exact approved CDN host. There is no transcoder.
+
+## Deferred
+
+Exports, frozen datasets, near-duplicate grouping, model runs, GPU transport, Hydra recognition badges, offline saves and multi-user roles remain outside P0–P2. Future training export must decide how to turn video reviews into frame samples. Actual ThinkPad and physical iPhone performance still require deployment measurement.

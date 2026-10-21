@@ -1,0 +1,128 @@
+from typing import Literal
+from uuid import UUID
+
+from pydantic import BaseModel, Field, model_validator
+
+LabelState = Literal["positive", "negative", "unsure"]
+SourceKind = Literal["target", "query", "seed"]
+
+
+class Mutation(BaseModel):
+    request_id: UUID
+
+
+class ProjectCreate(Mutation):
+    target_kind: Literal["e621", "custom"]
+    name: str = Field(min_length=1, max_length=150, pattern=r"^[^\s\x00-\x1f]+$")
+    description: str = Field(default="", max_length=2000)
+    query: str = Field(default="", max_length=500)
+    seed_ids: list[int] = Field(default_factory=list, max_length=50)
+
+    @model_validator(mode="after")
+    def validate_seed(self):
+        if any(post_id <= 0 for post_id in self.seed_ids):
+            raise ValueError("Post IDs must be positive")
+        if self.target_kind == "custom" and not (self.query.strip() or self.seed_ids):
+            raise ValueError("Custom tags need a discovery query or seed IDs")
+        if self.target_kind == "e621" and (self.query or self.seed_ids):
+            raise ValueError("Existing-tag projects use their canonical target query")
+        return self
+
+
+class DiscoveryCreate(Mutation):
+    query: str = Field(default="", max_length=500)
+    source_kind: Literal["target", "query"] = "target"
+
+
+class LabelEdit(BaseModel):
+    state: LabelState
+    expected_version: int = Field(ge=0)
+
+
+class LabelMutation(LabelEdit, Mutation):
+    pass
+
+
+class BatchItem(LabelEdit):
+    post_id: int = Field(gt=0)
+
+
+class BatchLabels(Mutation):
+    items: list[BatchItem] = Field(min_length=1, max_length=50)
+
+    @model_validator(mode="after")
+    def unique_posts(self):
+        if len({item.post_id for item in self.items}) != len(self.items):
+            raise ValueError("Each selected post must occur only once")
+        return self
+
+
+class UndoMutation(Mutation):
+    event_id: int = Field(gt=0)
+    expected_version: int = Field(ge=1)
+
+
+class MediaPrefetch(BaseModel):
+    post_ids: list[int] = Field(max_length=64)
+
+
+class Login(BaseModel):
+    password: str = Field(min_length=1, max_length=1024)
+
+
+class ClientMetric(BaseModel):
+    name: Literal["gallery_first_paint_ms", "gallery_renders", "frame_interval_ms", "label_ack_ms"]
+    value: float = Field(ge=0, le=600_000, allow_inf_nan=False)
+
+
+class LabelResult(BaseModel):
+    post_id: int
+    state: LabelState | None
+    version: int
+    event_id: int
+
+
+class Candidate(BaseModel):
+    post_id: int
+    rating: str | None
+    md5: str | None
+    tags: dict[str, list[str]]
+    score: int
+    posted_at: str | None
+    media_ext: str | None
+    width: int | None
+    height: int | None
+    unavailable: bool
+    has_preview: bool
+    has_original: bool
+    has_video_fallback: bool
+    state: LabelState | None
+    version: int
+    event_id: int | None
+    sources: list[str]
+
+
+class CandidatePage(BaseModel):
+    items: list[Candidate]
+    next_cursor: str | None
+    total: int
+
+
+class TagResult(BaseModel):
+    tag_id: int
+    canonical_name: str
+    category: int
+    post_count: int
+    matched_alias: str | None = None
+
+
+class ProjectResult(BaseModel):
+    id: int
+    target_kind: str
+    target_id: int
+    display_name: str
+    query: str
+    created_at: float
+    counts: dict[str, int]
+    searches: list[dict]
+    jobs: list[dict]
