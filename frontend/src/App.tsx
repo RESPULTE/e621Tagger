@@ -1,12 +1,13 @@
 import {
   Component,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
 } from "react";
 import { Link, Route, Routes } from "react-router-dom";
-import { api, errorText, setCsrf } from "./api/client";
+import { api, ApiError, errorText, setCsrf } from "./api/client";
 import { ReviewProvider } from "./components/Reviews";
 import { Home } from "./pages/Home";
 import { Project } from "./pages/Project";
@@ -39,17 +40,41 @@ export function App() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [passwordless, setPasswordless] = useState(false);
+  const checkingSession = useRef(false);
   async function check() {
+    if (checkingSession.current) return;
+    checkingSession.current = true;
+    setChecking(true);
+    setError("");
     try {
-      const data = await api<{ csrf_token: string; mock: boolean }>(
-        "/auth/session",
-      );
+      const options = await api<{ password_required: boolean }>("/auth/options");
+      setPasswordless(!options.password_required);
+      const readSession = () =>
+        api<{ csrf_token: string; mock: boolean }>("/auth/session");
+      let data;
+      try {
+        data = await readSession();
+      } catch (error) {
+        if (
+          options.password_required ||
+          !(error instanceof ApiError) ||
+          error.status !== 401
+        )
+          throw error;
+        await api("/auth/connect", { method: "POST" });
+        data = await readSession();
+      }
       setCsrf(data.csrf_token);
       setSession(data);
-    } catch {
+    } catch (error) {
       setSession(null);
+      setCsrf("");
+      if (!(error instanceof ApiError) || error.status !== 401)
+        setError(errorText(error));
     } finally {
       setChecking(false);
+      checkingSession.current = false;
     }
   }
   useEffect(() => {
@@ -57,6 +82,7 @@ export function App() {
     const handler = () => {
       setSession(null);
       setCsrf("");
+      void check();
     };
     window.addEventListener("studio-session-expired", handler);
     return () => window.removeEventListener("studio-session-expired", handler);
@@ -89,7 +115,7 @@ export function App() {
           <Link to="/">Projects</Link>
           <span>Discover · Review · Label</span>
         </nav>
-        {session && (
+        {session && !passwordless && (
           <button
             onClick={() => {
               void api("/auth/logout", { method: "POST" })
@@ -109,23 +135,29 @@ export function App() {
       ) : !session ? (
         <main className="login-card">
           <p className="eyebrow">YOUR PRIVATE REVIEW WORKSPACE</p>
-          <h1>Sign in to Studio</h1>
+          <h1>{passwordless ? "Connect to Studio" : "Sign in to Studio"}</h1>
           <p>Search e621. Review the details. Build reliable labels.</p>
-          <form onSubmit={login}>
-            <label>
-              Studio password
-              <input
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </label>
-            <button className="primary" disabled={submitting}>
-              {submitting ? "Signing in…" : "Sign in"}
+          {passwordless ? (
+            <button className="primary" onClick={() => void check()}>
+              Reconnect
             </button>
-          </form>
+          ) : (
+            <form onSubmit={login}>
+              <label>
+                Studio password
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                />
+              </label>
+              <button className="primary" disabled={submitting}>
+                {submitting ? "Signing in…" : "Sign in"}
+              </button>
+            </form>
+          )}
           {error && (
             <p className="error" role="alert">
               {error}

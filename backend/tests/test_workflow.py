@@ -2,8 +2,11 @@ import json
 import time
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
+from backend.app.config import Settings
 from backend.app.main import create_app
 
 
@@ -186,3 +189,42 @@ def test_auth_limits_and_project_isolation(client):
     for _ in range(10):
         assert client.post("/api/auth/login", json={"password": "incorrect"}).status_code == 401
     assert client.post("/api/auth/login", json={"password": PASSWORD}).status_code == 429
+
+
+def test_passwordless_access_requires_explicit_opt_in(client, tmp_path):
+    assert client.get("/api/auth/options").json() == {"password_required": True}
+    assert client.post("/api/auth/connect").status_code == 403
+    with pytest.raises(ValidationError, match="STUDIO_PASSWORD_HASH"):
+        Settings(_env_file=None, data_root=tmp_path, mock_e621=True, secure_cookie=False)
+
+
+def test_private_passwordless_sessions_keep_origin_csrf_and_cookie_protection(tmp_path):
+    settings = Settings(
+        _env_file=None,
+        data_root=tmp_path,
+        passwordless=True,
+        password_hash="",
+        mock_e621=True,
+        public_origin="https://testserver",
+        secure_cookie=True,
+    )
+    with TestClient(create_app(settings, start_workers=False), base_url=settings.public_origin) as client:
+        assert client.get("/api/auth/options").json() == {"password_required": False}
+        assert client.get("/api/projects").status_code == 401
+        assert client.post("/api/auth/connect").status_code == 403
+        assert client.post("/api/auth/connect", headers={"Origin": "https://other.example"}).status_code == 403
+        client.headers["Origin"] = settings.public_origin
+        response = client.post("/api/auth/connect")
+        assert response.status_code == 200
+        cookie = response.headers["set-cookie"]
+        assert "HttpOnly" in cookie and "Secure" in cookie and "SameSite=strict" in cookie
+        assert client.get("/api/auth/session").json()["csrf_token"] == response.json()["csrf_token"]
+        body = {"request_id": str(uuid4()), "target_kind": "custom", "name": "private_test", "query": "dragon"}
+        assert client.post("/api/projects", json=body).status_code == 403
+        client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
+        assert client.post("/api/projects", json=body).status_code == 200
+        assert client.post("/api/auth/logout").status_code == 200
+        assert client.get("/api/projects").status_code == 401
+        replacement = client.post("/api/auth/connect")
+        assert replacement.status_code == 200
+        assert replacement.json()["csrf_token"] != response.json()["csrf_token"]

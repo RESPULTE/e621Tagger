@@ -15,6 +15,24 @@ public = APIRouter(prefix="/api/auth")
 @public.post("/login")
 async def login(body: schemas.Login, request: Request, response: Response):
     token, csrf = await auth.login(request, body.password)
+    return session_response(request, response, token, csrf)
+
+
+@public.get("/options")
+async def auth_options(request: Request):
+    return {"password_required": not request.app.state.settings.passwordless}
+
+
+@public.post("/connect")
+async def connect(request: Request, response: Response):
+    # Only an explicit private-network deployment may create sessions without a password.
+    if not request.app.state.settings.passwordless:
+        raise HTTPException(403, "Passwordless access is disabled")
+    token, csrf = await auth.new_session(request)
+    return session_response(request, response, token, csrf)
+
+
+def session_response(request, response, token, csrf):
     settings = request.app.state.settings
     response.set_cookie(
         "studio_session",

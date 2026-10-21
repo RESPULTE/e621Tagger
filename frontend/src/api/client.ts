@@ -45,7 +45,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
             (Array.isArray(detail)
               ? detail.map((item: { msg: string }) => item.msg).join("; ")
               : `Request failed (${response.status})`));
-      if (response.status === 401 && path !== "/auth/login")
+      if (response.status === 401 && !["/auth/login", "/auth/session"].includes(path))
         window.dispatchEvent(new Event("studio-session-expired"));
       throw new ApiError(response.status, message);
     }

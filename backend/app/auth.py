@@ -56,6 +56,12 @@ async def login(request: Request, password: str):
         await conn.execute("INSERT OR REPLACE INTO login_attempts VALUES('admin',?,?)", (attempts + 1, reset_at))
     if not await asyncio.to_thread(verify_password, password, settings.password_hash):
         raise HTTPException(401, "Incorrect password")
+    return await new_session(request)
+
+
+async def new_session(request: Request):
+    db, settings = request.app.state.db, request.app.state.settings
+    now = time.time()
     token, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     async with db.transaction() as conn:
         await conn.execute("DELETE FROM sessions WHERE expires_at<=?", (now,))

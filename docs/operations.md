@@ -4,6 +4,8 @@
 
 Use `deploy/.env.example`. Generate an administrator hash with `python -m backend.app.auth hash-password`; startup also requires your e621 username in live mode. Optional e621 credentials never go to CDN hosts.
 
+`STUDIO_PASSWORDLESS=true` explicitly enables automatic private-network sessions without a password hash. Use it only with a reverse proxy that allows your trusted LAN/VPN subnets and denies other clients, while the backend stays on loopback. Anyone on those allowed networks can use Studio. The UI obtains a secure session automatically through an Origin-checked POST; metadata, media and mutations still require that session, and mutations still require its CSRF token. Leave this option false for password authentication.
+
 Set the exact `STUDIO_PUBLIC_ORIGIN`, including scheme and port. Preserve that Host at the reverse proxy; forwarded headers are not trusted. HTTPS/secure cookies are defaults. HTTP requires explicit `STUDIO_SECURE_COOKIE=false` and is intended for loopback development. Compose binds loopback for use behind a private VPN/reverse proxy.
 
 Exactly one backend instance may own a data root. Do not add Gunicorn workers or replicas. The persistent queue runs inside the API process; running jobs are requeued at startup and renew their leases during execution.
@@ -31,6 +33,8 @@ Disk-full/SQLite failures return an unacknowledged-save error. Free space and re
 Measure on the target server: cold/warm gallery time, preview response p95, RSS during a 500-post import, cache-hit rate, queue depth, storage growth and label acknowledgment time. Browser Performance/Network tools expose rendering and transferred bytes. Large originals can consume browser memory even though server buffers remain bounded. Tune from measurements.
 
 Mocked regression tests and browser tests are separate from live API/CDN probes. Physical iPhone playback depends on codecs; use the e621-provided MP4 fallback where available. No hardware performance threshold is claimed without measurement.
+
+To run the browser suite against a container, start an isolated Compose project with its own volume, `STUDIO_MOCK_E621=true`, and either private passwordless access or the disposable password `studio-browser-test-password` (generate its hash with `backend.app.auth`). Set `STUDIO_E2E_BASE_URL` to that deployment's exact origin, then run `npm run test:e2e` from `frontend/`. The override disables the local demo server. Tests verify mock mode after connecting before creating projects or reviews. Never point this suite at the real review database. Leave the override unset for the normal temporary local demo server. Use trusted HTTPS for private-origin browser checks; the suite does not bypass certificate validation.
 
 Browser checks cover desktop Chromium, mobile Chromium and iPhone-sized WebKit. Before the WebKit playback test, an independent local MP4 probe checks the host decoder. If the host cannot decode that clip, playback is explicitly skipped and the unsupported-codec UI is tested instead. This is not physical iPhone playback verification; [Playwright documents OS-dependent WebKit codecs](https://playwright.dev/docs/browsers#webkit). Run the playback case on macOS WebKit or an actual iPhone before declaring that device verified.
 

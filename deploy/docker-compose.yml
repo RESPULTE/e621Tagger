@@ -7,7 +7,8 @@ services:
     ports:
       - "${STUDIO_BIND_ADDRESS:-127.0.0.1}:${STUDIO_PORT:-8000}:8000"
     environment:
-      STUDIO_PASSWORD_HASH: ${STUDIO_PASSWORD_HASH:?Set the administrator password hash}
+      STUDIO_PASSWORD_HASH: ${STUDIO_PASSWORD_HASH:-}
+      STUDIO_PASSWORDLESS: ${STUDIO_PASSWORDLESS:-false}
       STUDIO_PUBLIC_ORIGIN: ${STUDIO_PUBLIC_ORIGIN:?Set the browser-facing origin}
       STUDIO_SECURE_COOKIE: ${STUDIO_SECURE_COOKIE:-true}
       STUDIO_E621_USERNAME: ${STUDIO_E621_USERNAME:-}

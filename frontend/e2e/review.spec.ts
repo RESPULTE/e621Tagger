@@ -34,11 +34,21 @@ async function decodesBundledVideo(page: Page) {
 
 async function login(page: Page) {
   await page.goto("/");
-  await page.getByLabel("Studio password").fill("studio-browser-test-password");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  const options = await page.request.get("/api/auth/options");
+  expect(options.ok()).toBe(true);
+  if ((await options.json()).password_required) {
+    await page.getByLabel("Studio password").fill("studio-browser-test-password");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  }
   await expect(
     page.getByRole("heading", { name: "Find a tag. Build a review set." }),
   ).toBeVisible();
+  const session = await page.request.get("/api/auth/session");
+  expect(session.ok()).toBe(true);
+  expect(
+    (await session.json()).mock,
+    "Browser regression tests require an isolated STUDIO_MOCK_E621=true deployment",
+  ).toBe(true);
 }
 
 async function createProject(page: Page) {
@@ -214,10 +224,16 @@ test("keyboard undo restores the last review after auto-advance", async ({
   await expect(
     page.getByRole("heading", { name: "Post #999", level: 1 }),
   ).toBeVisible();
+  await expect(
+    page.locator(".detail-review").getByRole("button", { name: "Positive", exact: false }),
+  ).toBeEnabled();
   await page.keyboard.press("1");
   await expect(
     page.getByRole("heading", { name: "Post #998", level: 1 }),
   ).toBeVisible();
+  await expect(
+    page.locator(".detail-review").getByRole("button", { name: "Positive", exact: false }),
+  ).toBeEnabled();
   await page.keyboard.press("z");
   await expect(
     page.getByRole("heading", { name: "Post #999", level: 1 }),
@@ -295,4 +311,21 @@ test("returning from a post restores the gallery scroll position", async ({
       ),
     )
     .toBeLessThan(10);
+});
+
+test("private access reconnects without a password", async ({ page }) => {
+  const options = await page.request.get("/api/auth/options");
+  test.skip((await options.json()).password_required, "Password authentication deployment");
+  await login(page);
+  await expect(page.getByLabel("Studio password")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Sign out", exact: true })).toHaveCount(0);
+  const before = await (await page.request.get("/api/auth/session")).json();
+  const logout = await page.request.post("/api/auth/logout", {
+    headers: { Origin: new URL(page.url()).origin, "X-CSRF-Token": before.csrf_token },
+  });
+  expect(logout.ok()).toBe(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Find a tag. Build a review set." })).toBeVisible();
+  const after = await (await page.request.get("/api/auth/session")).json();
+  expect(after.csrf_token).not.toBe(before.csrf_token);
 });

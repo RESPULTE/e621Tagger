@@ -73,6 +73,38 @@
         }
       }
     },
+    "/api/auth/options": {
+      "get": {
+        "summary": "Auth Options",
+        "operationId": "auth_options_api_auth_options_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/connect": {
+      "post": {
+        "summary": "Connect",
+        "operationId": "connect_api_auth_connect_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/session": {
       "get": {
         "summary": "Session",

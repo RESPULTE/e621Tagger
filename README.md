@@ -41,6 +41,8 @@ docker compose --env-file .env -f deploy/docker-compose.yml up --build -d
 
 Compose binds loopback by default. Put Studio behind private HTTPS through your VPN/reverse proxy, preserve the configured Host header, and set `STUDIO_PUBLIC_ORIGIN` to that HTTPS origin. One service serves UI and API, using one persistent named volume. Do not scale backend processes; a data-directory lock rejects concurrent instances.
 
+For automatic access on a trusted private network, set `STUDIO_PASSWORDLESS=true` and leave `STUDIO_PASSWORD_HASH` empty. Restrict the reverse proxy to your LAN/VPN clients and keep the backend bound to loopback. Studio then opens without a sign-in prompt while retaining sessions, secure cookies, exact Origin checks and CSRF tokens. Password authentication remains the default.
+
 ## Review workflow
 
 1. Search tags by name/category/popularity, or create a custom target using a query and/or up to 50 seed IDs.

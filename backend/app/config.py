@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     data_root: Path = Path("data")
     frontend_root: Path = Path("frontend/dist")
     password_hash: str = ""
+    passwordless: bool = False
     public_origin: str = "http://localhost:8000"
     secure_cookie: bool = True
     mock_e621: bool = False
@@ -31,7 +32,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_runtime(self):
-        if not re.fullmatch(r"scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}", self.password_hash):
+        if not self.passwordless and not re.fullmatch(r"scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}", self.password_hash):
             raise ValueError("Set STUDIO_PASSWORD_HASH using python -m backend.app.auth hash-password")
         if not self.mock_e621 and not self.e621_username.strip():
             raise ValueError("STUDIO_E621_USERNAME is required for a truthful User-Agent")
