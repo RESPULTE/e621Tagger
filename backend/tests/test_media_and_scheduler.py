@@ -295,3 +295,63 @@ async def test_approved_alias_processing_status(settings):
     finally:
         await source.close()
         await db.close()
+
+
+async def test_slow_headers_do_not_serialize_same_host_starts(settings):
+    settings.media_interval = 0.04
+    db = Database(settings.data_root)
+    await db.open()
+    starts = []
+    release_headers = asyncio.Event()
+
+    async def respond(request):
+        starts.append(time.monotonic())
+        await release_headers.wait()
+        return httpx.Response(200)
+
+    media = Media(settings, db, httpx.MockTransport(respond))
+    tasks = [asyncio.create_task(media._open(f"https://static1.e621.net/{i}")) for i in range(3)]
+    try:
+        await asyncio.sleep(0.18)
+        # All request starts must precede the first response headers, without bursting.
+        assert len(starts) == 3
+        assert all(b - a >= 0.035 for a, b in zip(starts, starts[1:]))
+    finally:
+        release_headers.set()
+        for response in await asyncio.gather(*tasks):
+            await response.aclose()
+        await media.close()
+        await db.close()
+
+
+async def test_original_load_leaves_capacity_for_preview(settings):
+    db = Database(settings.data_root)
+    await db.open()
+    media = Media(settings, db, httpx.MockTransport(transport))
+    async with db.transaction() as conn:
+        for i in range(1, 6):
+            await persist_post(conn, post(i))
+    request = Request({"type": "http", "method": "GET", "path": "/", "headers": []})
+    responses = []
+    pending = None
+    try:
+        for i in range(1, 4):
+            responses.append(await media.stream_response(request, i, "original"))
+        pending = asyncio.create_task(media.stream_response(request, 4, "original"))
+        await asyncio.sleep(0.02)
+        await asyncio.wait_for(media.download_preview(5), 0.8)
+        assert not pending.done(), "originals must leave one of the total four slots for previews"
+        assert media.metrics["peak_active"] <= 4
+    finally:
+        if pending:
+            if pending.done() and not pending.cancelled() and pending.exception() is None:
+                responses.append(pending.result())
+            else:
+                pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
+        for response in responses:
+            async for _ in response.body_iterator:
+                pass
+        assert media.metrics["active"] == 0
+        await media.close()
+        await db.close()

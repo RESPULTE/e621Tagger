@@ -16,6 +16,7 @@ from starlette.responses import Response, StreamingResponse
 
 from .e621 import retry_delay
 from .jobs import enqueue
+from .telemetry import Telemetry
 
 
 class Media:
@@ -29,6 +30,13 @@ class Media:
             limits=httpx.Limits(max_connections=settings.media_concurrency),
         )
         self.permits = asyncio.Semaphore(settings.media_concurrency)
+        # Keep the total budget unchanged. Neither long originals nor prefetch may
+        # monopolize it; with one configured slot this degrades to serial service.
+        self.kind_permits = {
+            kind: asyncio.Semaphore(max(1, settings.media_concurrency - 1))
+            for kind in ("preview", "original")
+        }
+        self.timings = Telemetry()
         self.host_locks = {}
         self.host_next = {}
         self.cache_lock = asyncio.Lock()
@@ -47,17 +55,29 @@ class Media:
     async def close(self):
         await self.client.aclose()
 
-    async def acquire_slot(self):
+    async def acquire_slot(self, kind="preview"):
+        started = time.monotonic()
+        acquired_kind = False
         try:
-            await asyncio.wait_for(self.permits.acquire(), timeout=15)
+            await asyncio.wait_for(self.kind_permits[kind].acquire(), timeout=15)
+            acquired_kind = True
+            await asyncio.wait_for(self.permits.acquire(), timeout=max(0.01, 15 - (time.monotonic() - started)))
         except asyncio.TimeoutError:
+            if acquired_kind:
+                self.kind_permits[kind].release()
             raise HTTPException(503, "Media slots are busy", headers={"Retry-After": "2"}) from None
+        except BaseException:
+            if acquired_kind:
+                self.kind_permits[kind].release()
+            raise
+        self.timings.record(f"{kind}_slot_wait_ms", (time.monotonic() - started) * 1000)
         self.metrics["active"] += 1
         self.metrics["peak_active"] = max(self.metrics["peak_active"], self.metrics["active"])
 
-    def release_slot(self):
+    def release_slot(self, kind="preview"):
         self.metrics["active"] -= 1
         self.permits.release()
+        self.kind_permits[kind].release()
 
     def validate_url(self, url):
         parsed = urlsplit(url)
@@ -76,13 +96,22 @@ class Media:
             self.validate_url(url)
             host = urlsplit(url).hostname
             lock = self.host_locks.setdefault(host, asyncio.Lock())
+            started = time.monotonic()
             async with lock:
-                await asyncio.sleep(max(0, self.host_next.get(host, 0) - time.monotonic()))
+                # A response may extend cooldown while this task sleeps.
+                while (delay := self.host_next.get(host, 0) - time.monotonic()) > 0:
+                    await asyncio.sleep(delay)
                 self.host_next[host] = time.monotonic() + self.settings.media_interval
-                response = await self.client.send(self.client.build_request(method, url, headers=headers), stream=True)
-                if response.status_code in {429, 503}:
-                    self.metrics["throttled"] += 1
-                    self.host_next[host] = time.monotonic() + retry_delay(response.headers.get("Retry-After"), 2)
+            self.timings.record("host_wait_ms", (time.monotonic() - started) * 1000)
+            started = time.monotonic()
+            response = await self.client.send(self.client.build_request(method, url, headers=headers), stream=True)
+            self.timings.record("upstream_headers_ms", (time.monotonic() - started) * 1000)
+            if response.status_code in {429, 503}:
+                self.metrics["throttled"] += 1
+                self.host_next[host] = max(
+                    self.host_next.get(host, 0),
+                    time.monotonic() + retry_delay(response.headers.get("Retry-After"), 2),
+                )
             if response.status_code not in {301, 302, 303, 307, 308}:
                 return response
             location = response.headers.get("location")
@@ -101,10 +130,12 @@ class Media:
             async with self.db.transaction() as conn:
                 await conn.execute("DELETE FROM image_cache WHERE post_id=? AND variant='preview'", (post_id,))
             return None
-        async with self.db.transaction() as conn:
-            await conn.execute(
-                "UPDATE image_cache SET last_access_at=? WHERE post_id=? AND variant='preview'", (time.time(), post_id)
-            )
+        # Minute-resolution LRU avoids a WAL write on every warm gallery request.
+        if row["last_access_at"] < time.time() - 60:
+            async with self.db.transaction() as conn:
+                await conn.execute(
+                    "UPDATE image_cache SET last_access_at=? WHERE post_id=? AND variant='preview'", (time.time(), post_id)
+                )
         return row, path
 
     async def schedule(self, post_ids):
@@ -209,6 +240,7 @@ class Media:
             finally:
                 temporary.unlink(missing_ok=True)
         self.metrics["last_download_ms"] = round((time.monotonic() - start) * 1000, 1)
+        self.timings.record("preview_ready_ms", (time.monotonic() - start) * 1000)
 
     async def _prune(self, incoming):
         total = await self.db.one("SELECT COALESCE(sum(bytes),0) AS bytes FROM image_cache")
@@ -276,7 +308,7 @@ class Media:
             headers["Range"] = request.headers["range"]
         if request.headers.get("if-range"):
             headers["If-Range"] = request.headers["if-range"]
-        await self.acquire_slot()
+        await self.acquire_slot("original")
         response = None
         handed_off = False
         try:
@@ -312,7 +344,7 @@ class Media:
                     try:
                         await response.aclose()
                     finally:
-                        self.release_slot()
+                        self.release_slot("original")
 
             handed_off = True
             return StreamingResponse(chunks(), status_code=response.status_code, headers=forwarded)
@@ -324,4 +356,4 @@ class Media:
                     if response:
                         await response.aclose()
                 finally:
-                    self.release_slot()
+                    self.release_slot("original")

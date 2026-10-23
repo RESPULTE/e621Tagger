@@ -99,12 +99,12 @@ async def create_discovery(conn, project_id, query, source_kind, seed_ids=None):
         )
     ).fetchone()
     if row["exhausted"]:
-        return {"job_id": None, "exhausted": True}
+        return {"job_id": None, "exhausted": True, "run_id": row["id"], "query": query}
     payload = {"run_id": row["id"]}
     if seed_ids:
         payload["seed_ids"] = seed_ids
     job_id = await enqueue(conn, "discovery", f"discovery:{row['id']}:{row['cursor'] or 0}", payload)
-    return {"job_id": job_id, "exhausted": False}
+    return {"job_id": job_id, "exhausted": False, "run_id": row["id"], "query": query}
 
 
 @router.post("/projects")
@@ -179,7 +179,7 @@ async def project_detail(project_id: int, request: Request):
     counts["total"] = sum(counts.values())
     searches = await db.rows("SELECT * FROM search_runs WHERE project_id=? ORDER BY id DESC", (project_id,))
     jobs = await db.rows(
-        "SELECT j.id,j.status,j.error,j.result_json FROM jobs j JOIN search_runs s "
+        "SELECT j.id,j.status,j.error,j.result_json,j.updated_at,s.id AS run_id,s.query FROM jobs j JOIN search_runs s "
         "ON json_extract(j.payload_json,'$.run_id')=s.id WHERE j.type='discovery' AND s.project_id=? ORDER BY j.id DESC LIMIT 10",
         (project_id,),
     )
@@ -190,6 +190,8 @@ async def project_detail(project_id: int, request: Request):
 async def discover(project_id: int, body: schemas.DiscoveryCreate, request: Request):
     db = request.app.state.db
     project = await require_project(db, project_id)
+    if body.source_kind == "query" and not body.query.strip():
+        raise HTTPException(422, "Enter an additional discovery query")
     query = clean_query(body.query or project["query"])
     if not query:
         raise HTTPException(422, "Enter a discovery query for this seed-only project")
@@ -249,6 +251,7 @@ async def candidates(
     after: str | None = None,
     before: str | None = None,
     source: schemas.SourceKind | None = None,
+    run_id: int | None = Query(default=None, gt=0),
 ):
     await require_project(request.app.state.db, project_id)
     if state not in {"all", "unreviewed", "reviewed", "positive", "negative", "unsure"}:
@@ -256,6 +259,17 @@ async def candidates(
     if rating is not None and rating not in {"s", "q", "e"}:
         raise HTTPException(422, "Invalid rating")
     where, args = ["c.project_id=?"], [project_id]
+    if run_id is not None:
+        run = await request.app.state.db.one(
+            "SELECT id FROM search_runs WHERE id=? AND project_id=?", (run_id, project_id)
+        )
+        if not run:
+            raise HTTPException(404, "Search does not belong to this project")
+        where.append(
+            "EXISTS(SELECT 1 FROM discoveries d WHERE d.project_id=c.project_id "
+            "AND d.post_id=c.post_id AND d.search_run_id=?)"
+        )
+        args.append(run_id)
     if state == "unreviewed":
         where.append("l.state IS NULL")
     elif state == "reviewed":
@@ -370,6 +384,7 @@ async def metrics(request: Request):
     return {
         "metadata": state.source.metrics,
         "media": state.media.metrics,
+        "media_timings": state.media.timings.snapshot(),
         "queues": queues,
         "cache": cache,
         "timings": state.telemetry.snapshot(),

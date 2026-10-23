@@ -50,6 +50,7 @@ For a private HTTP deployment, explicitly set its exact `http://` origin and `ST
 1. Search tags by name/category/popularity, or create a custom target using a query and/or up to 50 seed IDs.
 2. Import 50 metadata records; **Add next 50** resumes the cursor. Originals load only when a post is opened.
    The additional-query field starts with the project's original selection. Edit the complete query to append terms such as `score:>100`, or remove the original tag when you want a broader search. Studio imports exactly the displayed query; existing candidates and labels are retained.
+   Importing selects that search's results and clears previous view filters. Use **Search results → All imported posts** to return to the cumulative collection. Completion reports new and already-present matches, including zero-result/exhausted searches; **Add next 50** continues the selected search. Sidebar review totals are project-wide.
 3. Click a thumbnail for the original image or video. An e621-provided MP4 fallback is available where supplied upstream.
 4. Use `1` positive, `2` negative, `3` unsure, arrows to navigate, and `Z` to undo, or use the mobile buttons. Skip leaves the label unchanged.
 5. Labels and undo history survive restarts. Failed/conflicting saves show retry controls. Batch reviews affect only explicitly selected posts and commit atomically.

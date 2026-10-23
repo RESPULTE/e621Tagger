@@ -1,5 +1,13 @@
 # Validation — 21 October 2026
 
+## Local continuation checks — 23 October 2026
+
+Branch `fix/discovery-media-datasets`, starting at `3a5dee5`. Three new regressions failed before the fix and passed afterward: overlapping import counts/run filtering, concurrent same-host starts before delayed headers, and preview progress while three originals hold slots. Full Windows Python 3.10 backend suite: **27 passed**; Ruff passed; OpenAPI/types regenerated; frontend production build passed. New search browser scenario passed on desktop Chromium, mobile Chromium and iPhone-sized WebKit, covering duplicate-only provenance, filtered results, empty/exhausted searches, and preserved positive reviews. Existing desktop suite had six passes and two expected skips; its first new scenario failure was an accessible-name selector, corrected and rerun across all three browsers. Physical iPhone behavior is not inferred.
+
+A local controlled benchmark used 16 synthetic thumbnails, 600ms mock CDN response-header latency, 250ms host start spacing, identical 41,071 transferred bytes, and fresh temporary SQLite/cache roots. Baseline `3a5dee5`: cold completion 9,833.40ms, warm sequential request p95 23.90ms, peak four permits. Updated: cold completion 4,388.93ms, warm p95 2.68ms, peak three permits. This isolates application scheduling/cache-write effects; it does not measure home-server CPU/RAM, real CDN/DNS, or browser decoding. Original byte streaming/Range behavior is unchanged and covered by existing tests.
+
+Cloudflare WARP reported Connected, healthy, Mode Warp before reading the official API page on 23 October. The page still specifies a descriptive User-Agent and best-effort sustained requests at no more than one per second. The metadata scheduler was not relaxed. Deployment/live CDN verification for this continuation remains pending access; older results below describe the previous deployed version.
+
 ## Ubuntu Docker deployment
 
 Validated on the user's ThinkPad X260, Ubuntu 24.04.4 LTS x86_64, Intel i5-6300U (4 logical CPUs), 7.6 GiB RAM, with 56 GiB free disk before deployment. Docker Engine 29.6.1 and Compose 5.3.1 were already installed.

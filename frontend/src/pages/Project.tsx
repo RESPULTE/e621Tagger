@@ -65,6 +65,7 @@ export function Project() {
   } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
+  const [importNotice, setImportNotice] = useState("");
   const [retryImport, setRetryImport] = useState<(() => void) | null>(null);
   const requestParams = params.toString();
   const project = useQuery({
@@ -80,16 +81,31 @@ export function Project() {
     project.data?.jobs.some((job) =>
       ["pending", "running"].includes(String(job.status)),
     ) ?? false;
+  const selectedSearch = project.data?.searches.find(
+    (search) => String(search.id) === params.get("run_id"),
+  );
+  const latestJob = project.data?.jobs.find(
+    (job) => !selectedSearch || job.run_id === selectedSearch.id,
+  );
+  const jobResult = latestJob?.result_json
+    ? (JSON.parse(String(latestJob.result_json)) as {
+        imported: number; added?: number; existing?: number; exhausted: boolean;
+      })
+    : null;
+  const importRevision = project.data?.jobs
+    .map((job) => `${job.id}:${job.status}:${job.updated_at}`)
+    .join("|");
   const candidates = useQuery({
     queryKey: ["candidates", projectId, requestParams],
     queryFn: () =>
       api<CandidatePage>(`/projects/${projectId}/candidates?${requestParams}`),
     refetchInterval: activeImport ? 2000 : false,
   });
-  // Import completion may turn polling off before the candidate timer fires.
+  // Duplicate-only imports update provenance without changing the candidate count.
+  // Invalidate on job transitions too, including completion between polling ticks.
   useEffect(() => {
     void client.invalidateQueries({ queryKey: ["candidates", projectId] });
-  }, [client, projectId, project.data?.counts.total]);
+  }, [client, projectId, project.data?.counts.total, importRevision]);
   const items = candidates.data?.items ?? [];
   const focusedPost =
     items.find((item) => item.post_id === focused) ?? items[0];
@@ -215,11 +231,18 @@ export function Project() {
       setImporting(true);
       setImportError("");
       try {
-        await api(`/projects/${projectId}/discovery`, {
+        const result = await api<{ run_id?: number; job_id: number | null; exhausted: boolean; query: string }>(`/projects/${projectId}/discovery`, {
           method: "POST",
           body: JSON.stringify(payload),
         });
+        // Show the requested search, clearing old review filters/cursors. The full
+        // collection and its labels remain available through All imported posts.
+        if (result.run_id) setParams({ run_id: String(result.run_id) });
+        setImportNotice(result.exhausted
+          ? `No more results for “${result.query}”. All previously imported results are shown.`
+          : `Search queued: “${result.query}”. You can keep reviewing.`);
         await client.invalidateQueries({ queryKey: ["project", projectId] });
+        await client.invalidateQueries({ queryKey: ["candidates", projectId] });
         setRetryImport(null);
       } catch (error) {
         setImportError(errorText(error));
@@ -247,6 +270,20 @@ export function Project() {
             : "e621 target"}{" "}
           · {counts?.total ?? 0} candidates
         </p>
+        <label>
+          Search results
+          <select
+            aria-label="Search results"
+            value={params.get("run_id") ?? ""}
+            onChange={(event) => setParams(event.target.value ? { run_id: event.target.value } : {})}
+          >
+            <option value="">All imported posts</option>
+            {project.data?.searches.map((search) => (
+              <option key={String(search.id)} value={String(search.id)}>{String(search.query)}</option>
+            ))}
+          </select>
+        </label>
+        <p className="muted">Project-wide review totals · buttons filter the current search</p>
         <div className="count-grid">
           {(["positive", "negative", "unsure", "unreviewed"] as const).map(
             (state) => (
@@ -369,30 +406,30 @@ export function Project() {
             disabled={
               importing ||
               activeImport ||
-              !project.data?.query ||
-              project.data?.searches.some(
+              !(selectedSearch?.query ?? project.data?.query) ||
+              selectedSearch?.source_kind === "seed" ||
+              (selectedSearch ? !!selectedSearch.exhausted : project.data?.searches.some(
                 (s) => s.query === project.data?.query && !!s.exhausted,
-              )
+              ))
             }
             onClick={() => {
-              void importPosts();
+              void importPosts(selectedSearch ? String(selectedSearch.query) : "");
             }}
           >
             Add next 50
           </button>
         </div>
         <div className="import-status" aria-live="polite">
-          {activeImport
+          {importing ? "Submitting search…" : activeImport
             ? "Importing metadata… You can keep reviewing."
-            : "1 positive · 2 negative · 3 unsure · arrows navigate · Z undo"}
-          {project.data?.jobs
-            .filter((job) => job.status === "failed")
-            .slice(0, 1)
-            .map((job) => (
-              <p className="error" key={String(job.id)}>
-                Import failed: {String(job.error)}
-              </p>
-            ))}
+            : jobResult
+              ? `${jobResult.imported} matches processed · ${jobResult.added ?? jobResult.imported} new · ${jobResult.existing ?? 0} already in project.${jobResult.exhausted ? " No more results for this search." : " Add next 50 to continue."}`
+              : importNotice || "1 positive · 2 negative · 3 unsure · arrows navigate · Z undo"}
+          {latestJob?.status === "failed" && (
+            <p className="error" role="alert">
+              Search “{String(latestJob.query)}” failed: {String(latestJob.error)}. Submit this query again to retry.
+            </p>
+          )}
         </div>
         <form
           className="additional-search"
@@ -417,7 +454,7 @@ export function Project() {
           </button>
         </form>
         <p className="muted">
-          Edit the full e621 query: add filters or remove terms before importing.
+          Edit the full e621 query. Import shows this search's results; all previous posts and reviews are retained.
         </p>
         {importError && (
           <p className="error" role="alert">

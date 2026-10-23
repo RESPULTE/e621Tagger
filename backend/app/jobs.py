@@ -180,12 +180,14 @@ class Workers:
             posts = data["posts"]
         now = time.time()
         async with self.db.transaction() as conn:
+            added = 0
             for post in posts:
                 await persist_post(conn, post)
-                await conn.execute(
+                inserted = await conn.execute(
                     "INSERT OR IGNORE INTO project_candidates(project_id,post_id,first_seen_at) VALUES(?,?,?)",
                     (run["project_id"], post["id"], now),
                 )
+                added += inserted.rowcount
                 await conn.execute(
                     "INSERT OR IGNORE INTO discoveries VALUES(?,?,?,?)", (run["project_id"], post["id"], run["id"], now)
                 )
@@ -194,7 +196,10 @@ class Workers:
             await conn.execute(
                 "UPDATE search_runs SET cursor=?,exhausted=? WHERE id=?", (cursor, int(exhausted), run["id"])
             )
-            result = {"imported": len(posts), "unavailable_ids": missing, "exhausted": exhausted}
+            result = {
+                "imported": len(posts), "added": added, "existing": len(posts) - added,
+                "unavailable_ids": missing, "exhausted": exhausted,
+            }
             await conn.execute(
                 "UPDATE jobs SET status='done',lease_until=NULL,result_json=?,error=NULL,updated_at=? WHERE id=?",
                 (json.dumps(result), now, job["id"]),

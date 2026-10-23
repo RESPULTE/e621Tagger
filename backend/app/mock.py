@@ -88,8 +88,39 @@ def transport(request):
             return httpx.Response(200, json=aliases)
         if path == "/posts.json":
             top = int(params.get("page", "b1001")[1:]) - 1
+            def matches(item):
+                tags = {tag for values in item["tags"].values() for tag in values}
+                for term in params.get("tags", "").split():
+                    if term == "order:id_desc":
+                        continue
+                    if term.startswith("rating:"):
+                        if item["rating"] != term[7:]:
+                            return False
+                    elif term.startswith("score:"):
+                        score = re.fullmatch(r"score:(>=|<=|>|<|=)?(-?\d+)", term)
+                        if not score:
+                            return False
+                        op, threshold = score[1] or "=", int(score[2])
+                        actual = item["score"]["total"]
+                        if not {">": actual > threshold, "<": actual < threshold,
+                                ">=": actual >= threshold, "<=": actual <= threshold, "=": actual == threshold}[op]:
+                            return False
+                    elif term.startswith("-"):
+                        if term[1:] in tags:
+                            return False
+                    elif term not in tags:
+                        return False
+                return True
+
+            selected = []
+            for i in range(top, 500, -1):
+                item = post(i)
+                if matches(item):
+                    selected.append(item)
+                if len(selected) >= int(params.get("limit", 50)):
+                    break
             return httpx.Response(
-                200, json={"posts": [post(i) for i in range(top, max(500, top - int(params.get("limit", 50))), -1)]}
+                200, json={"posts": selected}
             )
         match = re.fullmatch(r"/posts/(\d+)\.json", path)
         if match:

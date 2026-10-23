@@ -20,6 +20,10 @@ One metadata scheduler coalesces requests and prioritizes interactive searches i
 
 Media uses four shared permits, per-host request spacing/backoff, and at most 64 queued thumbnail jobs. A missing thumbnail returns 202 while queued; the frontend retries. Only visible rows plus one viewport of overscan mount and prefetch. Candidate pages default to 50 and cap at 100; the UI does not retain every candidate.
 
+At the default four permits, previews and originals each have a three-request cap so neither can occupy the entire shared budget. A single configured permit remains serial. Host locks serialize request starts only, not response-header waits; sleepers recheck cooldown when a concurrent response extends Retry-After. Warm-cache LRU timestamps update at most once per minute; byte-length and SHA-256 checks remain intact. `media_timings` reports bounded samples of slot wait, host wait, upstream headers and preview readiness. These measurements contain no URLs or post IDs.
+
+Discovery responses identify their search run. Candidate views can filter by that run without deleting any candidates or labels. Job results count new versus existing project candidates; frontend invalidation follows job transitions as well as total-count changes, so duplicate-only imports refresh provenance.
+
 Preview downloads cap at 8 MiB and 20 million pixels, decode off the event loop, and resize to 320 px WebP. Atomic rename precedes the valid-cache marker. SHA-256 detects corrupt derivatives. The default 5 GiB LRU cache evicts unreviewed thumbnails first, then reviewed thumbnails if required by the hard quota.
 
 Originals and video stream in bounded chunks, bypassing disk cache and Pillow. Range/If-Range and range response headers are preserved. Browsers decode media; MP4 fallbacks come from upstream metadata. Every media URL and redirect requires HTTPS and an exact approved CDN host. There is no transcoder.

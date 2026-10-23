@@ -246,3 +246,31 @@ def test_private_http_session_does_not_collide_with_previous_https_cookie(tmp_pa
         client.headers["X-CSRF-Token"] = response.json()["csrf_token"]
         assert client.post("/api/auth/logout").status_code == 200
         assert client.get("/api/auth/session").status_code == 401
+
+
+def test_overlapping_search_reports_existing_and_filters_by_run(client):
+    created, _ = project(client)
+    import_job(client, created["jobs"][0]["job_id"])
+    pid = created["id"]
+    path = f"/api/projects/{pid}"
+    reviewed = client.patch(path + "/labels/1000", json={
+        "request_id": str(uuid4()), "state": "positive", "expected_version": 0,
+    }).json()
+    # Deliberate overlapping upstream page: new provenance, zero new candidates.
+    body = {"request_id": str(uuid4()), "query": "dragon solo", "source_kind": "query"}
+    result = client.post(path + "/discovery", json=body).json()
+    assert client.post(path + "/discovery", json=body).json() == result
+    import_job(client, result["job_id"])
+    job = client.get(f"/api/jobs/{result['job_id']}").json()
+    counts = json.loads(job["result_json"])
+    assert counts["added"] == 0 and counts["existing"] == 50
+    filtered = client.get(path + f"/candidates?run_id={result['run_id']}").json()
+    assert filtered["total"] == 50
+    assert all("query: dragon solo" in p["sources"] for p in filtered["items"])
+    assert client.get(path).json()["counts"]["total"] == 50
+    assert client.get(path + "/candidates/1000").json()["version"] == reviewed["version"]
+    other, _ = project(client)
+    assert client.get(f"/api/projects/{other['id']}/candidates?run_id={result['run_id']}").status_code == 404
+    assert client.post(path + "/discovery", json={
+        "request_id": str(uuid4()), "query": "", "source_kind": "query",
+    }).status_code == 422

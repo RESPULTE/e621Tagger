@@ -370,3 +370,34 @@ test("additional query starts with the project selection and remains fully edita
   expect(withoutTag.postDataJSON().query).toBe("score:>100");
   expect(withoutTag.postDataJSON().request_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });
+
+test("additional searches show overlaps, filtered results and exhaustion without losing reviews", async ({ page }) => {
+  await login(page);
+  await createProject(page);
+  await page.getByLabel("Select post 1000", { exact: true }).check();
+  await page.getByRole("button", { name: "Mark positive", exact: true }).click();
+  await expect(page.getByText("Select posts for batch review", { exact: true })).toBeVisible();
+  const query = page.getByRole("textbox", { name: "Additional discovery query" });
+  const submit = page.getByRole("button", { name: "Import 50", exact: true });
+  await query.fill("dragon solo");
+  await submit.click();
+  await expect(page.locator(".import-status")).toContainText("0 new · 50 already in project");
+  await expect(page.getByLabel("Search results", { exact: true })).not.toHaveValue("");
+  const view = new URL(page.url());
+  const imported = await (await page.request.get(`/api${view.pathname}/candidates${view.search}`)).json();
+  expect(imported.items.every((post: { sources: string[] }) => post.sources.includes("query: dragon solo"))).toBe(true);
+  await query.fill("dragon score:>190");
+  await submit.click();
+  await expect(page.locator(".import-status")).toContainText("No more results for this search");
+  await expect(page.getByRole("button", { name: "Open post 1000", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("27 matching");
+  await query.fill("no_such_mock_tag");
+  await submit.click();
+  await expect(page.locator(".import-status")).toContainText("0 matches processed");
+  await submit.click();
+  await expect(page.locator(".import-status")).toContainText("No more results for this search");
+  await page.getByLabel("Search results", { exact: true }).selectOption("");
+  await expect(page.getByRole("button", { name: "Open post 1000", exact: true })).toBeVisible();
+  const card = page.locator(".post-card").filter({ has: page.getByRole("button", { name: "Open post 1000", exact: true }) });
+  await expect(card).toHaveClass(/positive/);
+});
