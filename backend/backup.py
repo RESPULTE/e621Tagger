@@ -15,6 +15,10 @@ def backup(root: Path, destination: Path):
         with sqlite3.connect(source.as_uri() + "?mode=ro", uri=True) as reader:
             with sqlite3.connect(destination) as writer:
                 reader.backup(writer, pages=256, sleep=0.05)
+                if writer.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                    raise ValueError("Backup failed SQLite integrity verification")
+                if writer.execute("PRAGMA foreign_key_check").fetchone() is not None:
+                    raise ValueError("Backup failed foreign-key verification")
     except BaseException:
         destination.unlink(missing_ok=True)
         raise

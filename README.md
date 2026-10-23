@@ -2,7 +2,7 @@
 
 A private e621-style workspace for finding posts and reviewing examples for a target tag. Supports existing e621 tags and custom labels, 50-post imports, a virtualized thumbnail gallery, original and animated images, video with seeking, and audited positive / negative / unsure reviews.
 
-**Milestone:** P0–P2. Dataset exports, embeddings, training, and remote GPU work remain deferred. The runtime has no PyTorch or checkpoint dependency. The original `hydra/` library and local `models/` assets are preserved for future GPU integration.
+**Milestone:** P0–P3. Dataset quality and immutable metadata exports are available; embeddings, training, and remote GPU work remain optional follow-on phases. The runtime has no PyTorch or checkpoint dependency. The original `hydra/` library and local `models/` assets are preserved for future GPU integration.
 
 ## Local setup
 
@@ -56,6 +56,14 @@ For a private HTTP deployment, explicitly set its exact `http://` origin and `ST
 5. Labels and undo history survive restarts. Failed/conflicting saves show retry controls. Batch reviews affect only explicitly selected posts and commit atomically.
 
 Tag absence never becomes a verified negative automatically. Reviews are project-specific; unsure and unreviewed are distinct.
+
+## Dataset quality and exports
+
+Open **Dataset quality & exports** from a project's gallery. Additional queries may be marked unrelated or lookalike/hard-negative triage; these are provenance categories, not labels. Review positives and real negatives, inspect availability/conflicting exact duplicates, and prepare missing preview fingerprints in batches of 64.
+
+Freeze a named version with a repeatable split seed. Exact MD5 and preview dHash groups remain in one train/validation/test split; optional artist and copyright/series grouping is conservative. Exact duplicate labels that conflict are excluded. The full JSON manifest includes exclusions; CSV and JSONL contain supervised positive/negative rows. JSONL begins with a manifest metadata record. Originals are never bundled or cached by this feature.
+
+The current bounded workflow supports at most 5,000 candidates per project and a 16 MiB manifest. Small or highly connected groups can leave splits empty; the UI reports warnings rather than distributing duplicates across splits. See [dataset policy](docs/datasets.md) for algorithms, availability states and limitations.
 
 ## Checks
 

@@ -4,7 +4,7 @@ Studio stores source metadata, discovery provenance, project-specific human labe
 
 Raw e621 tags are discovery evidence. Every candidate starts unreviewed. The reviewer confirms positive, negative or unsure; tag absence never implies a verified negative. Skip leaves the label unchanged. Undo appends history rather than deleting it.
 
-Original images and videos stream privately when opened and are not persistently cached. Thumbnails have a disk quota and are disposable. Reviewed thumbnails have eviction preference but are not archival dataset assets. Snapshots, exports, splits and asset pinning are deferred to P3.
+Original images and videos stream privately when opened and are not persistently cached. Thumbnails have a disk quota and are disposable. Reviewed thumbnails have eviction preference but are not archival dataset assets. Frozen versions retain reviewed labels/versions, discovery provenance, availability and deterministic duplicate-group splits; metadata exports do not redistribute media. Source-bound preview fingerprints remain after thumbnail eviction. Dataset exports exclude unsure/unreviewed from supervised targets. See [dataset policy](datasets.md).
 
 Use private HTTPS. Authentication protects metadata, media, jobs and metrics. Session cookies are HttpOnly/SameSite Strict, with Secure enabled by default. Mutations require the configured Origin and session CSRF token. Secrets belong in the ignored environment file.
 

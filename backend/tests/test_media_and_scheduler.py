@@ -261,7 +261,7 @@ async def test_null_urls_corrupt_download_and_cache_eviction(settings):
         path = media.cache_root / "2.webp"
         path.write_bytes(b"x" * 700_000)
         async with db.transaction() as conn:
-            await conn.execute("INSERT INTO image_cache VALUES(2,'preview','cache/2.webp',700000,'test',0)")
+            await conn.execute("INSERT INTO image_cache VALUES(2,'preview','cache/2.webp',700000,'test',0,NULL,NULL)")
         await media._prune(700_000)
         assert not path.exists()
         assert await db.one("SELECT * FROM image_cache") is None

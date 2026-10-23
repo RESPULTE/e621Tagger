@@ -16,6 +16,7 @@ from starlette.responses import Response, StreamingResponse
 
 from .e621 import retry_delay
 from .jobs import enqueue
+from .quality import difference_hash
 from .telemetry import Telemetry
 
 
@@ -122,13 +123,23 @@ class Media:
         raise HTTPException(502, "Too many CDN redirects")
 
     async def cached_preview(self, post_id):
-        row = await self.db.one("SELECT * FROM image_cache WHERE post_id=? AND variant='preview'", (post_id,))
+        row = await self.db.one(
+            "SELECT i.*,p.preview_url AS current_url,p.md5 AS current_md5 FROM image_cache i JOIN posts p USING(post_id) "
+            "WHERE i.post_id=? AND variant='preview'", (post_id,)
+        )
         if not row:
             return None
         path = (self.db.root / row["relative_path"]).resolve()
-        if not path.is_relative_to(self.cache_root) or not path.is_file() or path.stat().st_size != row["bytes"]:
+        # V1 entries have no source identity; rebuild lazily instead of attaching
+        # a new source MD5 to bytes whose origin cannot be established.
+        stale = row["source_url"] is None or (
+            row["source_url"] != row["current_url"] or row["source_md5"] != row["current_md5"]
+        )
+        if stale or not path.is_relative_to(self.cache_root) or not path.is_file() or path.stat().st_size != row["bytes"]:
             async with self.db.transaction() as conn:
                 await conn.execute("DELETE FROM image_cache WHERE post_id=? AND variant='preview'", (post_id,))
+            if path.is_relative_to(self.cache_root):
+                path.unlink(missing_ok=True)
             return None
         # Minute-resolution LRU avoids a WAL write on every warm gallery request.
         if row["last_access_at"] < time.time() - 60:
@@ -138,7 +149,7 @@ class Media:
                 )
         return row, path
 
-    async def schedule(self, post_ids):
+    async def schedule(self, post_ids, *, fingerprints=False):
         scheduled = []
         async with self.db.transaction() as conn:
             count = await (
@@ -156,10 +167,18 @@ class Media:
                 cache = await (
                     await conn.execute("SELECT 1 FROM image_cache WHERE post_id=? AND variant='preview'", (post_id,))
                 ).fetchone()
+                fingerprint = await (
+                    await conn.execute(
+                        "SELECT 1 FROM image_fingerprints f JOIN posts p USING(post_id) "
+                        "WHERE f.post_id=? AND f.md5 IS p.md5 AND f.preview_url IS p.preview_url", (post_id,)
+                    )
+                ).fetchone() if fingerprints else None
                 prior = await (
                     await conn.execute("SELECT status,updated_at FROM jobs WHERE job_key=?", (f"preview:{post_id}",))
                 ).fetchone()
-                if cache or (prior and prior["status"] == "failed" and prior["updated_at"] > time.time() - 300):
+                if (cache and (not fingerprints or fingerprint)) or (
+                    prior and prior["status"] == "failed" and prior["updated_at"] > time.time() - 300
+                ):
                     continue
                 job_id = await enqueue(conn, "preview", f"preview:{post_id}", {"post_id": post_id})
                 scheduled.append(job_id)
@@ -181,9 +200,18 @@ class Media:
 
     async def download_preview(self, post_id):
         async with self.cache_lock:
-            if await self.cached_preview(post_id):
-                return
-        post = await self.db.one("SELECT preview_url FROM posts WHERE post_id=?", (post_id,))
+            cached = await self.cached_preview(post_id)
+            if cached:
+                row, path = cached
+                raw = await asyncio.to_thread(path.read_bytes)
+                if row["source_url"] is not None and hashlib.sha256(raw).hexdigest() == row["etag"]:
+                    post = {"md5": row["source_md5"], "preview_url": row["source_url"]}
+                    await self.record_fingerprint(post_id, post, raw)
+                    return
+                async with self.db.transaction() as conn:
+                    await conn.execute("DELETE FROM image_cache WHERE post_id=? AND variant='preview'", (post_id,))
+                path.unlink(missing_ok=True)
+        post = await self.db.one("SELECT md5,preview_url FROM posts WHERE post_id=?", (post_id,))
         if not post or not post["preview_url"]:
             raise HTTPException(404, "Thumbnail unavailable")
         start = time.monotonic()
@@ -230,8 +258,9 @@ class Media:
                 try:
                     async with self.db.transaction() as conn:
                         await conn.execute(
-                            "INSERT OR REPLACE INTO image_cache VALUES(?,'preview',?,?,?,?)",
-                            (post_id, relative.as_posix(), len(thumb), hashlib.sha256(thumb).hexdigest(), time.time()),
+                            "INSERT OR REPLACE INTO image_cache VALUES(?,'preview',?,?,?,?,?,?)",
+                            (post_id, relative.as_posix(), len(thumb), hashlib.sha256(thumb).hexdigest(), time.time(),
+                             post["preview_url"], post["md5"]),
                         )
                 except BaseException:
                     # A disk-full database must not leave unaccounted files outside the LRU quota.
@@ -241,6 +270,17 @@ class Media:
                 temporary.unlink(missing_ok=True)
         self.metrics["last_download_ms"] = round((time.monotonic() - start) * 1000, 1)
         self.timings.record("preview_ready_ms", (time.monotonic() - start) * 1000)
+        await self.record_fingerprint(post_id, post, thumb)
+
+    async def record_fingerprint(self, post_id, post, raw):
+        value = await asyncio.to_thread(difference_hash, raw)
+        async with self.db.transaction() as conn:
+            # A discovery refresh may replace source metadata during the download.
+            await conn.execute(
+                "INSERT OR REPLACE INTO image_fingerprints SELECT post_id,md5,preview_url,? FROM posts "
+                "WHERE post_id=? AND md5 IS ? AND preview_url IS ?",
+                (value, post_id, post["md5"], post["preview_url"]),
+            )
 
     async def _prune(self, incoming):
         total = await self.db.one("SELECT COALESCE(sum(bytes),0) AS bytes FROM image_cache")

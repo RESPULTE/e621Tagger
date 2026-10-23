@@ -4,7 +4,7 @@ React and FastAPI share one origin. A single Uvicorn process owns the metadata s
 
 `api.py` owns HTTP contracts and candidate queries. `reviews.py` owns transitions, receipts and undo. `jobs.py` owns discovery and durable jobs. `e621.py` owns metadata scheduling and tag resolution. `media.py` owns URL validation, thumbnail caching and original streaming. `auth.py` owns password verification and persisted sessions.
 
-SQLite uses WAL, foreign keys and a busy timeout. An async lock serializes short transactions and reads on one aiosqlite connection; network I/O never occurs inside a transaction. Version 1 initializes transactionally through `PRAGMA user_version`; future schema changes require explicit migrations. Newer databases are rejected.
+SQLite uses WAL, foreign keys and a busy timeout. An async lock serializes short transactions and reads on one aiosqlite connection; network I/O never occurs inside a transaction. Schema version 2 adds source-bound preview fingerprints, cache source identity and immutable dataset manifests. Existing v1 databases receive an integrity-checked online backup before the additive transaction. Newer databases are rejected.
 
 ## Correctness
 
@@ -30,4 +30,4 @@ Originals and video stream in bounded chunks, bypassing disk cache and Pillow. R
 
 ## Deferred
 
-Exports, frozen datasets, near-duplicate grouping, model runs, GPU transport, Hydra recognition badges, offline saves and multi-user roles remain outside P0–P2. Future training export must decide how to turn video reviews into frame samples. Actual ThinkPad and physical iPhone performance still require deployment measurement.
+`quality.py` owns deterministic grouping and eligibility; `datasets.py` owns snapshots, version publication and export. See [dataset policy](datasets.md). Embedding retrieval, model runs, GPU transport, Hydra recognition badges, offline saves and multi-user roles remain follow-on phases. Video-frame training policy and physical iPhone verification remain unresolved.

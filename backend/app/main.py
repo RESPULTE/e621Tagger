@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 
 from .api import public, router
 from .config import Settings
+from .datasets import router as datasets_router
 from .db import Database
 from .e621 import E621
 from .jobs import Workers
@@ -122,6 +123,7 @@ await self.registration.unregister();for(const client of await self.clients.matc
 
     app.include_router(public)
     app.include_router(router)
+    app.include_router(datasets_router)
 
     @app.get("/{path:path}")
     async def frontend(path: str):

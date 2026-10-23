@@ -526,7 +526,9 @@
                   "enum": [
                     "target",
                     "query",
-                    "seed"
+                    "seed",
+                    "unrelated",
+                    "hard_negative"
                   ],
                   "type": "string"
                 },
@@ -967,6 +969,215 @@
         }
       }
     },
+    "/api/projects/{project_id}/quality": {
+      "get": {
+        "summary": "Quality",
+        "operationId": "quality_api_projects__project_id__quality_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/quality/prepare": {
+      "post": {
+        "summary": "Prepare",
+        "operationId": "prepare_api_projects__project_id__quality_prepare_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/datasets": {
+      "post": {
+        "summary": "Freeze",
+        "operationId": "freeze_api_projects__project_id__datasets_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DatasetCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Versions",
+        "operationId": "versions_api_projects__project_id__datasets_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/datasets/{version_id}/export": {
+      "get": {
+        "summary": "Export",
+        "operationId": "export_api_datasets__version_id__export_get",
+        "parameters": [
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "jsonl",
+                "csv"
+              ],
+              "type": "string",
+              "default": "jsonl",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/{path}": {
       "get": {
         "summary": "Frontend",
@@ -1283,6 +1494,52 @@
         ],
         "title": "ClientMetric"
       },
+      "DatasetCreate": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "\\S",
+            "title": "Name"
+          },
+          "split_seed": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Split Seed",
+            "default": "studio-v1"
+          },
+          "group_artists": {
+            "type": "boolean",
+            "title": "Group Artists",
+            "default": true
+          },
+          "group_series": {
+            "type": "boolean",
+            "title": "Group Series",
+            "default": false
+          },
+          "near_hamming": {
+            "type": "integer",
+            "maximum": 8.0,
+            "minimum": 0.0,
+            "title": "Near Hamming",
+            "default": 4
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "name"
+        ],
+        "title": "DatasetCreate"
+      },
       "DiscoveryCreate": {
         "properties": {
           "request_id": {
@@ -1300,7 +1557,9 @@
             "type": "string",
             "enum": [
               "target",
-              "query"
+              "query",
+              "unrelated",
+              "hard_negative"
             ],
             "title": "Source Kind",
             "default": "target"

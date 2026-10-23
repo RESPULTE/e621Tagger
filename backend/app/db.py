@@ -1,6 +1,7 @@
 """Short, serialized transactions; never hold a transaction across network I/O."""
 
 import asyncio
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -61,6 +62,23 @@ CREATE INDEX IF NOT EXISTS post_md5 ON posts(md5);
 CREATE INDEX IF NOT EXISTS events_post ON label_events(project_id,post_id,id DESC);
 """
 
+SCHEMA_V2 = """
+ALTER TABLE image_cache ADD COLUMN source_url TEXT;
+ALTER TABLE image_cache ADD COLUMN source_md5 TEXT;
+CREATE TABLE image_fingerprints(
+ post_id INTEGER PRIMARY KEY REFERENCES posts(post_id), md5 TEXT, preview_url TEXT,
+ dhash TEXT NOT NULL CHECK(length(dhash)=16));
+CREATE TABLE datasets(
+ id TEXT PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id),
+ name TEXT NOT NULL, created_at REAL NOT NULL, manifest_sha256 TEXT NOT NULL,
+ manifest_json TEXT NOT NULL);
+CREATE INDEX datasets_project ON datasets(project_id,created_at DESC);
+CREATE TRIGGER datasets_no_update BEFORE UPDATE ON datasets
+ BEGIN SELECT RAISE(ABORT,'Frozen datasets are immutable'); END;
+CREATE TRIGGER datasets_no_delete BEFORE DELETE ON datasets
+ BEGIN SELECT RAISE(ABORT,'Frozen datasets are immutable'); END;
+"""
+
 
 class Database:
     def __init__(self, root: Path):
@@ -98,10 +116,22 @@ class Database:
         await self.connection.execute("PRAGMA busy_timeout=5000")
         current = await self.connection.execute("PRAGMA user_version")
         version = (await current.fetchone())[0]
-        if version > 1:
+        if version > 2:
             raise RuntimeError("Database schema is newer than this application")
         if version == 0:
-            await self.connection.executescript("BEGIN IMMEDIATE;" + SCHEMA + "PRAGMA user_version=1; COMMIT;")
+            await self.connection.executescript("BEGIN IMMEDIATE;" + SCHEMA + SCHEMA_V2 + "PRAGMA user_version=2; COMMIT;")
+        elif version == 1:
+            from backend.backup import backup
+
+            # The process lock is already held. Use SQLite online backup, never a
+            # raw DB-file copy that could omit WAL commits. Failure aborts startup.
+            destination = self.root / "backups" / f"pre-schema-v2-{time.time_ns()}.sqlite3"
+            await asyncio.to_thread(backup, self.root, destination)
+            try:
+                await self.connection.executescript("BEGIN IMMEDIATE;" + SCHEMA_V2 + "PRAGMA user_version=2; COMMIT;")
+            except BaseException:
+                await self.connection.rollback()
+                raise
 
     @asynccontextmanager
     async def transaction(self):

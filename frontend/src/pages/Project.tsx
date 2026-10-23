@@ -66,6 +66,7 @@ export function Project() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
   const [importNotice, setImportNotice] = useState("");
+  const [discoveryKind, setDiscoveryKind] = useState("query");
   const [retryImport, setRetryImport] = useState<(() => void) | null>(null);
   const requestParams = params.toString();
   const project = useQuery({
@@ -89,7 +90,10 @@ export function Project() {
   );
   const jobResult = latestJob?.result_json
     ? (JSON.parse(String(latestJob.result_json)) as {
-        imported: number; added?: number; existing?: number; exhausted: boolean;
+        imported: number;
+        added?: number;
+        existing?: number;
+        exhausted: boolean;
       })
     : null;
   const importRevision = project.data?.jobs
@@ -221,26 +225,36 @@ export function Project() {
     updated.delete("cursor");
     setParams(updated);
   }
-  async function importPosts(query = "") {
+  async function importPosts(
+    query = "",
+    sourceKind = query ? discoveryKind : "target",
+  ) {
     const payload = {
       request_id: mutationId(),
       query,
-      source_kind: query ? "query" : "target",
+      source_kind: sourceKind,
     };
     const run = async () => {
       setImporting(true);
       setImportError("");
       try {
-        const result = await api<{ run_id?: number; job_id: number | null; exhausted: boolean; query: string }>(`/projects/${projectId}/discovery`, {
+        const result = await api<{
+          run_id?: number;
+          job_id: number | null;
+          exhausted: boolean;
+          query: string;
+        }>(`/projects/${projectId}/discovery`, {
           method: "POST",
           body: JSON.stringify(payload),
         });
         // Show the requested search, clearing old review filters/cursors. The full
         // collection and its labels remain available through All imported posts.
         if (result.run_id) setParams({ run_id: String(result.run_id) });
-        setImportNotice(result.exhausted
-          ? `No more results for “${result.query}”. All previously imported results are shown.`
-          : `Search queued: “${result.query}”. You can keep reviewing.`);
+        setImportNotice(
+          result.exhausted
+            ? `No more results for “${result.query}”. All previously imported results are shown.`
+            : `Search queued: “${result.query}”. You can keep reviewing.`,
+        );
         await client.invalidateQueries({ queryKey: ["project", projectId] });
         await client.invalidateQueries({ queryKey: ["candidates", projectId] });
         setRetryImport(null);
@@ -263,6 +277,11 @@ export function Project() {
     <div className="workspace">
       <aside className="sidebar">
         <Link to="/">← All projects</Link>
+        <p>
+          <Link to={`/projects/${projectId}/datasets`}>
+            Dataset quality & exports →
+          </Link>
+        </p>
         <h2>{project.data?.display_name.replaceAll("_", " ") ?? "Project"}</h2>
         <p className="muted">
           {project.data?.target_kind === "custom"
@@ -275,15 +294,23 @@ export function Project() {
           <select
             aria-label="Search results"
             value={params.get("run_id") ?? ""}
-            onChange={(event) => setParams(event.target.value ? { run_id: event.target.value } : {})}
+            onChange={(event) =>
+              setParams(
+                event.target.value ? { run_id: event.target.value } : {},
+              )
+            }
           >
             <option value="">All imported posts</option>
             {project.data?.searches.map((search) => (
-              <option key={String(search.id)} value={String(search.id)}>{String(search.query)}</option>
+              <option key={String(search.id)} value={String(search.id)}>
+                {String(search.query)}
+              </option>
             ))}
           </select>
         </label>
-        <p className="muted">Project-wide review totals · buttons filter the current search</p>
+        <p className="muted">
+          Project-wide review totals · buttons filter the current search
+        </p>
         <div className="count-grid">
           {(["positive", "negative", "unsure", "unreviewed"] as const).map(
             (state) => (
@@ -341,9 +368,11 @@ export function Project() {
                 onChange={(e) => filter("source", e.target.value)}
               >
                 <option value="">All sources</option>
-                {["target", "query", "seed"].map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
+                {["target", "query", "seed", "unrelated", "hard_negative"].map(
+                  (s) => (
+                    <option key={s}>{s}</option>
+                  ),
+                )}
               </select>
             </label>
             <label>
@@ -408,26 +437,35 @@ export function Project() {
               activeImport ||
               !(selectedSearch?.query ?? project.data?.query) ||
               selectedSearch?.source_kind === "seed" ||
-              (selectedSearch ? !!selectedSearch.exhausted : project.data?.searches.some(
-                (s) => s.query === project.data?.query && !!s.exhausted,
-              ))
+              (selectedSearch
+                ? !!selectedSearch.exhausted
+                : project.data?.searches.some(
+                    (s) => s.query === project.data?.query && !!s.exhausted,
+                  ))
             }
             onClick={() => {
-              void importPosts(selectedSearch ? String(selectedSearch.query) : "");
+              void importPosts(
+                selectedSearch ? String(selectedSearch.query) : "",
+                selectedSearch ? String(selectedSearch.source_kind) : "target",
+              );
             }}
           >
             Add next 50
           </button>
         </div>
         <div className="import-status" aria-live="polite">
-          {importing ? "Submitting search…" : activeImport
-            ? "Importing metadata… You can keep reviewing."
-            : jobResult
-              ? `${jobResult.imported} matches processed · ${jobResult.added ?? jobResult.imported} new · ${jobResult.existing ?? 0} already in project.${jobResult.exhausted ? " No more results for this search." : " Add next 50 to continue."}`
-              : importNotice || "1 positive · 2 negative · 3 unsure · arrows navigate · Z undo"}
+          {importing
+            ? "Submitting search…"
+            : activeImport
+              ? "Importing metadata… You can keep reviewing."
+              : jobResult
+                ? `${jobResult.imported} matches processed · ${jobResult.added ?? jobResult.imported} new · ${jobResult.existing ?? 0} already in project.${jobResult.exhausted ? " No more results for this search." : " Add next 50 to continue."}`
+                : importNotice ||
+                  "1 positive · 2 negative · 3 unsure · arrows navigate · Z undo"}
           {latestJob?.status === "failed" && (
             <p className="error" role="alert">
-              Search “{String(latestJob.query)}” failed: {String(latestJob.error)}. Submit this query again to retry.
+              Search “{String(latestJob.query)}” failed:{" "}
+              {String(latestJob.error)}. Submit this query again to retry.
             </p>
           )}
         </div>
@@ -442,7 +480,10 @@ export function Project() {
             aria-label="Additional discovery query"
             value={discoveryQuery}
             onChange={(e) =>
-              setDiscoveryOverride({ project: projectId, query: e.target.value })
+              setDiscoveryOverride({
+                project: projectId,
+                query: e.target.value,
+              })
             }
             placeholder="Full e621 query, e.g. dragon score:>100"
             maxLength={500}
@@ -452,9 +493,21 @@ export function Project() {
           >
             Import 50
           </button>
+          <select
+            aria-label="Candidate purpose"
+            value={discoveryKind}
+            onChange={(event) => setDiscoveryKind(event.target.value)}
+          >
+            <option value="query">Additional query</option>
+            <option value="unrelated">Unrelated triage</option>
+            <option value="hard_negative">
+              Lookalike / hard-negative triage
+            </option>
+          </select>
         </form>
         <p className="muted">
-          Edit the full e621 query. Import shows this search's results; all previous posts and reviews are retained.
+          Edit the full e621 query. Import shows this search's results; all
+          previous posts and reviews are retained.
         </p>
         {importError && (
           <p className="error" role="alert">

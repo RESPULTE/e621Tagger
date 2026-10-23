@@ -190,13 +190,14 @@ async def project_detail(project_id: int, request: Request):
 async def discover(project_id: int, body: schemas.DiscoveryCreate, request: Request):
     db = request.app.state.db
     project = await require_project(db, project_id)
-    if body.source_kind == "query" and not body.query.strip():
+    if body.source_kind != "target" and not body.query.strip():
         raise HTTPException(422, "Enter an additional discovery query")
     query = clean_query(body.query or project["query"])
     if not query:
         raise HTTPException(422, "Enter a discovery query for this seed-only project")
     source_kind = (
-        body.source_kind if query != project["query"] else ("target" if project["target_kind"] == "e621" else "query")
+        body.source_kind if query != project["query"] or body.source_kind in {"unrelated", "hard_negative"}
+        else ("target" if project["target_kind"] == "e621" else "query")
     )
     if query != project["query"] and body.source_kind == "target":
         raise HTTPException(422, "Additional queries must use source_kind=query")

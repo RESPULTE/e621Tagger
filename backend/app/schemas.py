@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 LabelState = Literal["positive", "negative", "unsure"]
-SourceKind = Literal["target", "query", "seed"]
+SourceKind = Literal["target", "query", "seed", "unrelated", "hard_negative"]
 
 
 class Mutation(BaseModel):
@@ -31,7 +31,15 @@ class ProjectCreate(Mutation):
 
 class DiscoveryCreate(Mutation):
     query: str = Field(default="", max_length=500)
-    source_kind: Literal["target", "query"] = "target"
+    source_kind: Literal["target", "query", "unrelated", "hard_negative"] = "target"
+
+
+class DatasetCreate(Mutation):
+    name: str = Field(min_length=1, max_length=100, pattern=r"\S")
+    split_seed: str = Field(default="studio-v1", min_length=1, max_length=100)
+    group_artists: bool = True
+    group_series: bool = False
+    near_hamming: int = Field(default=4, ge=0, le=8)
 
 
 class LabelEdit(BaseModel):

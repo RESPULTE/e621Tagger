@@ -37,7 +37,9 @@ async function login(page: Page) {
   const options = await page.request.get("/api/auth/options");
   expect(options.ok()).toBe(true);
   if ((await options.json()).password_required) {
-    await page.getByLabel("Studio password").fill("studio-browser-test-password");
+    await page
+      .getByLabel("Studio password")
+      .fill("studio-browser-test-password");
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
   }
   await expect(
@@ -225,14 +227,18 @@ test("keyboard undo restores the last review after auto-advance", async ({
     page.getByRole("heading", { name: "Post #999", level: 1 }),
   ).toBeVisible();
   await expect(
-    page.locator(".detail-review").getByRole("button", { name: "Positive", exact: false }),
+    page
+      .locator(".detail-review")
+      .getByRole("button", { name: "Positive", exact: false }),
   ).toBeEnabled();
   await page.keyboard.press("1");
   await expect(
     page.getByRole("heading", { name: "Post #998", level: 1 }),
   ).toBeVisible();
   await expect(
-    page.locator(".detail-review").getByRole("button", { name: "Positive", exact: false }),
+    page
+      .locator(".detail-review")
+      .getByRole("button", { name: "Positive", exact: false }),
   ).toBeEnabled();
   await page.keyboard.press("z");
   await expect(
@@ -315,48 +321,82 @@ test("returning from a post restores the gallery scroll position", async ({
 
 test("private access reconnects without a password", async ({ page }) => {
   const options = await page.request.get("/api/auth/options");
-  test.skip((await options.json()).password_required, "Password authentication deployment");
+  test.skip(
+    (await options.json()).password_required,
+    "Password authentication deployment",
+  );
   const origin = new URL(options.url()).origin;
   if (origin.startsWith("http://")) {
-    await page.context().addCookies([{
-      name: "studio_session", value: "retained-https-cookie",
-      url: origin.replace(/^http:/, "https:"), secure: true,
-      httpOnly: true, sameSite: "Strict",
-    }]);
+    await page.context().addCookies([
+      {
+        name: "studio_session",
+        value: "retained-https-cookie",
+        url: origin.replace(/^http:/, "https:"),
+        secure: true,
+        httpOnly: true,
+        sameSite: "Strict",
+      },
+    ]);
   }
   await login(page);
   if (origin.startsWith("http://")) {
     const cookies = await page.context().cookies(origin);
-    expect(cookies.some(cookie => cookie.name === "studio_session_http" && !cookie.secure)).toBe(true);
+    expect(
+      cookies.some(
+        (cookie) => cookie.name === "studio_session_http" && !cookie.secure,
+      ),
+    ).toBe(true);
   }
   await expect(page.getByLabel("Studio password")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Sign out", exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Sign out", exact: true }),
+  ).toHaveCount(0);
   const before = await (await page.request.get("/api/auth/session")).json();
   const logout = await page.request.post("/api/auth/logout", {
-    headers: { Origin: new URL(page.url()).origin, "X-CSRF-Token": before.csrf_token },
+    headers: {
+      Origin: new URL(page.url()).origin,
+      "X-CSRF-Token": before.csrf_token,
+    },
   });
   expect(logout.ok()).toBe(true);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Find a tag. Build a review set." })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Find a tag. Build a review set." }),
+  ).toBeVisible();
   const after = await (await page.request.get("/api/auth/session")).json();
   expect(after.csrf_token).not.toBe(before.csrf_token);
 });
 
-test("additional query starts with the project selection and remains fully editable", async ({ page }) => {
+test("additional query starts with the project selection and remains fully editable", async ({
+  page,
+}) => {
   await login(page);
   const url = new URL(page.url());
-  if (url.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) {
+  if (
+    url.protocol === "http:" &&
+    !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+  ) {
     expect(await page.evaluate(() => window.isSecureContext)).toBe(false);
-    expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe("undefined");
+    expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe(
+      "undefined",
+    );
   }
   await createProject(page);
-  const query = page.getByRole("textbox", { name: "Additional discovery query" });
+  const query = page.getByRole("textbox", {
+    name: "Additional discovery query",
+  });
   await expect(query).toHaveValue("dragon");
   await query.fill("dragon score:>100");
-  const importButton = page.getByRole("button", { name: "Import 50", exact: true });
+  const importButton = page.getByRole("button", {
+    name: "Import 50",
+    exact: true,
+  });
   await expect(importButton).toBeEnabled();
   const [request] = await Promise.all([
-    page.waitForRequest(request => request.url().endsWith("/discovery") && request.method() === "POST"),
+    page.waitForRequest(
+      (request) =>
+        request.url().endsWith("/discovery") && request.method() === "POST",
+    ),
     importButton.click(),
   ]);
   expect(request.postDataJSON().query).toBe("dragon score:>100");
@@ -364,40 +404,162 @@ test("additional query starts with the project selection and remains fully edita
   await expect(query).toHaveValue("dragon score:>100");
   await query.fill("score:>100");
   const [withoutTag] = await Promise.all([
-    page.waitForRequest(request => request.url().endsWith("/discovery") && request.method() === "POST"),
+    page.waitForRequest(
+      (request) =>
+        request.url().endsWith("/discovery") && request.method() === "POST",
+    ),
     importButton.click(),
   ]);
   expect(withoutTag.postDataJSON().query).toBe("score:>100");
-  expect(withoutTag.postDataJSON().request_id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  expect(withoutTag.postDataJSON().request_id).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
 });
 
-test("additional searches show overlaps, filtered results and exhaustion without losing reviews", async ({ page }) => {
+test("additional searches show overlaps, filtered results and exhaustion without losing reviews", async ({
+  page,
+}) => {
   await login(page);
   await createProject(page);
   await page.getByLabel("Select post 1000", { exact: true }).check();
-  await page.getByRole("button", { name: "Mark positive", exact: true }).click();
-  await expect(page.getByText("Select posts for batch review", { exact: true })).toBeVisible();
-  const query = page.getByRole("textbox", { name: "Additional discovery query" });
+  await page
+    .getByRole("button", { name: "Mark positive", exact: true })
+    .click();
+  await expect(
+    page.getByText("Select posts for batch review", { exact: true }),
+  ).toBeVisible();
+  const query = page.getByRole("textbox", {
+    name: "Additional discovery query",
+  });
   const submit = page.getByRole("button", { name: "Import 50", exact: true });
   await query.fill("dragon solo");
   await submit.click();
-  await expect(page.locator(".import-status")).toContainText("0 new · 50 already in project");
-  await expect(page.getByLabel("Search results", { exact: true })).not.toHaveValue("");
+  await expect(page.locator(".import-status")).toContainText(
+    "0 new · 50 already in project",
+  );
+  await expect(
+    page.getByLabel("Search results", { exact: true }),
+  ).not.toHaveValue("");
   const view = new URL(page.url());
-  const imported = await (await page.request.get(`/api${view.pathname}/candidates${view.search}`)).json();
-  expect(imported.items.every((post: { sources: string[] }) => post.sources.includes("query: dragon solo"))).toBe(true);
+  const imported = await (
+    await page.request.get(`/api${view.pathname}/candidates${view.search}`)
+  ).json();
+  expect(
+    imported.items.every((post: { sources: string[] }) =>
+      post.sources.includes("query: dragon solo"),
+    ),
+  ).toBe(true);
   await query.fill("dragon score:>190");
   await submit.click();
-  await expect(page.locator(".import-status")).toContainText("No more results for this search");
-  await expect(page.getByRole("button", { name: "Open post 1000", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("27 matching");
+  await expect(page.locator(".import-status")).toContainText(
+    "No more results for this search",
+  );
+  await expect(
+    page.getByRole("button", { name: "Open post 1000", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(
+    "27 matching",
+  );
   await query.fill("no_such_mock_tag");
   await submit.click();
-  await expect(page.locator(".import-status")).toContainText("0 matches processed");
+  await expect(page.locator(".import-status")).toContainText(
+    "0 matches processed",
+  );
   await submit.click();
-  await expect(page.locator(".import-status")).toContainText("No more results for this search");
+  await expect(page.locator(".import-status")).toContainText(
+    "No more results for this search",
+  );
   await page.getByLabel("Search results", { exact: true }).selectOption("");
-  await expect(page.getByRole("button", { name: "Open post 1000", exact: true })).toBeVisible();
-  const card = page.locator(".post-card").filter({ has: page.getByRole("button", { name: "Open post 1000", exact: true }) });
+  await expect(
+    page.getByRole("button", { name: "Open post 1000", exact: true }),
+  ).toBeVisible();
+  const card = page
+    .locator(".post-card")
+    .filter({
+      has: page.getByRole("button", { name: "Open post 1000", exact: true }),
+    });
   await expect(card).toHaveClass(/positive/);
+});
+
+test("dataset quality freezes a downloadable version and preserves it after review edits", async ({
+  page,
+}) => {
+  await login(page);
+  await createProject(page);
+  await page
+    .getByRole("button", { name: "Mark post 999 positive", exact: true })
+    .click();
+  await expect(
+    page
+      .locator(".post-card")
+      .filter({
+        has: page.getByRole("button", { name: "Open post 999", exact: true }),
+      }),
+  ).toHaveClass(/positive/);
+  await page
+    .getByRole("button", { name: "Mark post 998 negative", exact: true })
+    .click();
+  await expect(
+    page
+      .locator(".post-card")
+      .filter({
+        has: page.getByRole("button", { name: "Open post 998", exact: true }),
+      }),
+  ).toHaveClass(/negative/);
+  await page.getByRole("link", { name: "Dataset quality & exports" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Review, group, freeze" }),
+  ).toBeVisible();
+  const prepare = page.getByRole("button", {
+    name: "Prepare next 64 previews",
+  });
+  await expect(prepare).toBeVisible();
+  if (await prepare.isEnabled()) await prepare.click();
+  await expect(
+    page.getByRole("button", { name: "Freeze dataset", exact: true }),
+  ).toBeEnabled();
+  await page.getByLabel("Version name").fill("Browser frozen dataset");
+  await page
+    .getByRole("button", { name: "Freeze dataset", exact: true })
+    .click();
+  await expect(
+    page.getByText("Frozen: 2 supervised samples · 48 excluded.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  const manifest = page
+    .getByRole("link", { name: "Full manifest", exact: true })
+    .last();
+  const href = await manifest.getAttribute("href");
+  const before = await (await page.request.get(href!)).text();
+  expect(
+    JSON.parse(before).samples.filter(
+      (row: { target: number | null }) => row.target !== null,
+    ),
+  ).toHaveLength(2);
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("link", { name: "CSV", exact: true }).last().click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^dataset-.*\.csv$/);
+  await page
+    .getByRole("link", { name: "Candidate gallery", exact: false })
+    .click();
+  await page
+    .getByRole("button", { name: "Mark post 999 unsure", exact: true })
+    .click();
+  await expect(
+    page
+      .locator(".post-card")
+      .filter({
+        has: page.getByRole("button", { name: "Open post 999", exact: true }),
+      }),
+  ).toHaveClass(/unsure/);
+  expect(await (await page.request.get(href!)).text()).toBe(before);
+  await page.getByRole("link", { name: "Dataset quality & exports" }).click();
+  expect(
+    await page
+      .locator("body")
+      .evaluate((body) => body.scrollWidth <= window.innerWidth),
+  ).toBe(true);
 });

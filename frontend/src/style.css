@@ -899,3 +899,54 @@ footer {
       border-color 0.12s;
   }
 }
+.dataset-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+}
+.dataset-page section {
+  margin: 24px 0;
+  padding: 18px;
+  border: 1px solid #365779;
+  border-radius: 6px;
+}
+.dataset-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 20px;
+}
+.dataset-page dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+.dataset-page form {
+  display: grid;
+  gap: 14px;
+  max-width: 700px;
+}
+.dataset-page form > label:not(.check) {
+  display: grid;
+  gap: 6px;
+}
+.dataset-page .count-grid > div {
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.dataset-version {
+  border-top: 1px solid #365779;
+  padding: 12px 0;
+}
+.dataset-version nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.dataset-hash {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.additional-search {
+  flex-wrap: wrap;
+}

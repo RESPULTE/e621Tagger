@@ -12,6 +12,7 @@ import { ReviewProvider } from "./components/Reviews";
 import { Home } from "./pages/Home";
 import { Project } from "./pages/Project";
 import { Post } from "./pages/Post";
+import { Datasets } from "./pages/Datasets";
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -48,7 +49,9 @@ export function App() {
     setChecking(true);
     setError("");
     try {
-      const options = await api<{ password_required: boolean }>("/auth/options");
+      const options = await api<{ password_required: boolean }>(
+        "/auth/options",
+      );
       setPasswordless(!options.password_required);
       const readSession = () =>
         api<{ csrf_token: string; mock: boolean }>("/auth/session");
@@ -175,6 +178,7 @@ export function App() {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/projects/:id" element={<Project />} />
+            <Route path="/projects/:id/datasets" element={<Datasets />} />
             <Route path="/projects/:id/posts/:postId" element={<Post />} />
             <Route
               path="*"
