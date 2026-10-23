@@ -368,11 +368,16 @@ export function Project() {
                 onChange={(e) => filter("source", e.target.value)}
               >
                 <option value="">All sources</option>
-                {["target", "query", "seed", "unrelated", "hard_negative"].map(
-                  (s) => (
-                    <option key={s}>{s}</option>
-                  ),
-                )}
+                {[
+                  "target",
+                  "query",
+                  "seed",
+                  "unrelated",
+                  "hard_negative",
+                  "embedding",
+                ].map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
               </select>
             </label>
             <label>
@@ -436,7 +441,9 @@ export function Project() {
               importing ||
               activeImport ||
               !(selectedSearch?.query ?? project.data?.query) ||
-              selectedSearch?.source_kind === "seed" ||
+              ["seed", "embedding"].includes(
+                String(selectedSearch?.source_kind),
+              ) ||
               (selectedSearch
                 ? !!selectedSearch.exhausted
                 : project.data?.searches.some(

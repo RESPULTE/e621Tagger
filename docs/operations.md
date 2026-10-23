@@ -30,6 +30,10 @@ To restore: stop Studio, preserve the current data root, restore the backup as `
 
 Disk-full/SQLite failures return an unacknowledged-save error. Free space and retry. Failed media writes never mark an asset valid. Failed thumbnail jobs cool down for five minutes. Retry imports using Add next 50 or the original query. A retry with the same request ID replays its receipt; a deliberate new import uses a new ID.
 
+## Optional published neighbors
+
+`STUDIO_PUBLISHED_NEIGHBORS` defaults to true and is passed through Compose. It permits only explicit known-ID lookups against a pinned public Hydra index, using bounded byte ranges. Set false for offline-only operation; this does not remove previously stored evidence. Failure or missing coverage appears in the post's Similar posts panel; reviews do not depend on upstream index health. A separate durable `neighbors` queue has one worker and a 16-job active limit. No Torch, NumPy, checkpoint or index files are added to the server. See [the adapter contract](optional-workers.md) for limits and verification boundaries.
+
 ## Monitoring
 
 `/health` checks the DB and local tasks. Authenticated `/api/metrics` reports metadata requests/throttles/latest latency, media bytes/cache hits/misses/concurrency, cache usage and queue counts. Verbose HTTP logs are disabled; secrets never appear in job errors.

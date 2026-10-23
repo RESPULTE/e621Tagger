@@ -147,3 +147,18 @@ def transport(request):
             return httpx.Response(206, stream=httpx.ByteStream(sliced), headers=headers)
         return httpx.Response(200, stream=httpx.ByteStream(body), headers=headers)
     return httpx.Response(404)
+
+
+class SyntheticNeighbors:
+    """Isolated demo evidence; never represent fixtures as real semantic retrieval."""
+
+    async def lookup(self, seed_id):
+        import hashlib
+
+        return {
+            "seed_id": seed_id, "coverage": "available", "revision": "synthetic", "row": 0,
+            "artifact_sha256": hashlib.sha256(f"synthetic:{seed_id}".encode()).hexdigest(),
+            "neighbors": [{"post_id": seed_id - n, "distance": n / 10, "rank": n + 1}
+                          for n in range(1, min(9, seed_id))],
+            "verification": "Synthetic fixtures only; no semantic retrieval validation",
+        }

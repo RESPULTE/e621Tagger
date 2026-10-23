@@ -7,6 +7,8 @@ import time
 
 from fastapi import HTTPException
 
+from .quality import MAX_CANDIDATES
+
 logger = logging.getLogger(__name__)
 MAX_JOB_ATTEMPTS = 4
 
@@ -60,8 +62,8 @@ async def persist_post(conn, post):
 
 
 class Workers:
-    def __init__(self, db, source, media):
-        self.db, self.source, self.media = db, source, media
+    def __init__(self, db, source, media, neighbors=None):
+        self.db, self.source, self.media, self.neighbors = db, source, media, neighbors
         self.tasks = []
 
     async def start(self, media_count):
@@ -69,6 +71,7 @@ class Workers:
         async with self.db.transaction() as conn:
             await conn.execute("UPDATE jobs SET status='pending',lease_until=NULL WHERE status='running'")
         self.tasks = [asyncio.create_task(self._loop("discovery"), name="discovery")]
+        self.tasks.append(asyncio.create_task(self._loop("neighbors"), name="neighbors"))
         self.tasks += [asyncio.create_task(self._loop("preview"), name=f"preview-{i}") for i in range(media_count)]
 
     async def close(self):
@@ -114,6 +117,15 @@ class Workers:
                     payload = json.loads(job["payload_json"])
                     if job_type == "discovery":
                         await self.discover(job, payload)
+                    elif job_type == "neighbors":
+                        if not self.source.settings.published_neighbors:
+                            raise HTTPException(409, "Published neighbor lookup is disabled")
+                        result = await self.neighbors.lookup(payload["seed_id"])
+                        async with self.db.transaction() as conn:
+                            await conn.execute(
+                                "UPDATE jobs SET status='done',lease_until=NULL,result_json=?,error=NULL,updated_at=? WHERE id=?",
+                                (json.dumps(result), time.time(), job["id"]),
+                            )
                     else:
                         await self.media.download_preview(payload["post_id"])
                         async with self.db.transaction() as conn:
@@ -157,7 +169,7 @@ class Workers:
         if not run:
             raise HTTPException(404, "Discovery run not found")
         missing = []
-        if run["source_kind"] == "seed":
+        if run["source_kind"] in {"seed", "embedding"}:
             posts = []
             for post_id in payload["seed_ids"]:
                 try:
@@ -181,6 +193,27 @@ class Workers:
         now = time.time()
         async with self.db.transaction() as conn:
             added = 0
+            if run["source_kind"] == "embedding":
+                count = (
+                    await (
+                        await conn.execute(
+                            "SELECT count(*) AS n FROM project_candidates WHERE project_id=?", (run["project_id"],)
+                        )
+                    ).fetchone()
+                )["n"]
+                present = {
+                    row["post_id"]
+                    for row in await (
+                        await conn.execute(
+                            "SELECT post_id FROM project_candidates WHERE project_id=? AND post_id IN ("
+                            + ",".join("?" for _ in posts)
+                            + ")",
+                            (run["project_id"], *(post["id"] for post in posts)),
+                        )
+                    ).fetchall()
+                }
+                if count + len({post["id"] for post in posts} - present) > MAX_CANDIDATES:
+                    raise HTTPException(413, "Neighbor import would exceed 5,000 project candidates")
             for post in posts:
                 await persist_post(conn, post)
                 inserted = await conn.execute(
@@ -191,14 +224,17 @@ class Workers:
                 await conn.execute(
                     "INSERT OR IGNORE INTO discoveries VALUES(?,?,?,?)", (run["project_id"], post["id"], run["id"], now)
                 )
-            exhausted = run["source_kind"] == "seed" or len(posts) < 50
+            exhausted = run["source_kind"] in {"seed", "embedding"} or len(posts) < 50
             cursor = min((p["id"] for p in posts), default=run["cursor"])
             await conn.execute(
                 "UPDATE search_runs SET cursor=?,exhausted=? WHERE id=?", (cursor, int(exhausted), run["id"])
             )
             result = {
-                "imported": len(posts), "added": added, "existing": len(posts) - added,
-                "unavailable_ids": missing, "exhausted": exhausted,
+                "imported": len(posts),
+                "added": added,
+                "existing": len(posts) - added,
+                "unavailable_ids": missing,
+                "exhausted": exhausted,
             }
             await conn.execute(
                 "UPDATE jobs SET status='done',lease_until=NULL,result_json=?,error=NULL,updated_at=? WHERE id=?",

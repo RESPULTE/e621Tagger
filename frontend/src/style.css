@@ -675,6 +675,7 @@ kbd {
   font-size: 18px;
 }
 .provenance p {
+  overflow-wrap: anywhere;
   font-family: monospace;
   font-size: 11px;
 }
@@ -868,9 +869,6 @@ footer {
     max-height: 240px;
     overflow: auto;
   }
-  .detail-layout .sidebar .provenance {
-    display: none;
-  }
   .detail-layout .sidebar > p {
     font-size: 11px;
   }
@@ -950,3 +948,9 @@ footer {
 .additional-search {
   flex-wrap: wrap;
 }
+
+/* Keep optional evidence below the original, outside the review control bar. */
+.embedding-assist { margin: 1.5rem 0; padding: 1rem; border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; }
+.neighbor-list { max-height: 18rem; overflow-y: auto; margin: 1rem 0; }
+.neighbor-row { display: flex; flex-direction: row; align-items: center; gap: .7rem; padding: .5rem; }
+.neighbor-row input { width: auto; flex: 0 0 auto; }

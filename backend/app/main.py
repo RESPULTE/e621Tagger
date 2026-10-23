@@ -13,9 +13,12 @@ from .config import Settings
 from .datasets import router as datasets_router
 from .db import Database
 from .e621 import E621
+from .embeddings import router as embeddings_router
 from .jobs import Workers
 from .media import Media
+from .mock import SyntheticNeighbors
 from .mock import transport as mock_transport
+from .neighbor_index import PublishedNeighbors
 from .telemetry import Telemetry
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -39,7 +42,9 @@ def create_app(settings=None, *, transport=None, start_workers=True):
             for path in media.cache_root.glob("*.part"):
                 path.unlink(missing_ok=True)
             source.start()
-            app.state.workers = workers = Workers(db, source, media)
+            app.state.workers = workers = Workers(
+                db, source, media, SyntheticNeighbors() if config.mock_e621 else PublishedNeighbors()
+            )
             if start_workers:
                 await workers.start(config.media_concurrency)
             yield
@@ -124,6 +129,7 @@ await self.registration.unregister();for(const client of await self.clients.matc
     app.include_router(public)
     app.include_router(router)
     app.include_router(datasets_router)
+    app.include_router(embeddings_router)
 
     @app.get("/{path:path}")
     async def frontend(path: str):

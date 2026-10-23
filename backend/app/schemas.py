@@ -4,7 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 LabelState = Literal["positive", "negative", "unsure"]
-SourceKind = Literal["target", "query", "seed", "unrelated", "hard_negative"]
+SourceKind = Literal["target", "query", "seed", "unrelated", "hard_negative", "embedding"]
 
 
 class Mutation(BaseModel):
@@ -134,3 +134,56 @@ class ProjectResult(BaseModel):
     counts: dict[str, int]
     searches: list[dict]
     jobs: list[dict]
+
+
+class EmbeddingStatus(BaseModel):
+    enabled: bool
+    revision: str
+    mode: str
+    message: str
+
+
+class NeighborJob(BaseModel):
+    job_id: int
+
+
+class NeighborImport(Mutation):
+    job_id: int = Field(gt=0, le=2**63 - 1)
+    post_ids: list[int] = Field(min_length=1, max_length=50)
+
+    @model_validator(mode="after")
+    def unique_positive_ids(self):
+        if any(not 0 < post <= 2**63 - 1 for post in self.post_ids) or len(set(self.post_ids)) != len(self.post_ids):
+            raise ValueError("Select unique positive post IDs")
+        return self
+
+
+class NeighborItem(BaseModel):
+    post_id: int
+    rank: int
+    distance: float
+    in_project: bool
+    state: LabelState | None
+    unavailable: bool | None
+
+
+class SuggestedTag(BaseModel):
+    name: str
+    count: int
+
+
+class NeighborEvidence(BaseModel):
+    status: str
+    job_id: int | None = None
+    error: str | None = None
+    result: dict | None = None
+    neighbors: list[NeighborItem]
+    known_metadata: int
+    suggested_tags: list[SuggestedTag]
+
+
+class NeighborImportResult(BaseModel):
+    job_id: int | None
+    exhausted: bool
+    run_id: int
+    query: str

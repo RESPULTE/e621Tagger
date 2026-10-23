@@ -10,6 +10,7 @@ import {
 } from "../api/client";
 import { ReviewButtons, useReviews } from "../components/Reviews";
 import { TagSidebar } from "../components/TagSidebar";
+import { EmbeddingAssist } from "../components/EmbeddingAssist";
 
 type NavigationState = { ids?: number[]; gallery?: string };
 export function Post() {
@@ -131,12 +132,6 @@ export function Post() {
             >
               View on e621 ↗
             </a>
-            <section className="provenance">
-              <h3>Discovered through</h3>
-              {post.sources.map((source) => (
-                <p key={source}>{source}</p>
-              ))}
-            </section>
             <label className="check">
               <input
                 type="checkbox"
@@ -197,6 +192,12 @@ export function Post() {
         )}
         {post && (
           <>
+            <details className="provenance">
+              <summary>Discovered through</summary>
+              {post.sources.map((source) => (
+                <p key={source}>{source}</p>
+              ))}
+            </details>
             {!post.has_original || post.unavailable ? (
               <div className="empty-state">
                 The original is unavailable. You can still inspect its metadata
@@ -264,6 +265,11 @@ export function Post() {
                 .
               </p>
             )}
+            <EmbeddingAssist
+              key={`${projectId}:${currentId}`}
+              project={projectId}
+              post={currentId}
+            />
             <div className="detail-review">
               <div>
                 <strong>

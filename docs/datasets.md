@@ -1,6 +1,6 @@
 # Dataset versions and quality
 
-P3 adds unrelated and lookalike query provenance, project quality summaries, duplicate grouping, deterministic group splits and immutable versions. No source kind assigns a human label. Query imports continue to append candidates and preserve reviews and audit history.
+P3 adds unrelated and lookalike query provenance, project quality summaries, duplicate grouping, deterministic group splits and immutable versions. No source kind assigns a human label. Embedding imports also preserve seed ID, publisher revision/row, row artifact digest, metric and each neighbor’s rank/distance as `provenance[].embedding` in newly frozen manifests. This evidence never changes eligibility or split policy; previously frozen manifests retain their exact bytes. Query imports continue to append candidates and preserve reviews and audit history.
 
 ## Snapshot contract
 

@@ -528,7 +528,8 @@
                     "query",
                     "seed",
                     "unrelated",
-                    "hard_negative"
+                    "hard_negative",
+                    "embedding"
                   ],
                   "type": "string"
                 },
@@ -1178,6 +1179,198 @@
         }
       }
     },
+    "/api/embeddings/status": {
+      "get": {
+        "summary": "Status",
+        "operationId": "status_api_embeddings_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/neighbors/{post_id}": {
+      "post": {
+        "summary": "Lookup",
+        "operationId": "lookup_api_projects__project_id__neighbors__post_id__post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Post Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mutation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeighborJob"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Get Evidence",
+        "operationId": "get_evidence_api_projects__project_id__neighbors__post_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Post Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeighborEvidence"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/neighbors/{post_id}/import": {
+      "post": {
+        "summary": "Import Neighbors",
+        "operationId": "import_neighbors_api_projects__project_id__neighbors__post_id__import_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Post Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NeighborImport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NeighborImportResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/{path}": {
       "get": {
         "summary": "Frontend",
@@ -1571,6 +1764,34 @@
         ],
         "title": "DiscoveryCreate"
       },
+      "EmbeddingStatus": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "revision",
+          "mode",
+          "message"
+        ],
+        "title": "EmbeddingStatus"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1686,6 +1907,224 @@
         ],
         "title": "MediaPrefetch"
       },
+      "Mutation": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Request Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "title": "Mutation"
+      },
+      "NeighborEvidence": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "neighbors": {
+            "items": {
+              "$ref": "#/components/schemas/NeighborItem"
+            },
+            "type": "array",
+            "title": "Neighbors"
+          },
+          "known_metadata": {
+            "type": "integer",
+            "title": "Known Metadata"
+          },
+          "suggested_tags": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestedTag"
+            },
+            "type": "array",
+            "title": "Suggested Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "neighbors",
+          "known_metadata",
+          "suggested_tags"
+        ],
+        "title": "NeighborEvidence"
+      },
+      "NeighborImport": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "job_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "exclusiveMinimum": 0.0,
+            "title": "Job Id"
+          },
+          "post_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Post Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "job_id",
+          "post_ids"
+        ],
+        "title": "NeighborImport"
+      },
+      "NeighborImportResult": {
+        "properties": {
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "exhausted": {
+            "type": "boolean",
+            "title": "Exhausted"
+          },
+          "run_id": {
+            "type": "integer",
+            "title": "Run Id"
+          },
+          "query": {
+            "type": "string",
+            "title": "Query"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id",
+          "exhausted",
+          "run_id",
+          "query"
+        ],
+        "title": "NeighborImportResult"
+      },
+      "NeighborItem": {
+        "properties": {
+          "post_id": {
+            "type": "integer",
+            "title": "Post Id"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "distance": {
+            "type": "number",
+            "title": "Distance"
+          },
+          "in_project": {
+            "type": "boolean",
+            "title": "In Project"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "positive",
+                  "negative",
+                  "unsure"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "unavailable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "post_id",
+          "rank",
+          "distance",
+          "in_project",
+          "state",
+          "unavailable"
+        ],
+        "title": "NeighborItem"
+      },
+      "NeighborJob": {
+        "properties": {
+          "job_id": {
+            "type": "integer",
+            "title": "Job Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_id"
+        ],
+        "title": "NeighborJob"
+      },
       "ProjectCreate": {
         "properties": {
           "request_id": {
@@ -1800,6 +2239,24 @@
           "jobs"
         ],
         "title": "ProjectResult"
+      },
+      "SuggestedTag": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "count"
+        ],
+        "title": "SuggestedTag"
       },
       "TagResult": {
         "properties": {

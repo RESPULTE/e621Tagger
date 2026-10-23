@@ -36,7 +36,28 @@ async def snapshot(conn, project_id):
     rows = await (await conn.execute(SNAPSHOT, (project_id, MAX_CANDIDATES + 1))).fetchall()
     if len(rows) > MAX_CANDIDATES:
         raise HTTPException(413, f"This dataset workflow supports at most {MAX_CANDIDATES} project candidates")
-    return dict(project), [dict(row) for row in rows]
+    samples = [dict(row) for row in rows]
+    # Evidence lives with the durable import, never with a human label. Capture
+    # per-post rank/distance now so future metadata/reviews cannot change it.
+    evidence_rows = await (
+        await conn.execute(
+            "SELECT s.id,json_extract(j.payload_json,'$.neighbor_evidence') AS evidence_json "
+            "FROM search_runs s JOIN jobs j ON j.type='discovery' AND json_extract(j.payload_json,'$.run_id')=s.id "
+            "WHERE s.project_id=? AND s.source_kind='embedding'",
+            (project_id,),
+        )
+    ).fetchall()
+    evidence = {row["id"]: json.loads(row["evidence_json"]) for row in evidence_rows if row["evidence_json"]}
+    for sample in samples:
+        provenance = json.loads(sample["provenance_json"])
+        for source in provenance:
+            context = evidence.get(source["run_id"])
+            if context:
+                neighbor = next((n for n in context["neighbors"] if n["post_id"] == sample["post_id"]), None)
+                if neighbor:
+                    source["embedding"] = {k: v for k, v in context.items() if k != "neighbors"} | neighbor
+        sample["provenance_json"] = json.dumps(provenance)
+    return dict(project), samples
 
 
 def canonical(value):

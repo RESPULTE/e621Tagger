@@ -431,6 +431,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/embeddings/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status */
+        get: operations["status_api_embeddings_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/neighbors/{post_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Evidence */
+        get: operations["get_evidence_api_projects__project_id__neighbors__post_id__get"];
+        put?: never;
+        /** Lookup */
+        post: operations["lookup_api_projects__project_id__neighbors__post_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/neighbors/{post_id}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import Neighbors */
+        post: operations["import_neighbors_api_projects__project_id__neighbors__post_id__import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/{path}": {
         parameters: {
             query?: never;
@@ -581,6 +633,17 @@ export interface components {
              */
             source_kind: "target" | "query" | "unrelated" | "hard_negative";
         };
+        /** EmbeddingStatus */
+        EmbeddingStatus: {
+            /** Enabled */
+            enabled: boolean;
+            /** Revision */
+            revision: string;
+            /** Mode */
+            mode: string;
+            /** Message */
+            message: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -621,6 +684,76 @@ export interface components {
         MediaPrefetch: {
             /** Post Ids */
             post_ids: number[];
+        };
+        /** Mutation */
+        Mutation: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+        };
+        /** NeighborEvidence */
+        NeighborEvidence: {
+            /** Status */
+            status: string;
+            /** Job Id */
+            job_id?: number | null;
+            /** Error */
+            error?: string | null;
+            /** Result */
+            result?: {
+                [key: string]: unknown;
+            } | null;
+            /** Neighbors */
+            neighbors: components["schemas"]["NeighborItem"][];
+            /** Known Metadata */
+            known_metadata: number;
+            /** Suggested Tags */
+            suggested_tags: components["schemas"]["SuggestedTag"][];
+        };
+        /** NeighborImport */
+        NeighborImport: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Job Id */
+            job_id: number;
+            /** Post Ids */
+            post_ids: number[];
+        };
+        /** NeighborImportResult */
+        NeighborImportResult: {
+            /** Job Id */
+            job_id: number | null;
+            /** Exhausted */
+            exhausted: boolean;
+            /** Run Id */
+            run_id: number;
+            /** Query */
+            query: string;
+        };
+        /** NeighborItem */
+        NeighborItem: {
+            /** Post Id */
+            post_id: number;
+            /** Rank */
+            rank: number;
+            /** Distance */
+            distance: number;
+            /** In Project */
+            in_project: boolean;
+            /** State */
+            state: ("positive" | "negative" | "unsure") | null;
+            /** Unavailable */
+            unavailable: boolean | null;
+        };
+        /** NeighborJob */
+        NeighborJob: {
+            /** Job Id */
+            job_id: number;
         };
         /** ProjectCreate */
         ProjectCreate: {
@@ -675,6 +808,13 @@ export interface components {
             jobs: {
                 [key: string]: unknown;
             }[];
+        };
+        /** SuggestedTag */
+        SuggestedTag: {
+            /** Name */
+            name: string;
+            /** Count */
+            count: number;
         };
         /** TagResult */
         TagResult: {
@@ -1051,7 +1191,7 @@ export interface operations {
                 min_score?: number | null;
                 after?: string | null;
                 before?: string | null;
-                source?: ("target" | "query" | "seed" | "unrelated" | "hard_negative") | null;
+                source?: ("target" | "query" | "seed" | "unrelated" | "hard_negative" | "embedding") | null;
                 run_id?: number | null;
             };
             header?: never;
@@ -1518,6 +1658,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    status_api_embeddings_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmbeddingStatus"];
+                };
+            };
+        };
+    };
+    get_evidence_api_projects__project_id__neighbors__post_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NeighborEvidence"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    lookup_api_projects__project_id__neighbors__post_id__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Mutation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NeighborJob"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_neighbors_api_projects__project_id__neighbors__post_id__import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NeighborImport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NeighborImportResult"];
                 };
             };
             /** @description Validation Error */

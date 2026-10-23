@@ -473,11 +473,9 @@ test("additional searches show overlaps, filtered results and exhaustion without
   await expect(
     page.getByRole("button", { name: "Open post 1000", exact: true }),
   ).toBeVisible();
-  const card = page
-    .locator(".post-card")
-    .filter({
-      has: page.getByRole("button", { name: "Open post 1000", exact: true }),
-    });
+  const card = page.locator(".post-card").filter({
+    has: page.getByRole("button", { name: "Open post 1000", exact: true }),
+  });
   await expect(card).toHaveClass(/positive/);
 });
 
@@ -490,21 +488,17 @@ test("dataset quality freezes a downloadable version and preserves it after revi
     .getByRole("button", { name: "Mark post 999 positive", exact: true })
     .click();
   await expect(
-    page
-      .locator(".post-card")
-      .filter({
-        has: page.getByRole("button", { name: "Open post 999", exact: true }),
-      }),
+    page.locator(".post-card").filter({
+      has: page.getByRole("button", { name: "Open post 999", exact: true }),
+    }),
   ).toHaveClass(/positive/);
   await page
     .getByRole("button", { name: "Mark post 998 negative", exact: true })
     .click();
   await expect(
-    page
-      .locator(".post-card")
-      .filter({
-        has: page.getByRole("button", { name: "Open post 998", exact: true }),
-      }),
+    page.locator(".post-card").filter({
+      has: page.getByRole("button", { name: "Open post 998", exact: true }),
+    }),
   ).toHaveClass(/negative/);
   await page.getByRole("link", { name: "Dataset quality & exports" }).click();
   await expect(
@@ -549,11 +543,9 @@ test("dataset quality freezes a downloadable version and preserves it after revi
     .getByRole("button", { name: "Mark post 999 unsure", exact: true })
     .click();
   await expect(
-    page
-      .locator(".post-card")
-      .filter({
-        has: page.getByRole("button", { name: "Open post 999", exact: true }),
-      }),
+    page.locator(".post-card").filter({
+      has: page.getByRole("button", { name: "Open post 999", exact: true }),
+    }),
   ).toHaveClass(/unsure/);
   expect(await (await page.request.get(href!)).text()).toBe(before);
   await page.getByRole("link", { name: "Dataset quality & exports" }).click();
@@ -562,4 +554,79 @@ test("dataset quality freezes a downloadable version and preserves it after revi
       .locator("body")
       .evaluate((body) => body.scrollWidth <= window.innerWidth),
   ).toBe(true);
+});
+
+test("bounded neighbor discovery preserves human labels and exposes source tag counts", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await createProject(page);
+  await page
+    .getByRole("button", { name: "Mark post 998 positive", exact: true })
+    .click();
+  const reviewed = page
+    .locator(".post-card")
+    .filter({
+      has: page.getByRole("button", { name: "Open post 998", exact: true }),
+    });
+  await expect(reviewed).toHaveClass(/positive/);
+  await page
+    .getByRole("button", { name: "Open post 999", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Post #999", exact: true, level: 1 }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Find similar posts", exact: true })
+    .click();
+  await expect(page.getByLabel("Select neighbor 998")).toBeVisible();
+  await page.getByText("Embedding provenance", { exact: true }).click();
+  await expect(
+    page.getByText("Synthetic fixtures only; no semantic retrieval validation"),
+  ).toBeVisible();
+  await page.getByLabel("Select neighbor 998").check();
+  await page.getByLabel("Select neighbor 997").check();
+  await page
+    .getByRole("button", {
+      name: "Import selected neighbors (2/50)",
+      exact: true,
+    })
+    .click();
+  await page.getByRole("link", { name: "Open these search results" }).click();
+  await expect(
+    page.getByRole("button", { name: "Open post 998", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Open post 997", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Open post 999", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page
+      .locator(".post-card")
+      .filter({
+        has: page.getByRole("button", { name: "Open post 998", exact: true }),
+      }),
+  ).toHaveClass(/positive/);
+  await page
+    .getByRole("button", { name: "Open post 998", exact: true })
+    .click();
+  await page.getByText("Discovered through", { exact: true }).click();
+  await expect(
+    page.getByText(/embedding: hydra35:synthetic:seed:999/),
+  ).toBeVisible();
+  await page.goto(page.url().replace(/posts\/998$/, "posts/999"));
+  await expect(page.getByLabel("Select neighbor 998")).toBeVisible();
+  await expect(
+    page.getByText(/neighbors have available local metadata/),
+  ).toBeVisible();
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth,
+  );
+  expect(overflow).toBe(false);
+  await page
+    .getByRole("heading", { name: "Similar posts & tag suggestions" })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("neighbors.png") });
 });

@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     public_origin: str = "http://localhost:8000"
     secure_cookie: bool = True
     mock_e621: bool = False
+    published_neighbors: bool = True
     e621_username: str = ""
     e621_api_key: str = ""
     metadata_interval: float = Field(default=1.0, ge=1.0)

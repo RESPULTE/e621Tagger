@@ -2,7 +2,7 @@
 
 A private e621-style workspace for finding posts and reviewing examples for a target tag. Supports existing e621 tags and custom labels, 50-post imports, a virtualized thumbnail gallery, original and animated images, video with seeking, and audited positive / negative / unsure reviews.
 
-**Milestone:** P0–P3. Dataset quality and immutable metadata exports are available; embeddings, training, and remote GPU work remain optional follow-on phases. The runtime has no PyTorch or checkpoint dependency. The original `hydra/` library and local `models/` assets are preserved for future GPU integration.
+**Milestone:** P0–P4 discovery. Dataset quality, immutable metadata exports and bounded published-Hydra neighbor discovery are available. Arbitrary-image extraction, training and remote GPU work remain optional follow-on phases. The runtime has no PyTorch or checkpoint dependency. The original `hydra/` library and local `models/` assets are preserved for future GPU integration.
 
 ## Local setup
 
@@ -56,6 +56,14 @@ For a private HTTP deployment, explicitly set its exact `http://` origin and `ST
 5. Labels and undo history survive restarts. Failed/conflicting saves show retry controls. Batch reviews affect only explicitly selected posts and commit atomically.
 
 Tag absence never becomes a verified negative automatically. Reviews are project-specific; unsure and unreviewed are distinct.
+
+## Similar posts and tag suggestions
+
+Open a post and choose **Find similar posts**. Studio reads small, validated byte ranges from a pinned published Hydra KNN index; no index download, model, GPU or imagery upload is required. A lookup runs separately from review and persists through reload/restart. Select up to 50 neighbors and import their metadata into the current project. Open the selected search results to inspect and review them. Existing labels are retained.
+
+**Suggested tags** counts recurring general tags in locally available neighbor metadata. It is descriptive source evidence, not a classifier prediction, calibrated confidence or a human label. Refresh suggestions after imports. No public e621 tags are edited. The **embedding** source filter finds imported neighbors. Frozen datasets retain the seed, index revision/row, row digest, rank and distance in provenance.
+
+The published snapshot ends in July 2026 and may not cover newer/unindexed posts. Offline, missing or malformed index results leave review available. `STUDIO_PUBLISHED_NEIGHBORS=false` disables new lookups while retaining saved evidence. See [optional discovery](docs/optional-workers.md) for transfer limits, integrity and representation boundaries.
 
 ## Dataset quality and exports
 
