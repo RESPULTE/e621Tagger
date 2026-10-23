@@ -1,5 +1,16 @@
 # Validation — 21 October 2026
 
+## Embedding discovery — 24 October 2026
+
+Release `fdd07f9` (feature `72fdd53`) is deployed privately. Windows Python 3.10 and Ubuntu image Python 3.11 each passed **46 backend tests**; Ruff, regenerated API contracts and local/Docker TypeScript/Vite builds passed. Full local browser matrix: **25 passed, 8 expected skips** (includes three inapplicable passwordless reconnect cases). Full isolated Ubuntu passwordless matrix: **28 passed, 5 expected browser/device skips**. A subsequent UI-only correction makes Hide tags also hide neighbor suggestions after reload; its complete neighbor flow passed **3/3 locally and 3/3 against the final Ubuntu image**. No backend source changed for that correction.
+
+Real published range lookups matched post 14 to row 0 (6,688 array bytes/7 reads) and post 757037 to row 703044 (14,880 bytes/9 reads). The interior row digest matched across Windows and Ubuntu; Ubuntu took 13.12 seconds. A separate real-data container imported two explicitly selected neighbors through the actual paced e621 source and returned 20 source-tag suggestions from two known metadata records, with no human labels created. Actual restart retained the completed row and import provenance; integrity/foreign keys passed. Browser fixtures are marked synthetic and do not contact the published index. No independent imagery/relevance judgment or arbitrary-image embedding parity is claimed.
+
+The final image is `hydra-training-studio:fdd07f9`, digest `sha256:d2e6e52cb1aad340d6f4834df7302d6ebe335e96b8747185726c09bf13077081`, 59,737,877 bytes. Runtime UID is 10001; Torch and NumPy are absent. No schema migration was required. Verified production backups preceded both switches. All nine audited durable-table hashes matched before/after: four projects, 459 candidates/discoveries, one human label, ten review events, ten search runs and 52 mutation receipts. Final live status/quality/dataset/evidence reads passed for all projects; unauthenticated requests and invalid Origins were rejected. No production imports, labels or datasets were created by validation. The post-release verified backup is `studio-20261023T160229518881Z.sqlite3` (UTC filename; 24 October Malaysia time).
+
+Read-only Luna High review found no blocker and identified an oversized numeric ID boundary, fixed with clean 422 validation. Main review also bounded candidate membership checks and verified preserved human/frozen-data contracts. Disposable validation containers are stopped, their isolated volumes retained, and the SSH tunnel closed. Public pushes, private-asset copies, giant downloads, training and GPU transport were not performed. [Optional discovery](optional-workers.md) records the exact bounds, publisher identities and unresolved extractor/centroid parity. Physical iPhone, offsite backups and fresh-volume restore were not revalidated in this slice.
+
+
 ## Local continuation checks — 23 October 2026
 
 ### Search/media deployment and live measurements
