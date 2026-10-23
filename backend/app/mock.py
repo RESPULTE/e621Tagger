@@ -3,12 +3,14 @@
 import hashlib
 import io
 import re
+from functools import lru_cache
 from pathlib import Path
 
 import httpx
 from PIL import Image, ImageDraw
 
 
+@lru_cache(maxsize=256)
 def artwork(post_id: int, preview=False):
     width, height = (240, 180) if preview else (1200, 900)
     image = Image.new("RGB", (width, height), (23 + post_id % 60, 54 + post_id % 55, 90 + post_id % 70))
@@ -45,7 +47,9 @@ def post(post_id):
             "character": ["demo_character"],
         },
         "file": {
-            "md5": hashlib.md5(str(post_id).encode()).hexdigest(),
+            "md5": hashlib.md5(
+                (Path(__file__).parent / "assets" / "demo.webm").read_bytes() if video else artwork(post_id)
+            ).hexdigest(),
             "ext": "webm" if video else "png",
             "width": 160 if video else 1200,
             "height": 120 if video else 900,
@@ -88,6 +92,7 @@ def transport(request):
             return httpx.Response(200, json=aliases)
         if path == "/posts.json":
             top = int(params.get("page", "b1001")[1:]) - 1
+
             def matches(item):
                 tags = {tag for values in item["tags"].values() for tag in values}
                 for term in params.get("tags", "").split():
@@ -102,8 +107,13 @@ def transport(request):
                             return False
                         op, threshold = score[1] or "=", int(score[2])
                         actual = item["score"]["total"]
-                        if not {">": actual > threshold, "<": actual < threshold,
-                                ">=": actual >= threshold, "<=": actual <= threshold, "=": actual == threshold}[op]:
+                        if not {
+                            ">": actual > threshold,
+                            "<": actual < threshold,
+                            ">=": actual >= threshold,
+                            "<=": actual <= threshold,
+                            "=": actual == threshold,
+                        }[op]:
                             return False
                     elif term.startswith("-"):
                         if term[1:] in tags:
@@ -119,9 +129,7 @@ def transport(request):
                     selected.append(item)
                 if len(selected) >= int(params.get("limit", 50)):
                     break
-            return httpx.Response(
-                200, json={"posts": selected}
-            )
+            return httpx.Response(200, json={"posts": selected})
         match = re.fullmatch(r"/posts/(\d+)\.json", path)
         if match:
             return httpx.Response(200, json={"post": post(int(match[1]))})
@@ -156,9 +164,13 @@ class SyntheticNeighbors:
         import hashlib
 
         return {
-            "seed_id": seed_id, "coverage": "available", "revision": "synthetic", "row": 0,
+            "seed_id": seed_id,
+            "coverage": "available",
+            "revision": "synthetic",
+            "row": 0,
             "artifact_sha256": hashlib.sha256(f"synthetic:{seed_id}".encode()).hexdigest(),
-            "neighbors": [{"post_id": seed_id - n, "distance": n / 10, "rank": n + 1}
-                          for n in range(1, min(9, seed_id))],
+            "neighbors": [
+                {"post_id": seed_id - n, "distance": n / 10, "rank": n + 1} for n in range(1, min(9, seed_id))
+            ],
             "verification": "Synthetic fixtures only; no semantic retrieval validation",
         }

@@ -1,0 +1,14 @@
+# Optional: merge after docker-compose.yml, using an existing local filesystem.
+services:
+  studio:
+    environment:
+      STUDIO_LIBRARY_ROOT: /library
+      STUDIO_LIBRARY_MAX_BYTES: ${STUDIO_LIBRARY_MAX_BYTES:-268435456}
+      STUDIO_LIBRARY_RESERVE_BYTES: ${STUDIO_LIBRARY_RESERVE_BYTES:-134217728}
+      STUDIO_LIBRARY_TIMEOUT: ${STUDIO_LIBRARY_TIMEOUT:-300}
+    volumes:
+      - type: bind
+        source: ${STUDIO_LIBRARY_HOST_ROOT:?Set the existing mounted collection folder}
+        target: /library
+        bind:
+          create_host_path: false

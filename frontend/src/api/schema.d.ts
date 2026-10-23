@@ -483,6 +483,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/library/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Capability */
+        get: operations["capability_api_library_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/library/posts/{post_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Saved State */
+        get: operations["saved_state_api_library_posts__post_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/library/{post_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Saved */
+        put: operations["set_saved_api_projects__project_id__library__post_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/{path}": {
         parameters: {
             query?: never;
@@ -564,6 +615,7 @@ export interface components {
             event_id: number | null;
             /** Sources */
             sources: string[];
+            favorite: components["schemas"]["SaveState"];
         };
         /** CandidatePage */
         CandidatePage: {
@@ -674,6 +726,15 @@ export interface components {
             version: number;
             /** Event Id */
             event_id: number;
+        };
+        /** LibraryCapability */
+        LibraryCapability: {
+            /** Configured */
+            configured: boolean;
+            /** Available */
+            available: boolean;
+            /** Message */
+            message: string;
         };
         /** Login */
         Login: {
@@ -808,6 +869,51 @@ export interface components {
             jobs: {
                 [key: string]: unknown;
             }[];
+        };
+        /** SaveMutation */
+        SaveMutation: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Wanted */
+            wanted: boolean;
+            /** Expected Version */
+            expected_version: number;
+        };
+        /** SaveState */
+        SaveState: {
+            /** Post Id */
+            post_id: number;
+            /**
+             * Version
+             * @default 0
+             */
+            version: number;
+            /**
+             * Wanted
+             * @default false
+             */
+            wanted: boolean;
+            /**
+             * Present
+             * @default false
+             */
+            present: boolean;
+            /**
+             * Status
+             * @default idle
+             * @enum {string}
+             */
+            status: "idle" | "queued" | "downloading" | "publishing" | "removing" | "retrying" | "saved" | "failed";
+            /** Error */
+            error?: string | null;
+            /**
+             * Updated At
+             * @default 0
+             */
+            updated_at: number;
         };
         /** SuggestedTag */
         SuggestedTag: {
@@ -1782,6 +1888,93 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NeighborImportResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    capability_api_library_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LibraryCapability"];
+                };
+            };
+        };
+    };
+    saved_state_api_library_posts__post_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaveState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_saved_api_projects__project_id__library__post_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveMutation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SaveState"];
                 };
             };
             /** @description Validation Error */

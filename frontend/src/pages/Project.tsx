@@ -25,6 +25,7 @@ import {
 } from "../api/client";
 import { ReviewButtons, useReviews } from "../components/Reviews";
 import { Thumbnail } from "../components/Thumbnail";
+import { FavoriteButton } from "../components/FavoriteButton";
 import { TagSidebar } from "../components/TagSidebar";
 import { recordMetric, sampleFrames } from "../api/telemetry";
 
@@ -644,13 +645,18 @@ export function Project() {
                       </button>
                       <div className="card-meta">
                         <span>
-                          ♥ {post.score} · {post.rating?.toUpperCase()}
+                          Score {post.score} · {post.rating?.toUpperCase()}
                         </span>
                         <span className={post.state ?? ""}>
                           {post.state ?? "unreviewed"}
                         </span>
                       </div>
                       <div className="quick-labels">
+                        <FavoriteButton
+                          project={projectId}
+                          post={post}
+                          compact
+                        />
                         {(["positive", "negative", "unsure"] as const).map(
                           (state, i) => (
                             <button

@@ -196,7 +196,8 @@ async def discover(project_id: int, body: schemas.DiscoveryCreate, request: Requ
     if not query:
         raise HTTPException(422, "Enter a discovery query for this seed-only project")
     source_kind = (
-        body.source_kind if query != project["query"] or body.source_kind in {"unrelated", "hard_negative"}
+        body.source_kind
+        if query != project["query"] or body.source_kind in {"unrelated", "hard_negative"}
         else ("target" if project["target_kind"] == "e621" else "query")
     )
     if query != project["query"] and body.source_kind == "target":
@@ -230,14 +231,26 @@ def decode_candidate(row):
         "version": row["review_version"],
         "event_id": row["event_id"],
         "sources": json.loads(row["sources"]),
+        "favorite": {
+            "post_id": row["post_id"],
+            "version": row["save_version"] or 0,
+            "wanted": bool(row["save_wanted"]),
+            "present": bool(row["save_present"]),
+            "status": row["save_status"] or "idle",
+            "error": row["save_error"],
+            "updated_at": row["save_updated_at"] or 0,
+        },
     }
 
 
 CANDIDATE_SELECT = """SELECT p.*,c.review_version,l.state,
+ m.version AS save_version,m.wanted AS save_wanted,m.present AS save_present,
+ m.status AS save_status,m.error AS save_error,m.updated_at AS save_updated_at,
  (SELECT max(id) FROM label_events e WHERE e.project_id=c.project_id AND e.post_id=c.post_id) AS event_id,
  (SELECT json_group_array(DISTINCT s.source_kind || ': ' || s.query) FROM discoveries d JOIN search_runs s ON s.id=d.search_run_id
  WHERE d.project_id=c.project_id AND d.post_id=c.post_id) AS sources
- FROM project_candidates c JOIN posts p USING(post_id) LEFT JOIN labels l USING(project_id,post_id)"""
+ FROM project_candidates c JOIN posts p USING(post_id) LEFT JOIN labels l USING(project_id,post_id)
+ LEFT JOIN saved_media m ON m.post_id=p.post_id"""
 
 
 @router.get("/projects/{project_id}/candidates", response_model=schemas.CandidatePage)

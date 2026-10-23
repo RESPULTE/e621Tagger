@@ -1371,6 +1371,127 @@
         }
       }
     },
+    "/api/library/status": {
+      "get": {
+        "summary": "Capability",
+        "operationId": "capability_api_library_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryCapability"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/library/posts/{post_id}": {
+      "get": {
+        "summary": "Saved State",
+        "operationId": "saved_state_api_library_posts__post_id__get",
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Post Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/library/{post_id}": {
+      "put": {
+        "summary": "Set Saved",
+        "operationId": "set_saved_api_projects__project_id__library__post_id__put",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Post Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveMutation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaveState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/{path}": {
       "get": {
         "summary": "Frontend",
@@ -1604,6 +1725,9 @@
             },
             "type": "array",
             "title": "Sources"
+          },
+          "favorite": {
+            "$ref": "#/components/schemas/SaveState"
           }
         },
         "type": "object",
@@ -1624,7 +1748,8 @@
           "state",
           "version",
           "event_id",
-          "sources"
+          "sources",
+          "favorite"
         ],
         "title": "Candidate"
       },
@@ -1874,6 +1999,29 @@
           "event_id"
         ],
         "title": "LabelResult"
+      },
+      "LibraryCapability": {
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "title": "Configured"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "configured",
+          "available",
+          "message"
+        ],
+        "title": "LibraryCapability"
       },
       "Login": {
         "properties": {
@@ -2239,6 +2387,91 @@
           "jobs"
         ],
         "title": "ProjectResult"
+      },
+      "SaveMutation": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "wanted": {
+            "type": "boolean",
+            "title": "Wanted"
+          },
+          "expected_version": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "minimum": 0.0,
+            "title": "Expected Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "wanted",
+          "expected_version"
+        ],
+        "title": "SaveMutation"
+      },
+      "SaveState": {
+        "properties": {
+          "post_id": {
+            "type": "integer",
+            "title": "Post Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "default": 0
+          },
+          "wanted": {
+            "type": "boolean",
+            "title": "Wanted",
+            "default": false
+          },
+          "present": {
+            "type": "boolean",
+            "title": "Present",
+            "default": false
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "queued",
+              "downloading",
+              "publishing",
+              "removing",
+              "retrying",
+              "saved",
+              "failed"
+            ],
+            "title": "Status",
+            "default": "idle"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "updated_at": {
+            "type": "number",
+            "title": "Updated At",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "post_id"
+        ],
+        "title": "SaveState"
       },
       "SuggestedTag": {
         "properties": {

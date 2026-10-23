@@ -62,8 +62,9 @@ async def persist_post(conn, post):
 
 
 class Workers:
-    def __init__(self, db, source, media, neighbors=None):
+    def __init__(self, db, source, media, neighbors=None, library=None):
         self.db, self.source, self.media, self.neighbors = db, source, media, neighbors
+        self.library = library
         self.tasks = []
 
     async def start(self, media_count):
@@ -72,6 +73,8 @@ class Workers:
             await conn.execute("UPDATE jobs SET status='pending',lease_until=NULL WHERE status='running'")
         self.tasks = [asyncio.create_task(self._loop("discovery"), name="discovery")]
         self.tasks.append(asyncio.create_task(self._loop("neighbors"), name="neighbors"))
+        if self.library:
+            self.tasks.append(asyncio.create_task(self._loop("library"), name="library"))
         self.tasks += [asyncio.create_task(self._loop("preview"), name=f"preview-{i}") for i in range(media_count)]
 
     async def close(self):
@@ -117,6 +120,8 @@ class Workers:
                     payload = json.loads(job["payload_json"])
                     if job_type == "discovery":
                         await self.discover(job, payload)
+                    elif job_type == "library":
+                        await self.library.process(job, payload)
                     elif job_type == "neighbors":
                         if not self.source.settings.published_neighbors:
                             raise HTTPException(409, "Published neighbor lookup is disabled")
@@ -144,6 +149,8 @@ class Workers:
                         str(exc.detail) if isinstance(exc, HTTPException) else f"{type(exc).__name__}: operation failed"
                     )
                     async with self.db.transaction() as conn:
+                        if job_type == "library":
+                            await self.library.failed(conn, payload, message, failed)
                         await conn.execute(
                             "UPDATE jobs SET status=?,error=?,available_at=?,lease_until=NULL,updated_at=? WHERE id=?",
                             (

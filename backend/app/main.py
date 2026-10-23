@@ -15,6 +15,8 @@ from .db import Database
 from .e621 import E621
 from .embeddings import router as embeddings_router
 from .jobs import Workers
+from .library import Library
+from .library import router as library_router
 from .media import Media
 from .mock import SyntheticNeighbors
 from .mock import transport as mock_transport
@@ -38,12 +40,13 @@ def create_app(settings=None, *, transport=None, start_workers=True):
             active_transport = transport or (httpx.MockTransport(mock_transport) if config.mock_e621 else None)
             app.state.source = source = E621(config, db, active_transport)
             app.state.media = media = Media(config, db, active_transport)
+            app.state.library = library = Library(db, source, media, config)
             # Remove abandoned partial downloads after a crash.
             for path in media.cache_root.glob("*.part"):
                 path.unlink(missing_ok=True)
             source.start()
             app.state.workers = workers = Workers(
-                db, source, media, SyntheticNeighbors() if config.mock_e621 else PublishedNeighbors()
+                db, source, media, SyntheticNeighbors() if config.mock_e621 else PublishedNeighbors(), library
             )
             if start_workers:
                 await workers.start(config.media_concurrency)
@@ -130,6 +133,7 @@ await self.registration.unregister();for(const client of await self.clients.matc
     app.include_router(router)
     app.include_router(datasets_router)
     app.include_router(embeddings_router)
+    app.include_router(library_router)
 
     @app.get("/{path:path}")
     async def frontend(path: str):

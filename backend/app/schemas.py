@@ -90,6 +90,16 @@ class LabelResult(BaseModel):
     event_id: int
 
 
+class SaveState(BaseModel):
+    post_id: int
+    version: int = 0
+    wanted: bool = False
+    present: bool = False
+    status: Literal["idle", "queued", "downloading", "publishing", "removing", "retrying", "saved", "failed"] = "idle"
+    error: str | None = None
+    updated_at: float = 0
+
+
 class Candidate(BaseModel):
     post_id: int
     rating: str | None
@@ -108,6 +118,7 @@ class Candidate(BaseModel):
     version: int
     event_id: int | None
     sources: list[str]
+    favorite: SaveState
 
 
 class CandidatePage(BaseModel):
@@ -187,3 +198,14 @@ class NeighborImportResult(BaseModel):
     exhausted: bool
     run_id: int
     query: str
+
+
+class SaveMutation(Mutation):
+    wanted: bool
+    expected_version: int = Field(ge=0, le=2**63 - 2)
+
+
+class LibraryCapability(BaseModel):
+    configured: bool
+    available: bool
+    message: str

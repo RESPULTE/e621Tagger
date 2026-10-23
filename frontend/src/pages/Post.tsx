@@ -11,6 +11,7 @@ import {
 import { ReviewButtons, useReviews } from "../components/Reviews";
 import { TagSidebar } from "../components/TagSidebar";
 import { EmbeddingAssist } from "../components/EmbeddingAssist";
+import { FavoriteButton } from "../components/FavoriteButton";
 
 type NavigationState = { ids?: number[]; gallery?: string };
 export function Post() {
@@ -168,6 +169,7 @@ export function Post() {
         </div>
         <div className="page-heading">
           <h1>Post #{currentId}</h1>
+          {post && <FavoriteButton project={projectId} post={post} />}
           {isImage && (
             <button onClick={() => setActualSize((value) => !value)}>
               {actualSize ? "Fit to window" : "Actual size / zoom"}

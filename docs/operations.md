@@ -34,6 +34,26 @@ Disk-full/SQLite failures return an unacknowledged-save error. Free space and re
 
 `STUDIO_PUBLISHED_NEIGHBORS` defaults to true and is passed through Compose. It permits only explicit known-ID lookups against a pinned public Hydra index, using bounded byte ranges. Set false for offline-only operation; this does not remove previously stored evidence. Failure or missing coverage appears in the post's Similar posts panel; reviews do not depend on upstream index health. A separate durable `neighbors` queue has one worker and a 16-job active limit. No Torch, NumPy, checkpoint or index files are added to the server. See [the adapter contract](optional-workers.md) for limits and verification boundaries.
 
+## Optional heart saves to the main collection
+
+Merge `deploy/docker-compose.library.yml` after the base Compose file and set `STUDIO_LIBRARY_HOST_ROOT` to the existing, mounted main collection folder. Originals and sidecars go directly in that folder, without an Inbox subfolder. Without this configuration the heart is disabled; review still works. The container's UID 10001 needs write access to this folder. Do not recursively change library ownership or permissions.
+
+Initialize only the intended mounted folder once, using the same merged configuration:
+
+```sh
+docker compose --env-file .env -f deploy/docker-compose.yml -f deploy/docker-compose.library.yml run --rm --no-deps studio python -m backend.init_library /library
+```
+
+This creates only a hidden `.hydra-studio-library-id` marker. Startup/save never creates a missing collection root or marker. The marker and the database identity must agree; a missing mount or different collection fails closed. The bind uses `create_host_path: false`. Keep the marker when backing up or restoring this collection.
+
+Click the heart in the gallery or post view to queue a global save for that post. Click again to queue removal. The UI shows pending, saved and failed states, with a retry for failed operations. This does not change human review labels, e621 favorites, project membership or frozen datasets. A save refetches e621 metadata and checks the original's MD5; a changed source requires a refreshed view. The four files are `e621_<post-id>_<md5>.<original-extension>`, `.json`, `.txt` and `.xmp`. JSON retains the full source metadata and categorized tags; TXT and XMP contain all canonical source tags. Original bytes are preserved. External tools may require their own sidecar import configuration; no Stash tag-import integration is implied.
+
+One separate durable worker uses the shared CDN limits. Defaults: 256 MiB per original, 128 MiB free-space reserve, 300 seconds per operation, 16 active queued operations and four bounded attempts. Environment overrides are in the optional Compose file. Pending work resumes after restart. Files are downloaded under hidden `.hydra-studio-tmp` storage, checksummed, and published with metadata first and original last. A durable inode/hash manifest and POSIX directory fsync order protect interrupted publication/removal. Timeout/shutdown waits for active filesystem work before releasing writer ownership. An unresponsive filesystem can therefore delay shutdown; forcibly stopping still relies on the journal for recovery.
+
+Studio refuses filename collisions and never adopts pre-existing files. Removal verifies the owned files, atomically quarantines them and checks identity again before deletion; edited/replaced files cause a conflict and remain recoverable. Do not remove the hidden staging area while a job is active. If an external replacement also blocks restoration to its old name, the error gives its retained recovery path. There is no recursive library deletion. The marker and hidden staging folder remain after removing a saved post. Local POSIX filesystems with hard links, atomic rename and directory fsync are required for the deployment durability guarantees; Windows tests exercise application logic only.
+
+Schema v3 adds collection identity and saved-file ownership. Upgrading v1/v2 creates a verified `pre-schema-v3-*.sqlite3` online backup before migration. **Do not start a schema-v2 image against a migrated volume.** For rollback, stop Studio, preserve the entire v3 volume and library, restore the pre-upgrade backup to a fresh data volume, and start the previous image against that fresh volume. Files saved after that backup remain on disk but cannot be adopted/deleted by the older database. For normal v3 recovery, retain both the database and collection marker/files; inode checks intentionally reject copied/replaced files whose ownership can no longer be verified. Collection originals/sidecars need their own filesystem backup; the SQLite backup does not include them.
+
 ## Monitoring
 
 `/health` checks the DB and local tasks. Authenticated `/api/metrics` reports metadata requests/throttles/latest latency, media bytes/cache hits/misses/concurrency, cache usage and queue counts. Verbose HTTP logs are disabled; secrets never appear in job errors.

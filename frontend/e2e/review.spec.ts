@@ -638,3 +638,60 @@ test("bounded neighbor discovery preserves human labels and exposes source tag c
     .scrollIntoViewIfNeeded();
   await page.screenshot({ path: testInfo.outputPath("neighbors.png") });
 });
+
+test("heart saves tagged originals globally and toggles them off without reviewing", async ({
+  page,
+}) => {
+  await login(page);
+  await createProject(page);
+  const save = page.getByRole("button", {
+    name: "Save post 999 to Smut folder",
+    exact: true,
+  });
+  await save.click();
+  const remove = page.getByRole("button", {
+    name: "Remove saved post 999 from Smut folder",
+    exact: true,
+  });
+  await expect(remove).toHaveAttribute("aria-pressed", "true");
+  const galleryCard = page
+    .locator(".post-card")
+    .filter({
+      has: page.getByRole("button", { name: "Open post 999", exact: true }),
+    });
+  await expect(galleryCard).not.toHaveClass(/positive|negative|unsure/);
+  await page
+    .getByRole("button", { name: "Open post 999", exact: true })
+    .click();
+  await expect(
+    page.getByText("Original and e621 tags saved.", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByRole("button", {
+      name: "Remove saved post 999 from Smut folder",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page
+    .getByRole("button", {
+      name: "Remove saved post 999 from Smut folder",
+      exact: true,
+    })
+    .click();
+  await expect(
+    page.getByRole("button", {
+      name: "Save post 999 to Smut folder",
+      exact: true,
+    }),
+  ).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    page.getByText("Original and e621 tags saved.", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByText("Unreviewed", { exact: true })).toBeVisible();
+  expect(
+    await page
+      .locator("body")
+      .evaluate((body) => body.scrollWidth <= window.innerWidth),
+  ).toBe(true);
+});

@@ -954,3 +954,11 @@ footer {
 .neighbor-list { max-height: 18rem; overflow-y: auto; margin: 1rem 0; }
 .neighbor-row { display: flex; flex-direction: row; align-items: center; gap: .7rem; padding: .5rem; }
 .neighbor-row input { width: auto; flex: 0 0 auto; }
+
+.favorite-control { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: 12px; }
+.favorite-button { display: inline-flex; align-items: center; gap: .4rem; }
+.favorite-button.hearted { color: #ffa5bf; border-color: #ca7d97; }
+.favorite-button > span:first-child { font-size: 23px; line-height: 1; }
+.favorite-control.compact { display: inline-flex; flex: 1; gap: 2px; }
+.favorite-control.compact .favorite-button { width: 100%; justify-content: center; min-height: 32px; padding: 2px; }
+.favorite-error { color: #ffc2b3; overflow-wrap: anywhere; }

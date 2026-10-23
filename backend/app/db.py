@@ -80,6 +80,15 @@ CREATE TRIGGER datasets_no_delete BEFORE DELETE ON datasets
 """
 
 
+SCHEMA_V3 = """
+CREATE TABLE library_identity(id INTEGER PRIMARY KEY CHECK(id=1),token TEXT NOT NULL);
+CREATE TABLE saved_media(
+ post_id INTEGER PRIMARY KEY REFERENCES posts(post_id), version INTEGER NOT NULL,
+ wanted INTEGER NOT NULL, present INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL,
+ error TEXT, record_json TEXT, updated_at REAL NOT NULL);
+"""
+
+
 class Database:
     def __init__(self, root: Path):
         self.root = root.resolve()
@@ -116,19 +125,26 @@ class Database:
         await self.connection.execute("PRAGMA busy_timeout=5000")
         current = await self.connection.execute("PRAGMA user_version")
         version = (await current.fetchone())[0]
-        if version > 2:
+        if version > 3:
             raise RuntimeError("Database schema is newer than this application")
         if version == 0:
-            await self.connection.executescript("BEGIN IMMEDIATE;" + SCHEMA + SCHEMA_V2 + "PRAGMA user_version=2; COMMIT;")
-        elif version == 1:
+            await self.connection.executescript(
+                "BEGIN IMMEDIATE;" + SCHEMA + SCHEMA_V2 + SCHEMA_V3 + "PRAGMA user_version=3; COMMIT;"
+            )
+        elif version in {1, 2}:
             from backend.backup import backup
 
             # The process lock is already held. Use SQLite online backup, never a
             # raw DB-file copy that could omit WAL commits. Failure aborts startup.
-            destination = self.root / "backups" / f"pre-schema-v2-{time.time_ns()}.sqlite3"
+            destination = self.root / "backups" / f"pre-schema-v3-{time.time_ns()}.sqlite3"
             await asyncio.to_thread(backup, self.root, destination)
             try:
-                await self.connection.executescript("BEGIN IMMEDIATE;" + SCHEMA_V2 + "PRAGMA user_version=2; COMMIT;")
+                await self.connection.executescript(
+                    "BEGIN IMMEDIATE;"
+                    + (SCHEMA_V2 if version == 1 else "")
+                    + SCHEMA_V3
+                    + "PRAGMA user_version=3; COMMIT;"
+                )
             except BaseException:
                 await self.connection.rollback()
                 raise
