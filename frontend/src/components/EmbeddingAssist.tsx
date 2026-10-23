@@ -11,9 +11,11 @@ type ImportResult = components["schemas"]["NeighborImportResult"];
 export function EmbeddingAssist({
   project,
   post,
+  hideTags,
 }: {
   project: number;
   post: number;
+  hideTags: boolean;
 }) {
   const path = `/projects/${project}/neighbors/${post}`;
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -162,29 +164,35 @@ export function EmbeddingAssist({
             Imports append discovery evidence and preserve existing labels.
             Inspect originals before reviewing.
           </p>
-          <h3>Suggested tags from neighbor metadata</h3>
-          <p>
-            {data.known_metadata}/{data.neighbors.length} neighbors have
-            available local metadata. Counts describe source tags, not Hydra
-            predictions or confidence.
-          </p>
-          {data.suggested_tags.length ? (
-            <ul>
-              {data.suggested_tags.map((tag) => (
-                <li key={tag.name}>
-                  {tag.name} · {tag.count}/{data.known_metadata}
-                </li>
-              ))}
-            </ul>
+          {hideTags ? (
+            <p>Tag suggestions are hidden for review.</p>
           ) : (
-            <p>
-              Import neighbors to inspect recurring tags. No tag is assigned
-              automatically.
-            </p>
+            <>
+              <h3>Suggested tags from neighbor metadata</h3>
+              <p>
+                {data.known_metadata}/{data.neighbors.length} neighbors have
+                available local metadata. Counts describe source tags, not Hydra
+                predictions or confidence.
+              </p>
+              {data.suggested_tags.length ? (
+                <ul>
+                  {data.suggested_tags.map((tag) => (
+                    <li key={tag.name}>
+                      {tag.name} · {tag.count}/{data.known_metadata}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>
+                  Import neighbors to inspect recurring tags. No tag is assigned
+                  automatically.
+                </p>
+              )}
+              <button onClick={() => void evidence.refetch()}>
+                Refresh tag suggestions
+              </button>
+            </>
           )}
-          <button onClick={() => void evidence.refetch()}>
-            Refresh tag suggestions
-          </button>
           <details>
             <summary>Embedding provenance</summary>
             <p>Published revision: {String(result?.revision)}</p>

@@ -269,6 +269,7 @@ export function Post() {
               key={`${projectId}:${currentId}`}
               project={projectId}
               post={currentId}
+              hideTags={hideTags}
             />
             <div className="detail-review">
               <div>

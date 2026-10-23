@@ -564,11 +564,9 @@ test("bounded neighbor discovery preserves human labels and exposes source tag c
   await page
     .getByRole("button", { name: "Mark post 998 positive", exact: true })
     .click();
-  const reviewed = page
-    .locator(".post-card")
-    .filter({
-      has: page.getByRole("button", { name: "Open post 998", exact: true }),
-    });
+  const reviewed = page.locator(".post-card").filter({
+    has: page.getByRole("button", { name: "Open post 998", exact: true }),
+  });
   await expect(reviewed).toHaveClass(/positive/);
   await page
     .getByRole("button", { name: "Open post 999", exact: true })
@@ -603,11 +601,9 @@ test("bounded neighbor discovery preserves human labels and exposes source tag c
     page.getByRole("button", { name: "Open post 999", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page
-      .locator(".post-card")
-      .filter({
-        has: page.getByRole("button", { name: "Open post 998", exact: true }),
-      }),
+    page.locator(".post-card").filter({
+      has: page.getByRole("button", { name: "Open post 998", exact: true }),
+    }),
   ).toHaveClass(/positive/);
   await page
     .getByRole("button", { name: "Open post 998", exact: true })
@@ -621,6 +617,18 @@ test("bounded neighbor discovery preserves human labels and exposes source tag c
   await expect(
     page.getByText(/neighbors have available local metadata/),
   ).toBeVisible();
+  const suggestions = page
+    .getByRole("region", { name: "Embedding assistance" })
+    .getByRole("list");
+  await expect(suggestions).toBeVisible();
+  await page.getByLabel("Hide tags").check();
+  await expect(suggestions).toHaveCount(0);
+  await page.reload();
+  await expect(
+    page.getByText("Tag suggestions are hidden for review."),
+  ).toBeVisible();
+  await page.getByLabel("Hide tags").uncheck();
+  await expect(suggestions).toBeVisible();
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > window.innerWidth,
   );
