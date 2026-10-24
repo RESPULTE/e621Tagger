@@ -207,7 +207,9 @@ export function EmbeddingAssist({
       {imported && (
         <p role="status">
           Neighbor import queued.{" "}
-          <Link to={`/projects/${project}?run_id=${imported.run_id}`}>
+          <Link
+            to={`/projects/${project}?q=${encodeURIComponent(imported.query)}`}
+          >
             Open these search results
           </Link>
         </p>

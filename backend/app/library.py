@@ -10,9 +10,9 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import stat
 import time
+from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
 from xml.etree import ElementTree as ET
@@ -50,7 +50,7 @@ def conflict(message="Saved files changed outside Studio; existing files were le
 def regular(path):
     try:
         return stat.S_ISREG(path.lstat().st_mode)
-    except FileNotFoundError:
+    except OSError:
         return False
 
 
@@ -103,7 +103,10 @@ class Library:
     def __init__(self, db, source, media, settings):
         self.db, self.source, self.media, self.settings = db, source, media, settings
         self.root = settings.library_root.absolute() if settings.library_root is not None else None
-        self.operation_lock = asyncio.Lock()
+        self.operation_locks = [asyncio.Lock() for _ in range(64)]
+        self.active_jobs = {}
+        self.transfers = None
+        self.feed = None
 
     def capability(self):
         available = bool(
@@ -157,12 +160,12 @@ class Library:
 
     async def current(self, post_id, version):
         row = await self.db.one("SELECT * FROM saved_media WHERE post_id=?", (post_id,))
-        return row if row and row["version"] == version else None
+        return row if row and row["version"] == version and row["status"] != "cancelled" else None
 
     async def process(self, job, payload):
-        # One worker owns filesystem changes. HTTP can update intent during I/O;
-        # each publication/final state checks the durable version again.
-        async with self.operation_lock:
+        # Stripe by post: one destination writer, independent posts may overlap.
+        # HTTP intent changes are checked again before publication.
+        async with self.operation_locks[payload["post_id"] % len(self.operation_locks)]:
             try:
                 operation = asyncio.create_task(self._process(job, payload))
                 try:
@@ -180,9 +183,12 @@ class Library:
                 raise HTTPException(
                     507, "Smut folder could not be written safely; check storage and permissions"
                 ) from None
+            finally:
+                self.active_jobs.pop((payload["post_id"], payload["version"]), None)
 
     async def _process(self, job, payload):
         post_id, version = payload["post_id"], payload["version"]
+        self.active_jobs[(post_id, version)] = job["id"]
         row = await self.current(post_id, version)
         if not row:
             await self.finish(job, post_id, version, "superseded")
@@ -197,6 +203,8 @@ class Library:
                 await disk(self.remove_files, record)
             async with self.db.transaction() as conn:
                 await conn.execute("UPDATE saved_media SET present=0,record_json=NULL WHERE post_id=?", (post_id,))
+                if record:
+                    await self.clear_staging_journal(conn, record["token"])
             await self.finish(job, post_id, version, "idle")
             return
         if record:
@@ -209,8 +217,10 @@ class Library:
             # anew; edited or replaced extant files still cause a conflict.
             async with self.db.transaction() as conn:
                 await conn.execute("UPDATE saved_media SET present=0,record_json=NULL WHERE post_id=?", (post_id,))
+                await self.clear_staging_journal(conn, record["token"])
+        await self.clean_staging(job["id"])
         await self.set_status(post_id, version, "downloading")
-        snapshot = await self.db.one("SELECT * FROM posts WHERE post_id=?", (post_id,))
+        snapshot = payload.get("source") or await self.db.one("SELECT * FROM posts WHERE post_id=?", (post_id,))
         post = (await self.source.request(f"/posts/{post_id}.json", background=True))["post"]
         file = post.get("file") or {}
         md5, ext = file.get("md5", ""), file.get("ext", "")
@@ -227,19 +237,26 @@ class Library:
             raise conflict("A matching filename already exists; Studio will not overwrite or adopt it")
         token = uuid4().hex
         stage = self.root / ".hydra-studio-tmp" / token
-        stage.mkdir(mode=0o700)
-        created = []
+        async with self.db.transaction() as conn:
+            await conn.execute(
+                "INSERT INTO library_staging(job_id,root_id,token,names_json) VALUES(?,?,?,?)",
+                (job["id"], root_id, token, json.dumps(names)),
+            )
         reserved = False
         try:
+            await disk(stage.mkdir, 0o700)
+            identity = stage.stat()
+            async with self.db.transaction() as conn:
+                await conn.execute(
+                    "UPDATE library_staging SET directory_inode=?,device=? WHERE job_id=?",
+                    (identity.st_ino, identity.st_dev, job["id"]),
+                )
             original = stage / (names[0] + ".part")
-            created.append(original.name)
             expected_size = file.get("size")
             await self.download(original, file["url"], md5, expected_size, post_id, version)
-            original.rename(stage / names[0])
-            created.append(names[0])
+            await disk(original.rename, stage / names[0])
             for name, data in zip(names[1:], captions(post, token)):
-                created.append(name)
-                await disk(self.write_file, stage / name, data)
+                await self.write_staged_file(job["id"], stage / name, data)
             if not await self.current(post_id, version):
                 await self.finish(job, post_id, version, "superseded")
                 return
@@ -249,9 +266,9 @@ class Library:
             record = {"schema_version": 1, "root_id": root_id, "token": token, "files": entries, "original": names[0]}
             async with self.db.transaction() as conn:
                 current = await (
-                    await conn.execute("SELECT version,wanted FROM saved_media WHERE post_id=?", (post_id,))
+                    await conn.execute("SELECT version,wanted,status FROM saved_media WHERE post_id=?", (post_id,))
                 ).fetchone()
-                if current["version"] != version or not current["wanted"]:
+                if current["version"] != version or not current["wanted"] or current["status"] == "cancelled":
                     await self.done_job(conn, job, "superseded")
                     return
                 await conn.execute(
@@ -265,72 +282,103 @@ class Library:
             # Before journal reservation only this invocation owns the scratch
             # files. After reservation retain them for exact crash recovery.
             if not reserved:
-                await disk(self.clean_stage, stage, created)
+                await self.clean_staging(job["id"])
 
-    async def download(self, path, url, md5, expected_size, post_id, version):
-        maximum = self.settings.library_max_bytes
-        if isinstance(expected_size, int) and (expected_size < 1 or expected_size > maximum):
-            raise HTTPException(413, "Original exceeds the configured save size limit")
-        required = expected_size if isinstance(expected_size, int) else maximum
-        if (await disk(shutil.disk_usage, self.root)).free < required + self.settings.library_reserve_bytes:
-            raise HTTPException(507, "Smut storage has insufficient free space")
-        response = None
-        await self.media.acquire_slot("original")
-        count = 0
-        last_checked = 0
-        checked_at = time.monotonic()
-        hasher = hashlib.md5()
-        try:
-            response = await self.media._open(url)
-            if response.status_code != 200:
-                raise HTTPException(
-                    response.status_code if response.status_code in {403, 404, 429, 503} else 502,
-                    "CDN could not supply the original",
+    async def write_staged_file(self, job_id, path, data):
+        with path.open("xb") as stream:
+            identity = os.fstat(stream.fileno())
+            entry = {"name": path.name, "inode": identity.st_ino, "device": identity.st_dev}
+            async with self.db.transaction() as conn:
+                await conn.execute(
+                    "UPDATE library_staging SET files_json=json_insert(files_json,'$[#]',json(?)) WHERE job_id=?",
+                    (json.dumps(entry), job_id),
                 )
-            kind = response.headers.get("content-type", "").split(";")[0]
-            if not (kind.startswith("image/") or kind.startswith("video/")) or kind == "image/svg+xml":
-                raise HTTPException(415, "Original response is not supported media")
-            length = response.headers.get("content-length")
-            if length and (not length.isdigit() or int(length) > maximum):
-                raise HTTPException(413, "Original exceeds the configured save size limit")
-            if response.headers.get("content-encoding", "identity") != "identity":
-                raise HTTPException(502, "Original response unexpectedly changed its encoding")
-            with path.open("xb") as output:
-                async for chunk in response.aiter_raw(65536):
-                    count += len(chunk)
-                    if count > maximum:
-                        raise HTTPException(413, "Original exceeds the configured save size limit")
-                    if count - last_checked >= 1024 * 1024 or time.monotonic() - checked_at >= 0.25:
-                        if not await self.current(post_id, version):
-                            raise HTTPException(409, "Save superseded by a newer heart toggle")
-                        last_checked = count
-                        checked_at = time.monotonic()
-                    await disk(output.write, chunk)
-                    hasher.update(chunk)
-                    self.media.metrics["bytes"] += len(chunk)
-                await disk(output.flush)
-                await disk(os.fsync, output.fileno())
+            await disk(stream.write, data)
+            await disk(stream.flush)
+            await disk(os.fsync, stream.fileno())
+
+    async def clean_staging(self, job_id):
+        row = await self.db.one("SELECT * FROM library_staging WHERE job_id=?", (job_id,))
+        if not row:
+            return
+        identity = await self.db.one("SELECT token FROM library_identity WHERE id=1")
+        if not identity or identity["token"] != row["root_id"]:
+            raise conflict("Interrupted download belongs to another collection; files were preserved")
+        names = json.loads(row["names_json"])
+        stage = self.paths({"token": row["token"], "files": [{"name": name} for name in names]})
+        entries = json.loads(row["files_json"])
+        partial = await self.db.one("SELECT * FROM download_partials WHERE job_id=?", (job_id,))
+        if partial and Path(partial["path"]).parent == stage:
+            for name in (names[0] + ".part", names[0]):
+                entries.append({"name": name, "inode": partial["inode"], "device": partial["device"]})
+
+        def cleanup():
+            if not stage.exists():
+                return
             if (
-                not count
-                or (length and count != int(length))
-                or (isinstance(expected_size, int) and count != expected_size)
+                stage.is_symlink()
+                or not row["directory_inode"]
+                or stage.stat().st_ino != row["directory_inode"]
+                or stage.stat().st_dev != row["device"]
             ):
-                raise HTTPException(502, "Original download was incomplete")
-            if hasher.hexdigest() != md5:
-                raise HTTPException(502, "Original checksum did not match e621; nothing was saved")
-        finally:
+                raise conflict("Interrupted staging directory changed; files were preserved")
+            for entry in entries:
+                if entry["name"] not in names and entry["name"] != names[0] + ".part":
+                    raise conflict()
+                path = stage / entry["name"]
+                if path.exists() or path.is_symlink():
+                    if (
+                        not regular(path)
+                        or path.stat().st_ino != entry["inode"]
+                        or path.stat().st_dev != entry["device"]
+                    ):
+                        raise conflict("Interrupted staging file changed; files were preserved")
+            for entry in entries:
+                (stage / entry["name"]).unlink(missing_ok=True)
+            sync_directory(stage)
+            if any(stage.iterdir()):
+                raise conflict("Unjournalled staging files were preserved for explicit recovery")
+            stage.rmdir()
+            sync_directory(stage.parent)
+
+        await disk(cleanup)
+        async with self.db.transaction() as conn:
+            await conn.execute("DELETE FROM library_staging WHERE job_id=?", (job_id,))
+            await conn.execute("DELETE FROM download_partials WHERE job_id=?", (job_id,))
+
+    async def recover_staging(self):
+        for row in await self.db.rows("SELECT s.*,j.payload_json FROM library_staging s JOIN jobs j ON j.id=s.job_id"):
+            payload = json.loads(row["payload_json"])
+            saved = await self.db.one("SELECT record_json FROM saved_media WHERE post_id=?", (payload["post_id"],))
+            record = json.loads(saved["record_json"]) if saved and saved["record_json"] else None
+            if record and record["token"] == row["token"]:
+                continue  # The full publication journal now owns these files.
             try:
-                if response:
-                    await response.aclose()
-            finally:
-                self.media.release_slot("original")
+                await self.clean_staging(row["job_id"])
+            except (HTTPException, OSError) as exc:
+                message = (
+                    str(exc.detail)
+                    if isinstance(exc, HTTPException)
+                    else "Interrupted collection storage is unavailable; files were preserved"
+                )
+                async with self.db.transaction() as conn:
+                    await conn.execute("UPDATE jobs SET status='failed',error=? WHERE id=?", (message, row["job_id"]))
+                    await self.failed(conn, payload, message, True)
 
     @staticmethod
-    def write_file(path, data):
-        with path.open("xb") as stream:
-            stream.write(data)
-            stream.flush()
-            os.fsync(stream.fileno())
+    async def clear_staging_journal(conn, token):
+        await conn.execute(
+            "DELETE FROM download_partials WHERE job_id IN (SELECT job_id FROM library_staging WHERE token=?)", (token,)
+        )
+        await conn.execute("DELETE FROM library_staging WHERE token=?", (token,))
+
+    async def download(self, path, url, md5, expected_size, post_id, version):
+        async def current():
+            return bool(await self.current(post_id, version))
+
+        return await self.transfers.save(
+            path, url, md5, expected_size, self.root, job_id=self.active_jobs.get((post_id, version)), current=current
+        )
 
     @staticmethod
     def describe(stage, names):
@@ -493,7 +541,7 @@ class Library:
     @staticmethod
     async def done_job(conn, job, outcome):
         await conn.execute(
-            "UPDATE jobs SET status='done',lease_until=NULL,error=NULL,result_json=?,updated_at=? WHERE id=?",
+            "UPDATE jobs SET status='done',lease_until=NULL,error=NULL,result_json=?,updated_at=? WHERE id=? AND status!='cancelled'",
             (json.dumps({"outcome": outcome}), time.time(), job["id"]),
         )
 
@@ -512,6 +560,10 @@ class Library:
                     (status, time.time(), post_id),
                 )
             await self.done_job(conn, job, status)
+            if status == "saved":
+                if snapshot and snapshot["record_json"]:
+                    await self.clear_staging_journal(conn, json.loads(snapshot["record_json"])["token"])
+                await conn.execute("DELETE FROM download_partials WHERE job_id=?", (job["id"],))
 
     @staticmethod
     async def failed(conn, payload, message, failed):
@@ -528,36 +580,59 @@ async def capability(request: Request):
 
 @router.get("/library/posts/{post_id}", response_model=schemas.SaveState)
 async def saved_state(post_id: PositiveId, request: Request):
-    if not await request.app.state.db.one("SELECT 1 FROM posts WHERE post_id=?", (post_id,)):
-        raise HTTPException(404, "Post not found")
     return state(post_id, await request.app.state.db.one("SELECT * FROM saved_media WHERE post_id=?", (post_id,)))
 
 
 @router.put("/projects/{project_id}/library/{post_id}", response_model=schemas.SaveState)
 async def set_saved(project_id: PositiveId, post_id: PositiveId, body: schemas.SaveMutation, request: Request):
     db = request.app.state.db
-    signature = fingerprint(["save-media", project_id, post_id], body.model_dump(mode="json"))
+    from .api import require_project
+    from .jobs import persist_post
+
+    project_id = (await require_project(db, project_id))["id"]
+    signature = fingerprint(["save-media", project_id, post_id], body.model_dump(mode="json", exclude_none=True))
     async with db.transaction() as conn:
         previous = await receipt(conn, body.request_id, signature)
         if previous is not None:
             return previous
-        candidate = await (
-            await conn.execute(
-                "SELECT p.* FROM posts p JOIN project_candidates c USING(post_id) WHERE c.project_id=? AND c.post_id=?",
-                (project_id, post_id),
-            )
-        ).fetchone()
+    known = await db.one("SELECT 1 FROM posts WHERE post_id=?", (post_id,))
+    if not known and not request.app.state.feed.peek(post_id):
+        raise HTTPException(404, "Open or browse this post before explicitly saving it")
+    source = await request.app.state.feed.row(post_id) if body.wanted else None
+    raw = await request.app.state.feed.raw(post_id) if not known else None
+    if body.source_md5 and source and body.source_md5 != source["md5"]:
+        raise conflict("Post original changed since this view; refresh before saving")
+    async with db.transaction() as conn:
+        previous = await receipt(conn, body.request_id, signature)
+        if previous is not None:
+            return previous
+        if raw:
+            await persist_post(conn, raw)
+        candidate = await (await conn.execute("SELECT * FROM posts WHERE post_id=?", (post_id,))).fetchone()
         if not candidate:
             raise HTTPException(404, "Post is not a candidate in this project")
         if request.app.state.library.root is None:
             raise HTTPException(409, "Smut folder saving is not configured")
         old = await (await conn.execute("SELECT * FROM saved_media WHERE post_id=?", (post_id,))).fetchone()
+        if (
+            body.wanted
+            and old
+            and old["wanted"]
+            and old["status"] in {"queued", "downloading", "publishing", "retrying", "saved"}
+        ):
+            if body.source_md5 and old["record_json"]:
+                original = json.loads(old["record_json"])["original"]
+                if not re.search("_" + body.source_md5 + r"\.", original):
+                    raise conflict("A different original is already saved; existing files were preserved")
+            result = state(post_id, old)
+            await save_receipt(conn, body.request_id, signature, result)
+            return result
         if (old["version"] if old else 0) != body.expected_version:
             raise conflict("Saved state changed in another tab; refresh before toggling")
         if (
             body.wanted
             and not (old and old["record_json"])
-            and (candidate["unavailable"] or not candidate["file_url"] or candidate["media_ext"] not in EXTENSIONS)
+            and (source["unavailable"] or not source["file_url"] or source["media_ext"] not in EXTENSIONS)
         ):
             raise HTTPException(415, "This post has no available supported original")
         queued = (
@@ -585,7 +660,16 @@ async def set_saved(project_id: PositiveId, post_id: PositiveId, body: schemas.S
             "UPDATE jobs SET status='done',result_json='{}' WHERE type='library' AND status='pending' AND json_extract(payload_json,'$.post_id')=?",
             (post_id,),
         )
-        await enqueue(conn, "library", f"library:{post_id}:{version}", {"post_id": post_id, "version": version})
+        await enqueue(
+            conn,
+            "library",
+            f"library:{post_id}:{version}",
+            {
+                "post_id": post_id,
+                "version": version,
+                "source": {"md5": source["md5"], "file_url": source["file_url"]} if source else None,
+            },
+        )
         result = state(
             post_id, await (await conn.execute("SELECT * FROM saved_media WHERE post_id=?", (post_id,))).fetchone()
         )

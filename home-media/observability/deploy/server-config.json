@@ -1,0 +1,19 @@
+{
+  "storage": "/srv/observability",
+  "openobserve_url": "https://192.168.0.15:5080",
+  "organization": "default",
+  "ca_file": "/etc/homelab-monitor/pki/ca.crt",
+  "backup_state": "/var/lib/family-backup/state.json",
+  "backup_targets": ["hdd-monthly", "ssd-latest", "hdd-apps", "ssd-apps"],
+  "containers": ["homeassistant", "immich-server", "immich-postgres", "immich-redis", "big-bear-kopia", "recursing_ryan-main_app-1", "jellyfin", "pihole", "homelab-openobserve", "family-nextcloud", "family-nextcloud-db", "family-nextcloud-redis", "family-cloud-proxy"],
+  "units": ["casaos.service", "casaos-gateway.service", "casaos-app-management.service", "casaos-local-storage.service", "casaos-message-bus.service", "casaos-user-service.service", "home-media-stash.service", "OliveTin.service", "rclone.service", "smbd.service", "nmbd.service", "smartmontools.service", "docker.service", "family-backup.timer", "fluent-bit.service", "homelab-openobserve.service", "homelab-monitor.service"],
+  "http_checks": [
+    {"name":"app/nextcloud", "url":"https://192.168.0.15:8444/status.php", "ca_file":"/etc/homelab-monitor/pki/ca.crt", "key":"installed", "value":true},
+    {"name":"app/homeassistant", "url":"http://127.0.0.1:8123/"},
+    {"name":"app/immich-server", "url":"http://127.0.0.1:2283/api/server/ping", "key":"res", "value":"pong"},
+    {"name":"app/jellyfin", "url":"http://127.0.0.1:8097/health"},
+    {"name":"app/unmanic", "url":"http://127.0.0.1:8889/"},
+    {"name":"app/olivetin", "url":"http://127.0.0.1:1337/"},
+    {"name":"app/casaos", "url":"http://127.0.0.1/"}
+  ]
+}

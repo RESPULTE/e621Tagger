@@ -121,6 +121,21 @@ export function Post() {
         <h2>Post #{currentId}</h2>
         {post && (
           <>
+            {post.conflict && (
+              <div role="alert" className="error">
+                <strong>Conflicting saved reviews</strong>
+                <p>
+                  These original decisions were preserved. This post is excluded
+                  from new datasets until explicitly resolved.
+                </p>
+                {post.conflicting_reviews?.map((review, i) => (
+                  <p key={i}>
+                    Project {String(review.project_id)}: {String(review.state)}{" "}
+                    (review {String(review.version)})
+                  </p>
+                ))}
+              </div>
+            )}
             <p className="muted">
               {post.width} × {post.height} · {post.media_ext?.toUpperCase()}
               <br />
@@ -169,7 +184,9 @@ export function Post() {
         </div>
         <div className="page-heading">
           <h1>Post #{currentId}</h1>
-          {post && <FavoriteButton project={projectId} post={post} />}
+          {post && (
+            <FavoriteButton allowRemoval project={projectId} post={post} />
+          )}
           {isImage && (
             <button onClick={() => setActualSize((value) => !value)}>
               {actualSize ? "Fit to window" : "Actual size / zoom"}
@@ -229,6 +246,7 @@ export function Post() {
                     src={mediaUrl(
                       currentId,
                       fallback ? "video_mp4" : "original",
+                      post.md5,
                     )}
                     onLoadedMetadata={() => setMediaReady(true)}
                     onError={() => {
@@ -241,7 +259,7 @@ export function Post() {
                 ) : (
                   <img
                     key={currentId}
-                    src={mediaUrl(currentId, "original")}
+                    src={mediaUrl(currentId, "original", post.md5)}
                     alt={`Original post ${currentId}`}
                     onLoad={() => setMediaReady(true)}
                     onError={() => setMediaError(true)}
@@ -281,10 +299,6 @@ export function Post() {
                     "the target"}{" "}
                   visibly present?
                 </strong>
-                <p className="muted">
-                  Unsure is a reviewed ambiguity. Skip leaves the label
-                  unchanged.
-                </p>
               </div>
               <ReviewButtons
                 project={projectId}

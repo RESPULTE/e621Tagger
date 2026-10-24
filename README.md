@@ -1,6 +1,8 @@
+> Storage/review revision: Query fetches fresh transient e621 results; only human labels become reviewed dataset members. Tagged contains positive/negative/unsure reviews and export actions. Downloads tracks explicit collection saves and dataset-media exports through one bounded queue. Double-tap saves idempotently and never labels or unsaves. Existing data is preserved through additive schema v4 migration. Hydra multi-tag training is unavailable without a compatible external trainer/loader. See [storage plan](docs/storage-review-plan.md) and [architecture](docs/architecture.md).
+
 # Hydra Training Studio
 
-A private e621-style workspace for finding posts and reviewing examples for a target tag. Supports existing e621 tags and custom labels, 50-post imports, a virtualized thumbnail gallery, original and animated images, video with seeking, and audited positive / negative / unsure reviews.
+A private e621-style workspace for finding posts and reviewing examples for a target tag. Supports existing e621 tags and custom labels, fresh 50-post query batches, a virtualized thumbnail gallery, original and animated images, video with seeking, and audited positive / negative / unsure reviews.
 
 **Milestone:** P0–P4 discovery. Dataset quality, immutable metadata exports and bounded published-Hydra neighbor discovery are available. Arbitrary-image extraction, training and remote GPU work remain optional follow-on phases. The runtime has no PyTorch or checkpoint dependency. The original `hydra/` library and local `models/` assets are preserved for future GPU integration.
 
@@ -48,30 +50,28 @@ For a private HTTP deployment, explicitly set its exact `http://` origin and `ST
 ## Review workflow
 
 1. Search tags by name/category/popularity, or create a custom target using a query and/or up to 50 seed IDs.
-2. Import 50 metadata records; **Add next 50** resumes the cursor. Originals load only when a post is opened.
-   The additional-query field starts with the project's original selection. Edit the complete query to append terms such as `score:>100`, or remove the original tag when you want a broader search. Studio imports exactly the displayed query; existing candidates and labels are retained.
-   Importing selects that search's results and clears previous view filters. Use **Search results → All imported posts** to return to the cumulative collection. Completion reports new and already-present matches, including zero-result/exhausted searches; **Add next 50** continues the selected search. Sidebar review totals are project-wide.
-3. Click a thumbnail for the original image or video. An e621-provided MP4 fallback is available where supplied upstream.
+2. Query fetches fresh e621 results on each visit and continues in fifty-post batches while scrolling. The editable query starts with the project's selection; search modifiers and multi-tag queries never change the named review target. Autocomplete replaces only the current token and preserves surrounding syntax and prefixes. Query pages are transient; there is no cumulative imported-post archive or New count.
+3. Single-tap a thumbnail to open its original (keyboard Enter opens immediately). Double-tap a stationary thumbnail, or use its heart button, to queue an idempotent original/sidecar save to the configured collection. Movement and scrolling cancel the gesture. Downloads shows queued, verified, failed and cancelled work. Repeated saves never unsave or label; removal is a separately named post-view action. Display media stays off server disk.
 4. Use `1` positive, `2` negative, `3` unsure, arrows to navigate, and `Z` to undo, or use the mobile buttons. Skip leaves the label unchanged.
-5. Labels and undo history survive restarts. Failed/conflicting saves show retry controls. Batch reviews affect only explicitly selected posts and commit atomically.
+5. Labels and undo history survive restarts. Failed/conflicting saves show retry controls. Review each thumbnail with + / − / ?; the gallery has no selection checkboxes or persistent bottom bar. Undo is available in the toolbar and with Z.
 
 Tag absence never becomes a verified negative automatically. Reviews are project-specific; unsure and unreviewed are distinct.
 
 ## Similar posts and tag suggestions
 
-Open a post and choose **Find similar posts**. Studio reads small, validated byte ranges from a pinned published Hydra KNN index; no index download, model, GPU or imagery upload is required. A lookup runs separately from review and persists through reload/restart. Select up to 50 neighbors and import their metadata into the current project. Open the selected search results to inspect and review them. Existing labels are retained.
+Open a post and choose **Find similar posts**. Studio reads small, validated byte ranges from a pinned published Hydra KNN index; no index download, model, GPU or imagery upload is required. A lookup runs separately from review and persists through reload/restart. Select up to 50 neighbors to open as transient query results. Open the selected search results to inspect and review them. Existing labels are retained.
 
-**Suggested tags** counts recurring general tags in locally available neighbor metadata. It is descriptive source evidence, not a classifier prediction, calibrated confidence or a human label. Refresh suggestions after imports. **Hide tags** also hides suggestions for review. No public e621 tags are edited. The **embedding** source filter finds imported neighbors. Frozen datasets retain the seed, index revision/row, row digest, rank and distance in provenance.
+**Suggested tags** counts recurring general tags in locally available neighbor metadata. It is descriptive source evidence, not a classifier prediction, calibrated confidence or a human label. Refresh suggestions after imports. **Hide tags** also hides suggestions for review. No public e621 tags are edited. Open the returned query link to revisit the selected IDs. Frozen datasets retain the seed, index revision/row, row digest, rank and distance in provenance.
 
 The published snapshot ends in July 2026 and may not cover newer/unindexed posts. Offline, missing or malformed index results leave review available. `STUDIO_PUBLISHED_NEIGHBORS=false` disables new lookups while retaining saved evidence. See [optional discovery](docs/optional-workers.md) for transfer limits, integrity and representation boundaries.
 
 ## Dataset quality and exports
 
-Open **Dataset quality & exports** from a project's gallery. Additional queries may be marked unrelated or lookalike/hard-negative triage; these are provenance categories, not labels. Review positives and real negatives, inspect availability/conflicting exact duplicates, and prepare missing preview fingerprints in batches of 64.
+Open **Tagged → Dataset & export** from a project. Additional queries may be marked unrelated or lookalike/hard-negative triage; these are provenance categories, not labels. Review positives and real negatives, inspect availability/conflicting exact duplicates, and prepare missing preview fingerprints in batches of 64.
 
-Freeze a named version with a repeatable split seed. Exact MD5 and preview dHash groups remain in one train/validation/test split; optional artist and copyright/series grouping is conservative. Exact duplicate labels that conflict are excluded. The full JSON manifest includes exclusions; CSV and JSONL contain supervised positive/negative rows. JSONL begins with a manifest metadata record. Originals are never bundled or cached by this feature.
+Freeze a named version with a repeatable split seed. Exact MD5 and preview dHash groups remain in one train/validation/test split; optional artist and copyright/series grouping is conservative. Exact duplicate labels that conflict are excluded. The full JSON manifest includes exclusions; CSV and JSONL contain supervised positive/negative rows. JSONL begins with a manifest metadata record. Metadata exports download no originals. Explicit dataset-media export queues checked originals through Downloads and can produce a reproducible media bundle.
 
-The current bounded workflow supports at most 5,000 candidates per project and a 16 MiB manifest. Small or highly connected groups can leave splits empty; the UI reports warnings rather than distributing duplicates across splits. See [dataset policy](docs/datasets.md) for algorithms, availability states and limitations.
+The current bounded workflow supports at most 5,000 reviewed samples per project and a 16 MiB manifest. Small or highly connected groups can leave splits empty; the UI reports warnings rather than distributing duplicates across splits. See [dataset policy](docs/datasets.md) for algorithms, availability states and limitations.
 
 ## Checks
 
@@ -86,7 +86,7 @@ npx playwright install chromium webkit
 npm run test:e2e
 ```
 
-Browser tests use an isolated mock server and synthetic media. Generated API types are checked in; regenerate them after schema changes. `/health` checks readiness; authenticated `/api/metrics` reports upstream requests, throttles, media bytes/cache hits and queue depth.
+Browser tests use an isolated mock server and synthetic media. Generated API types are checked in; regenerate them after schema changes. `/health` checks readiness; authenticated `/api/metrics` reports upstream requests, throttles, media bytes, shared download concurrency and queue depth.
 
 See [architecture](docs/architecture.md), [operations](docs/operations.md), and [data policy](docs/data-policy.md) for backups, limits and validation boundaries.
 

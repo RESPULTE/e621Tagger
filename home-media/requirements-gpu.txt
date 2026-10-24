@@ -1,0 +1,14 @@
+# Install after `uv sync`: uv pip install -r requirements-gpu.txt
+# Windows CUDA wheel is installed separately by scripts/bootstrap-worker.ps1.
+filelock>=3.13
+typing-extensions>=4.10
+setuptools>=70
+sympy>=1.13.3
+networkx>=3
+jinja2>=3.1
+fsspec>=2024
+numpy==1.26.4
+safetensors==0.4.5
+einops==0.8.1
+pyvips[binary]==3.2.0
+imageio-ffmpeg==0.6.0

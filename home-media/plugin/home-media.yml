@@ -1,0 +1,28 @@
+name: Tag folders
+description: Mixed image/video browsing and a durable laptop tagging request queue.
+version: 0.2.0
+exec:
+  - queue.js
+interface: js
+tasks:
+  - name: Queue unprocessed media
+    description: Add media without tagging provenance to the laptop tagging queue.
+    defaultArgs:
+      mode: pending
+  - name: Queue all media for retagging
+    description: Add all media to the laptop tagging queue for retagging.
+    defaultArgs:
+      mode: all
+  - name: Cancel queued tagging requests
+    description: Cancel queued requests. Running requests continue.
+    defaultArgs:
+      mode: cancel
+  - name: Tagging queue status
+    description: Show request counts without changing the queue.
+    defaultArgs:
+      mode: status
+ui:
+  javascript:
+    - launcher.js
+  assets:
+    /: web

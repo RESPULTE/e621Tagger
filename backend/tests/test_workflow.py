@@ -1,5 +1,4 @@
 import json
-import time
 from uuid import uuid4
 
 import pytest
@@ -18,13 +17,19 @@ def project(client, custom=False):
     body = {
         "request_id": str(uuid4()),
         "target_kind": "custom" if custom else "e621",
-        "name": "my_dragon" if custom else "drake",
+        "name": "my_dragon_" + uuid4().hex[:8] if custom else "drake",
     }
     if custom:
         body.update(query="dragon", seed_ids=[42])
     response = client.post("/api/projects", json=body)
     assert response.status_code == 200, response.text
     return response.json(), body
+
+
+def browse(client, pid, query=""):
+    response = client.get(f"/api/projects/{pid}/query", params={"query": query} if query else {})
+    assert response.status_code == 200, response.text
+    return response.json()
 
 
 def import_job(client, job_id):
@@ -35,29 +40,20 @@ def import_job(client, job_id):
 
 def test_alias_import_pagination_and_idempotent_project(client):
     created, body = project(client)
-    assert created["display_name"] == "dragon"
+    assert created["display_name"] == "dragon" and created["jobs"] == []
     assert client.post("/api/projects", json=body).json() == created
-    import_job(client, created["jobs"][0]["job_id"])
     pid = created["id"]
-    page = client.get(f"/api/projects/{pid}/candidates").json()
-    assert len(page["items"]) == page["total"] == 50
-    assert all(item["state"] is None for item in page["items"])
-    assert page["items"][0]["sources"] == ["target: dragon"]
-    request = {"request_id": str(uuid4())}
-    discovery = client.post(f"/api/projects/{pid}/discovery", json=request).json()
-    assert client.post(f"/api/projects/{pid}/discovery", json=request).json() == discovery
-    import_job(client, discovery["job_id"])
-    # Re-executing the same completed page must not import another page.
-    assert client.get(f"/api/projects/{pid}").json()["counts"]["total"] == 100
-    page = client.get(f"/api/projects/{pid}/candidates?limit=30").json()
-    assert len(page["items"]) == 30 and page["next_cursor"]
-    second = client.get(f"/api/projects/{pid}/candidates?limit=30&cursor={page['next_cursor']}").json()
+    page = browse(client, pid)
+    assert len(page["items"]) == 50
+    second = client.get(f"/api/projects/{pid}/query?cursor={page['next_cursor']}").json()
     assert not {p["post_id"] for p in page["items"]} & {p["post_id"] for p in second["items"]}
+    assert client.get(f"/api/projects/{pid}").json()["counts"]["total"] == 0
+    assert client.get(f"/api/projects/{pid}/candidates").json()["total"] == 0
 
 
 def test_labels_conflicts_atomic_batch_and_durable_undo(client):
     created, _ = project(client)
-    import_job(client, created["jobs"][0]["job_id"])
+    browse(client, created["id"])
     pid = created["id"]
     body = {"request_id": str(uuid4()), "expected_version": 0, "state": "positive"}
     path = f"/api/projects/{pid}/labels/1000"
@@ -92,7 +88,7 @@ def test_custom_seeds_sources_and_project_specific_labels(client):
         import_job(client, job["job_id"])
     pid = created["id"]
     seed = client.get(f"/api/projects/{pid}/candidates/42").json()
-    assert seed["sources"] == ["seed: seeds:42"]
+    assert seed["sources"] == []
     assert (
         client.patch(
             f"/api/projects/{pid}/labels/42",
@@ -130,10 +126,7 @@ def test_restart_and_worker_recovery(settings):
         login = client.post("/api/auth/login", json={"password": PASSWORD})
         client.headers["X-CSRF-Token"] = login.json()["csrf_token"]
         created, _ = project(client)
-        for _ in range(100):
-            if client.get(f"/api/projects/{created['id']}").json()["counts"]["total"] == 50:
-                break
-            time.sleep(0.1)
+        browse(client, created["id"])
         assert (
             client.patch(
                 f"/api/projects/{created['id']}/labels/1000",
@@ -154,7 +147,7 @@ def test_online_backup_and_sqlite_busy_save(client, settings, tmp_path):
     from backend.backup import backup
 
     created, _ = project(client)
-    import_job(client, created["jobs"][0]["job_id"])
+    browse(client, created["id"])
     pid = created["id"]
     path = f"/api/projects/{pid}/labels/1000"
     body = {"request_id": str(uuid4()), "state": "positive", "expected_version": 0}
@@ -166,6 +159,8 @@ def test_online_backup_and_sqlite_busy_save(client, settings, tmp_path):
     assert client.patch(path, json=body).status_code == 200
     destination = tmp_path / "backup" / "studio.sqlite3"
     backup(settings.data_root, destination)
+    assert not destination.with_name(destination.name + "-wal").exists()
+    assert not destination.with_name(destination.name + "-shm").exists()
     with sqlite3.connect(destination) as restored:
         assert restored.execute("SELECT state FROM labels").fetchone()[0] == "positive"
         assert restored.execute("SELECT count(*) FROM label_events").fetchone()[0] == 1
@@ -232,8 +227,12 @@ def test_private_passwordless_sessions_keep_origin_csrf_and_cookie_protection(tm
 
 def test_private_http_session_does_not_collide_with_previous_https_cookie(tmp_path):
     settings = Settings(
-        _env_file=None, data_root=tmp_path, passwordless=True, mock_e621=True,
-        public_origin="http://testserver", secure_cookie=False,
+        _env_file=None,
+        data_root=tmp_path,
+        passwordless=True,
+        mock_e621=True,
+        public_origin="http://testserver",
+        secure_cookie=False,
     )
     with TestClient(create_app(settings, start_workers=False), base_url=settings.public_origin) as client:
         client.cookies.set("studio_session", "previous-https-cookie")
@@ -248,29 +247,17 @@ def test_private_http_session_does_not_collide_with_previous_https_cookie(tmp_pa
         assert client.get("/api/auth/session").status_code == 401
 
 
-def test_overlapping_search_reports_existing_and_filters_by_run(client):
+def test_overlapping_search_preserves_review_and_query_syntax(client):
     created, _ = project(client)
-    import_job(client, created["jobs"][0]["job_id"])
     pid = created["id"]
-    path = f"/api/projects/{pid}"
-    reviewed = client.patch(path + "/labels/1000", json={
-        "request_id": str(uuid4()), "state": "positive", "expected_version": 0,
-    }).json()
-    # Deliberate overlapping upstream page: new provenance, zero new candidates.
-    body = {"request_id": str(uuid4()), "query": "dragon solo", "source_kind": "query"}
-    result = client.post(path + "/discovery", json=body).json()
-    assert client.post(path + "/discovery", json=body).json() == result
-    import_job(client, result["job_id"])
-    job = client.get(f"/api/jobs/{result['job_id']}").json()
-    counts = json.loads(job["result_json"])
-    assert counts["added"] == 0 and counts["existing"] == 50
-    filtered = client.get(path + f"/candidates?run_id={result['run_id']}").json()
-    assert filtered["total"] == 50
-    assert all("query: dragon solo" in p["sources"] for p in filtered["items"])
-    assert client.get(path).json()["counts"]["total"] == 50
-    assert client.get(path + "/candidates/1000").json()["version"] == reviewed["version"]
-    other, _ = project(client)
-    assert client.get(f"/api/projects/{other['id']}/candidates?run_id={result['run_id']}").status_code == 404
-    assert client.post(path + "/discovery", json={
-        "request_id": str(uuid4()), "query": "", "source_kind": "query",
-    }).status_code == 422
+    browse(client, pid)
+    response = client.patch(
+        f"/api/projects/{pid}/labels/1000",
+        json={"request_id": str(uuid4()), "state": "positive", "expected_version": 0},
+    )
+    assert response.status_code == 200
+    page = browse(client, pid, "dragon solo")
+    assert len(page["items"]) == 50 and page["items"][0]["state"] == "positive"
+    assert client.get(f"/api/projects/{pid}").json()["counts"]["total"] == 1
+    assert client.get(f"/api/projects/{pid}/query?query=dragon%20order:score").status_code == 422
+    assert len(run(client, client.app.state.db.rows("SELECT * FROM discoveries"))) == 1

@@ -88,6 +88,31 @@ CREATE TABLE saved_media(
  error TEXT, record_json TEXT, updated_at REAL NOT NULL);
 """
 
+SCHEMA_V4 = """
+CREATE TABLE canonical_projects(
+ target_kind TEXT NOT NULL,target_id INTEGER NOT NULL,project_id INTEGER NOT NULL REFERENCES projects(id),
+ PRIMARY KEY(target_kind,target_id));
+INSERT INTO canonical_projects SELECT target_kind,target_id,min(id) FROM projects GROUP BY target_kind,target_id;
+CREATE VIEW project_family AS SELECT p.id AS member_id,k.project_id AS project_id
+ FROM projects p JOIN canonical_projects k USING(target_kind,target_id);
+CREATE VIEW project_conflicts AS SELECT f.project_id,l.post_id,count(DISTINCT l.state) AS states
+ FROM labels l JOIN project_family f ON f.member_id=l.project_id GROUP BY f.project_id,l.post_id HAVING states>1;
+CREATE VIEW canonical_candidates AS SELECT project_id,owner_project_id,post_id,review_version,first_seen_at FROM (
+ SELECT f.project_id,c.project_id AS owner_project_id,c.post_id,c.review_version,c.first_seen_at,
+ row_number() OVER(PARTITION BY f.project_id,c.post_id ORDER BY l.state IS NULL,c.project_id!=f.project_id,c.project_id) AS rank
+ FROM project_candidates c JOIN project_family f ON f.member_id=c.project_id
+ LEFT JOIN labels l ON l.project_id=c.project_id AND l.post_id=c.post_id) WHERE rank=1;
+ALTER TABLE jobs ADD COLUMN progress_bytes INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE jobs ADD COLUMN total_bytes INTEGER;
+CREATE TABLE download_partials(job_id INTEGER PRIMARY KEY REFERENCES jobs(id),path TEXT NOT NULL,inode INTEGER NOT NULL,device INTEGER NOT NULL);
+CREATE TABLE library_staging(job_id INTEGER PRIMARY KEY REFERENCES jobs(id),root_id TEXT NOT NULL,token TEXT NOT NULL,
+ names_json TEXT NOT NULL,files_json TEXT NOT NULL DEFAULT '[]',directory_inode INTEGER,device INTEGER);
+CREATE INDEX labels_post_id ON labels(post_id);
+CREATE INDEX label_history_post_id ON label_events(post_id);
+UPDATE jobs SET status='cancelled',error='Legacy discovery stopped; Query now fetches fresh transient results'
+ WHERE type IN ('discovery','preview') AND status IN ('pending','running');
+"""
+
 
 class Database:
     def __init__(self, root: Path):
@@ -125,25 +150,26 @@ class Database:
         await self.connection.execute("PRAGMA busy_timeout=5000")
         current = await self.connection.execute("PRAGMA user_version")
         version = (await current.fetchone())[0]
-        if version > 3:
+        if version > 4:
             raise RuntimeError("Database schema is newer than this application")
         if version == 0:
             await self.connection.executescript(
-                "BEGIN IMMEDIATE;" + SCHEMA + SCHEMA_V2 + SCHEMA_V3 + "PRAGMA user_version=3; COMMIT;"
+                "BEGIN IMMEDIATE;" + SCHEMA + SCHEMA_V2 + SCHEMA_V3 + SCHEMA_V4 + "PRAGMA user_version=4; COMMIT;"
             )
-        elif version in {1, 2}:
+        elif version in {1, 2, 3}:
             from backend.backup import backup
 
             # The process lock is already held. Use SQLite online backup, never a
             # raw DB-file copy that could omit WAL commits. Failure aborts startup.
-            destination = self.root / "backups" / f"pre-schema-v3-{time.time_ns()}.sqlite3"
+            destination = self.root / "backups" / f"pre-schema-v4-{time.time_ns()}.sqlite3"
             await asyncio.to_thread(backup, self.root, destination)
             try:
                 await self.connection.executescript(
                     "BEGIN IMMEDIATE;"
                     + (SCHEMA_V2 if version == 1 else "")
-                    + SCHEMA_V3
-                    + "PRAGMA user_version=3; COMMIT;"
+                    + (SCHEMA_V3 if version < 3 else "")
+                    + SCHEMA_V4
+                    + "PRAGMA user_version=4; COMMIT;"
                 )
             except BaseException:
                 await self.connection.rollback()

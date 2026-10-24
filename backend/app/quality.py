@@ -37,7 +37,11 @@ def availability(row):
 
 
 def eligible(row):
-    return row["state"] in {"positive", "negative"} and availability(row) == "available"
+    return (
+        not row.get("project_conflict")
+        and row["state"] in {"positive", "negative"}
+        and availability(row) == "available"
+    )
 
 
 def groups(rows, *, threshold=4, artists=False, series=False):
@@ -158,7 +162,9 @@ def manifest_samples(rows, options):
         state = row["state"] or "unreviewed"
         available = availability(row)
         reason = None
-        if state not in {"positive", "negative"}:
+        if row.get("project_conflict"):
+            reason = "conflicting_duplicate_project_reviews"
+        elif state not in {"positive", "negative"}:
             reason = state
         elif available != "available":
             reason = available

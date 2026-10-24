@@ -1,0 +1,14 @@
+{
+  "author": "Home Media",
+  "compatibility": [2],
+  "description": "Writes successful adult-library video processing completions to a bounded, path-free local NDJSON feed.",
+  "icon": "",
+  "id": "unmanic_telegram_completion",
+  "name": "Adult Video Completion Feed",
+  "platform": ["linux"],
+  "priorities": {
+    "emit_postprocessor_complete": 1
+  },
+  "tags": "events,completion,adult,video",
+  "version": "1.0.0"
+}

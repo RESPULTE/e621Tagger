@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
+import { QueryInput } from "../components/QueryInput";
 import { api, errorText, mutationId, type Tag } from "../api/client";
 
 const categories = [
@@ -36,17 +37,15 @@ export function Home() {
   const [description, setDescription] = useState("");
   const [query, setQuery] = useState("");
   const [seeds, setSeeds] = useState("");
+  const [queryError, setQueryError] = useState("");
   const [createPayload, setCreatePayload] = useState<object | null>(null);
   useEffect(() => {
-    const timeout = setTimeout(
-      () => setQ(term.trim().toLowerCase().replaceAll(" ", "_")),
-      300,
-    );
+    const timeout = setTimeout(() => setQ(term.trim().toLowerCase()), 300);
     return () => clearTimeout(timeout);
   }, [term]);
   const tags = useQuery({
     queryKey: ["tags", q, category, minimum, exact],
-    enabled: !!q && !custom,
+    enabled: !!q && !custom && !/\s/.test(q),
     queryFn: () =>
       api<Tag[]>(
         `/tags?${new URLSearchParams({ q, ...(category ? { category } : {}), minimum: String(minimum), exact: String(exact) })}`,
@@ -66,7 +65,12 @@ export function Home() {
         method: "POST",
         body: JSON.stringify(body),
       }),
-    onSuccess: (data) => navigate(`/projects/${data.id}`),
+    onSuccess: (data, body) => {
+      const query = (body as { query?: string }).query;
+      navigate(
+        `/projects/${data.id}${query ? `?q=${encodeURIComponent(query)}` : ""}`,
+      );
+    },
   });
   function submit(body: object) {
     const payload = { request_id: mutationId(), ...body };
@@ -90,7 +94,6 @@ export function Home() {
     <div className="workspace home-layout">
       <aside className="sidebar">
         <h2>Projects</h2>
-        <p className="muted">One project. One target label.</p>
         {projects.data?.pages
           .flatMap((page) => page.items)
           .map((project) => (
@@ -101,7 +104,7 @@ export function Home() {
             >
               <strong>{project.display_name.replaceAll("_", " ")}</strong>
               <span>
-                {project.total} candidates · {project.target_kind}
+                {project.total} reviewed · {project.target_kind}
               </span>
             </Link>
           ))}
@@ -123,20 +126,16 @@ export function Home() {
       <main className="main-content">
         <div className="page-heading">
           <div>
-            <p className="eyebrow">HYDRA TRAINING STUDIO</p>
-            <h1>Find a tag. Build a review set.</h1>
+            <h1>Projects</h1>
           </div>
-          <span className="pill">50 posts per import</span>
         </div>
-        <p>
-          Choose an e621 tag or define your own. Every post starts unreviewed.
-        </p>
+
         <div className="tabs">
           <button
             className={!custom ? "active" : ""}
             onClick={() => setCustom(false)}
           >
-            Search e621 tags
+            e621 tags
           </button>
           <button
             className={custom ? "active" : ""}
@@ -167,11 +166,11 @@ export function Home() {
             </label>
             <label>
               Discovery query
-              <input
+              <QueryInput
                 value={query}
-                maxLength={500}
+                label="Discovery query"
                 placeholder="dragon solo rating:s"
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={setQuery}
               />
             </label>
             <label>
@@ -183,8 +182,8 @@ export function Home() {
               />
             </label>
             <p className="muted">
-              Provide a query, seed IDs, or both. A query imports the first 50
-              matches.
+              Provide a query, seed IDs, or both. Browsing stays transient; only
+              your explicit reviews become dataset members.
             </p>
             <button
               className="primary"
@@ -195,16 +194,30 @@ export function Home() {
           </form>
         ) : (
           <>
-            <div className="search-bar">
-              <label className="search-input">
-                Tag name
-                <input
-                  value={term}
-                  autoComplete="off"
-                  placeholder="Search character, species, or general tags…"
-                  onChange={(event) => setTerm(event.target.value)}
-                />
-              </label>
+            <form
+              className="search-bar"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const target = term.trim();
+                if (!target || /\s/.test(target)) {
+                  setQueryError(
+                    "Choose one review target. Multi-tag training has no verified Hydra loader; use a full discovery query inside a single-target project.",
+                  );
+                  return;
+                }
+                setQueryError("");
+                submit({ target_kind: "e621", name: target });
+              }}
+            >
+              <QueryInput
+                label="Tag name"
+                value={term}
+                onChange={setTerm}
+                placeholder="Choose a review target…"
+              />
+              <button disabled={create.isPending || !term.trim()}>
+                Open project
+              </button>
               <label>
                 Category
                 <select
@@ -238,10 +251,15 @@ export function Home() {
                 />
                 Exact / alias lookup
               </label>
-            </div>
+            </form>
+            {queryError && (
+              <p className="error" role="alert">
+                {queryError}
+              </p>
+            )}
             {!q && (
               <div className="empty-state">
-                <h2>Start with a tag you know</h2>
+                <h2>Find a tag</h2>
                 <p>
                   Search by name, narrow by category, then create a project.
                 </p>
@@ -281,7 +299,7 @@ export function Home() {
                       submit({ target_kind: "e621", name: tag.canonical_name })
                     }
                   >
-                    Create project
+                    Open project
                   </button>
                 </article>
               ))}

@@ -61,31 +61,19 @@ async def test_scheduler_retry_after_and_cancellation(settings):
         await db.close()
 
 
-async def test_preview_cache_integrity_quota_and_backpressure(settings):
+async def test_transient_preview_has_no_disk_cache_or_browsing_jobs(settings):
     db = Database(settings.data_root)
     await db.open()
     media = Media(settings, db, httpx.MockTransport(transport))
     try:
         async with db.transaction() as conn:
-            for i in range(1, 81):
-                await persist_post(conn, post(i))
-        assert len(await media.schedule(list(range(1, 81)))) == 64
-        assert len(await media.schedule(list(range(1, 81)))) <= 64
-        jobs = await db.one("SELECT count(*) AS n FROM jobs WHERE status='pending'")
-        assert jobs["n"] == 64
-        await media.download_preview(1)
-        cached = await media.cached_preview(1)
-        assert cached and cached[1].is_file()
-        before = media.metrics["bytes"]
-        await media.download_preview(1)
-        assert media.metrics["bytes"] == before
+            await persist_post(conn, post(1))
+        assert await media.schedule(list(range(1, 81))) == []
         request = Request({"type": "http", "method": "GET", "path": "/", "headers": []})
-        result = await media.preview_response(request, 1)
-        assert result.status_code == 200 and result.headers.get("etag")
-        cached[1].write_bytes(b"x" * cached[0]["bytes"])
-        assert (await media.preview_response(request, 1)).status_code == 202
-        assert await db.one("SELECT * FROM image_cache WHERE post_id=1") is None
-        assert not list(media.cache_root.glob("*.part"))
+        response = await media.preview_response(request, 1)
+        assert response.status_code == 200 and response.headers["cache-control"] == "private, no-store"
+        assert not await db.rows("SELECT * FROM image_cache")
+        assert not media.cache_root.exists()
     finally:
         await media.close()
         await db.close()
@@ -123,33 +111,25 @@ async def test_range_original_and_safe_redirects(settings):
         await db.close()
 
 
-async def test_disk_full_never_marks_cache_valid(settings, monkeypatch):
+async def test_preview_never_writes_media_even_when_disk_is_full(settings, monkeypatch):
+    from pathlib import Path
+
     db = Database(settings.data_root)
     await db.open()
     media = Media(settings, db, httpx.MockTransport(transport))
     async with db.transaction() as conn:
         await persist_post(conn, post(1))
-    from pathlib import Path
-
-    original = Path.write_bytes
-
-    def fail(path, body):
-        if path.suffix == ".part":
-            raise OSError("No space left on device")
-        return original(path, body)
-
-    monkeypatch.setattr(Path, "write_bytes", fail)
+    monkeypatch.setattr(Path, "write_bytes", lambda *_: (_ for _ in ()).throw(OSError("disk full")))
     try:
-        with pytest.raises(OSError):
-            await media.download_preview(1)
-        assert await db.one("SELECT * FROM image_cache") is None
-        assert not list(media.cache_root.glob("*.part"))
+        await media.download_preview(1)
+        assert not await db.rows("SELECT * FROM image_cache")
+        assert not media.cache_root.exists()
     finally:
         await media.close()
         await db.close()
 
 
-async def test_failed_cache_registration_removes_completed_file(settings, monkeypatch):
+async def test_failed_fingerprint_registration_never_leaves_media(settings, monkeypatch):
     import sqlite3
 
     db = Database(settings.data_root)
@@ -159,17 +139,16 @@ async def test_failed_cache_registration_removes_completed_file(settings, monkey
         await persist_post(conn, post(1))
     execute = db.connection.execute
 
-    async def fail_registration(sql, parameters=()):
-        if sql.startswith("INSERT OR REPLACE INTO image_cache"):
-            raise sqlite3.OperationalError("database or disk is full")
+    async def fail(sql, parameters=()):
+        if sql.startswith("INSERT OR REPLACE INTO image_fingerprints"):
+            raise sqlite3.OperationalError("disk full")
         return await execute(sql, parameters)
 
-    monkeypatch.setattr(db.connection, "execute", fail_registration)
+    monkeypatch.setattr(db.connection, "execute", fail)
     try:
         with pytest.raises(sqlite3.OperationalError):
             await media.download_preview(1)
-        assert await db.one("SELECT * FROM image_cache") is None
-        assert not list(media.cache_root.iterdir())
+        assert not media.cache_root.exists()
     finally:
         await media.close()
         await db.close()
@@ -256,15 +235,7 @@ async def test_null_urls_corrupt_download_and_cache_eviction(settings):
         assert exc.value.status_code == 415
         assert await db.one("SELECT * FROM image_cache") is None
         assert not list(media.cache_root.glob("*.part"))
-        # The hard quota must be obeyed even if reviewed entries need eviction.
-        settings.cache_bytes = 1024 * 1024
-        path = media.cache_root / "2.webp"
-        path.write_bytes(b"x" * 700_000)
-        async with db.transaction() as conn:
-            await conn.execute("INSERT INTO image_cache VALUES(2,'preview','cache/2.webp',700000,'test',0,NULL,NULL)")
-        await media._prune(700_000)
-        assert not path.exists()
-        assert await db.one("SELECT * FROM image_cache") is None
+        assert not media.cache_root.exists()
     finally:
         await media.close()
         await db.close()
@@ -354,4 +325,27 @@ async def test_original_load_leaves_capacity_for_preview(settings):
                 pass
         assert media.metrics["active"] == 0
         await media.close()
+        await db.close()
+
+
+async def test_cdn_retry_after_survives_media_restart(settings):
+    db = Database(settings.data_root)
+    await db.open()
+    starts = []
+
+    def respond(request):
+        starts.append(time.monotonic())
+        return httpx.Response(429, headers={"Retry-After": "0.25"}) if len(starts) == 1 else httpx.Response(200)
+
+    first = Media(settings, db, httpx.MockTransport(respond))
+    response = await first._open("https://static1.e621.net/original.png")
+    await response.aclose()
+    await first.close()
+    second = Media(settings, db, httpx.MockTransport(respond))
+    try:
+        response = await second._open("https://static1.e621.net/original.png")
+        await response.aclose()
+        assert starts[1] - starts[0] >= 0.22
+    finally:
+        await second.close()
         await db.close()

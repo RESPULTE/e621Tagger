@@ -140,6 +140,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/tags/autocomplete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Autocomplete */
+        get: operations["autocomplete_api_tags_autocomplete_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects": {
         parameters: {
             query?: never;
@@ -167,6 +184,23 @@ export interface paths {
         };
         /** Project Detail */
         get: operations["project_detail_api_projects__project_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/query": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Query Feed */
+        get: operations["query_feed_api_projects__project_id__query_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -534,6 +568,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasets/{dataset_id}/media": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Queue Export */
+        post: operations["queue_export_api_datasets__dataset_id__media_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/downloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Downloads */
+        get: operations["list_downloads_api_downloads_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/downloads/{job_id}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Control */
+        post: operations["control_api_downloads__job_id___action__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/media/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Media Manifest */
+        get: operations["media_manifest_api_datasets__dataset_id__media_manifest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/media/files/{post_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Exported File */
+        get: operations["exported_file_api_datasets__dataset_id__media_files__post_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/datasets/{dataset_id}/media/bundle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Media Bundle */
+        get: operations["media_bundle_api_datasets__dataset_id__media_bundle_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/{path}": {
         parameters: {
             query?: never;
@@ -557,13 +693,12 @@ export interface components {
     schemas: {
         /** BatchItem */
         BatchItem: {
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "positive" | "negative" | "unsure";
+            /** State */
+            state: ("positive" | "negative" | "unsure") | null;
             /** Expected Version */
             expected_version: number;
+            /** Source Md5 */
+            source_md5?: string | null;
             /** Post Id */
             post_id: number;
         };
@@ -616,6 +751,15 @@ export interface components {
             /** Sources */
             sources: string[];
             favorite: components["schemas"]["SaveState"];
+            /**
+             * Conflict
+             * @default false
+             */
+            conflict: boolean;
+            /** Conflicting Reviews */
+            conflicting_reviews?: {
+                [key: string]: unknown;
+            }[];
         };
         /** CandidatePage */
         CandidatePage: {
@@ -708,13 +852,12 @@ export interface components {
              * Format: uuid
              */
             request_id: string;
-            /**
-             * State
-             * @enum {string}
-             */
-            state: "positive" | "negative" | "unsure";
+            /** State */
+            state: ("positive" | "negative" | "unsure") | null;
             /** Expected Version */
             expected_version: number;
+            /** Source Md5 */
+            source_md5?: string | null;
         };
         /** LabelResult */
         LabelResult: {
@@ -869,6 +1012,15 @@ export interface components {
             jobs: {
                 [key: string]: unknown;
             }[];
+            /** Duplicate Projects */
+            duplicate_projects?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Conflicts
+             * @default 0
+             */
+            conflicts: number;
         };
         /** SaveMutation */
         SaveMutation: {
@@ -881,6 +1033,8 @@ export interface components {
             wanted: boolean;
             /** Expected Version */
             expected_version: number;
+            /** Source Md5 */
+            source_md5?: string | null;
         };
         /** SaveState */
         SaveState: {
@@ -906,7 +1060,7 @@ export interface components {
              * @default idle
              * @enum {string}
              */
-            status: "idle" | "queued" | "downloading" | "publishing" | "removing" | "retrying" | "saved" | "failed";
+            status: "idle" | "queued" | "downloading" | "publishing" | "removing" | "retrying" | "saved" | "failed" | "cancelled";
             /** Error */
             error?: string | null;
             /**
@@ -1156,6 +1310,37 @@ export interface operations {
             };
         };
     };
+    autocomplete_api_tags_autocomplete_get: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TagResult"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_projects_api_projects_get: {
         parameters: {
             query?: {
@@ -1239,6 +1424,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    query_feed_api_projects__project_id__query_get: {
+        parameters: {
+            query?: {
+                query?: string;
+                cursor?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CandidatePage"];
                 };
             };
             /** @description Validation Error */
@@ -1533,7 +1753,9 @@ export interface operations {
     };
     media_api_media__post_id___variant__get: {
         parameters: {
-            query?: never;
+            query?: {
+                source_md5?: string | null;
+            };
             header?: never;
             path: {
                 post_id: number;
@@ -1975,6 +2197,191 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SaveState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    queue_export_api_datasets__dataset_id__media_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Mutation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_downloads_api_downloads_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    control_api_downloads__job_id___action__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: number;
+                action: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Mutation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    media_manifest_api_datasets__dataset_id__media_manifest_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exported_file_api_datasets__dataset_id__media_files__post_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    media_bundle_api_datasets__dataset_id__media_bundle_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

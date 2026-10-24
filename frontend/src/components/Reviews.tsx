@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { recordMetric } from "../api/telemetry";
 import {
   api,
@@ -37,7 +37,7 @@ type ReviewContext = {
   edit: (
     project: number,
     posts: Candidate[],
-    state: LabelState,
+    state: LabelState | null,
   ) => Promise<boolean>;
   undo: (project: number, post: UndoTarget) => Promise<boolean>;
   undoLast: (project: number, fallback: UndoTarget) => Promise<number | null>;
@@ -94,20 +94,24 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
           ["post", operation.project, result.post_id],
           (old) => (old ? { ...old, ...result } : undefined),
         );
-        client.setQueriesData<CandidatePage>(
-          { queryKey: ["candidates", operation.project] },
-          (old) =>
-            old
-              ? {
-                  ...old,
-                  items: old.items.map((item) =>
-                    item.post_id === result.post_id
-                      ? { ...item, ...result }
-                      : item,
-                  ),
-                }
-              : undefined,
-        );
+        for (const scope of ["candidates", "feed"])
+          client.setQueriesData<InfiniteData<CandidatePage>>(
+            { queryKey: [scope, operation.project] },
+            (old) =>
+              old
+                ? {
+                    ...old,
+                    pages: old.pages.map((page) => ({
+                      ...page,
+                      items: page.items.map((item) =>
+                        item.post_id === result.post_id
+                          ? { ...item, ...result }
+                          : item,
+                      ),
+                    })),
+                  }
+                : undefined,
+          );
       });
       await Promise.all([
         client.invalidateQueries({ queryKey: ["project", operation.project] }),
@@ -148,12 +152,17 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function edit(project: number, posts: Candidate[], state: LabelState) {
+  async function edit(
+    project: number,
+    posts: Candidate[],
+    state: LabelState | null,
+  ) {
     const request_id = mutationId();
     const items = posts.map((post) => ({
       post_id: post.post_id,
       expected_version: post.version,
       state,
+      ...(state && post.md5 ? { source_md5: post.md5 } : {}),
     }));
     return execute({
       project,

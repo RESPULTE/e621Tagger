@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "/projects/:id": {
+      "targetKind": "existing-ui",
+      "projectId": "4192ccd7-421e-442d-af29-c46ea06ac596",
+      "baselineDraftId": "422583db-2b4f-4b51-8a6a-8e9f9339addd",
+      "activeDraftId": "422583db-2b4f-4b51-8a6a-8e9f9339addd",
+      "designSystemPath": ".superdesign/design-system.md",
+      "referenceIds": [
+        "41b54665-ec3b-4849-8bd7-a7601e8554c9"
+      ],
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "frontend/src/pages/Project.tsx",
+        "frontend/src/App.tsx",
+        "frontend/src/components/QueryInput.tsx",
+        "frontend/src/components/FavoriteButton.tsx",
+        "frontend/src/style.css",
+        "frontend/src/pages/Downloads.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "5a2520878c69bb1cbf36607745fc2befc80f6bf734618c3a19cd0f371fa288fb",
+        "frontend/src/pages/Project.tsx": "25b41bdc4ad1d133968cb35ecc7ae2c2b507a0d7f996fe6d4d60a5246800ac9a",
+        "frontend/src/App.tsx": "7dbcacc03d2dfc6ab017aa5092060d0aaf00c3609eae0dee756ac996c26cdc0e",
+        "frontend/src/components/QueryInput.tsx": "4aaafbebd01b592886b01b35446515862b1cd62a25373c2284027d9ae8e74e9e",
+        "frontend/src/components/FavoriteButton.tsx": "6eedd558c6edc4fcd4398e3bb3d147aef0891f371e590e9ed59532b1d43d775f",
+        "frontend/src/style.css": "8ebbc09dd57fada0e9d98acb2b182795f8e10e4fca1eb8bc5b99429ca749ef4e",
+        "frontend/src/pages/Downloads.tsx": "76b11ab54995e42048eac346be5d32ffb1e0f20d7199d80fea102b469324e3a5"
+      },
+      "components": [
+        {
+          "name": "SiteHeader",
+          "id": "152912a7-f138-412c-b556-86f3d363a470",
+          "sourcePath": "frontend/src/App.tsx"
+        },
+        {
+          "name": "SiteFooter",
+          "id": "c4831d54-92d5-4261-8e11-25ba3652b23e",
+          "sourcePath": "frontend/src/App.tsx"
+        }
+      ],
+      "drafts": {
+        "422583db-2b4f-4b51-8a6a-8e9f9339addd": {
+          "title": "Hydra Gallery Desktop Refined",
+          "visualDirection": "Approved v5: compact navy Query / Tagged / Downloads; human review totals; explicit collection saves",
+          "currentVersion": 5,
+          "baselineVersion": 1
+        }
+      },
+      "updatedAt": "2026-10-24T09:03:45.429900+00:00"
+    }
+  }
+}

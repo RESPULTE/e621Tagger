@@ -222,6 +222,52 @@
         }
       }
     },
+    "/api/tags/autocomplete": {
+      "get": {
+        "summary": "Autocomplete",
+        "operationId": "autocomplete_api_tags_autocomplete_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[^\\s\\x00-\\x1f*]+$",
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TagResult"
+                  },
+                  "title": "Response Autocomplete Api Tags Autocomplete Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects": {
       "post": {
         "summary": "Create Project",
@@ -335,6 +381,85 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProjectResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/query": {
+      "get": {
+        "summary": "Query Feed",
+        "operationId": "query_feed_api_projects__project_id__query_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 500,
+              "default": "",
+              "title": "Query"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidatePage"
                 }
               }
             }
@@ -893,6 +1018,23 @@
             "schema": {
               "type": "string",
               "title": "Variant"
+            }
+          },
+          {
+            "name": "source_md5",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{32}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Md5"
             }
           }
         ],
@@ -1492,6 +1634,249 @@
         }
       }
     },
+    "/api/datasets/{dataset_id}/media": {
+      "post": {
+        "summary": "Queue Export",
+        "operationId": "queue_export_api_datasets__dataset_id__media_post",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mutation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/downloads": {
+      "get": {
+        "summary": "List Downloads",
+        "operationId": "list_downloads_api_downloads_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/downloads/{job_id}/{action}": {
+      "post": {
+        "summary": "Control",
+        "operationId": "control_api_downloads__job_id___action__post",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Action"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mutation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/datasets/{dataset_id}/media/manifest": {
+      "get": {
+        "summary": "Media Manifest",
+        "operationId": "media_manifest_api_datasets__dataset_id__media_manifest_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/datasets/{dataset_id}/media/files/{post_id}": {
+      "get": {
+        "summary": "Exported File",
+        "operationId": "exported_file_api_datasets__dataset_id__media_files__post_id__get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Dataset Id"
+            }
+          },
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Post Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/datasets/{dataset_id}/media/bundle": {
+      "get": {
+        "summary": "Media Bundle",
+        "operationId": "media_bundle_api_datasets__dataset_id__media_bundle_get",
+        "parameters": [
+          {
+            "name": "dataset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Dataset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/{path}": {
       "get": {
         "summary": "Frontend",
@@ -1535,11 +1920,18 @@
       "BatchItem": {
         "properties": {
           "state": {
-            "type": "string",
-            "enum": [
-              "positive",
-              "negative",
-              "unsure"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "positive",
+                  "negative",
+                  "unsure"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ],
             "title": "State"
           },
@@ -1547,6 +1939,18 @@
             "type": "integer",
             "minimum": 0.0,
             "title": "Expected Version"
+          },
+          "source_md5": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Md5"
           },
           "post_id": {
             "type": "integer",
@@ -1728,6 +2132,19 @@
           },
           "favorite": {
             "$ref": "#/components/schemas/SaveState"
+          },
+          "conflict": {
+            "type": "boolean",
+            "title": "Conflict",
+            "default": false
+          },
+          "conflicting_reviews": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Conflicting Reviews"
           }
         },
         "type": "object",
@@ -1938,11 +2355,18 @@
             "title": "Request Id"
           },
           "state": {
-            "type": "string",
-            "enum": [
-              "positive",
-              "negative",
-              "unsure"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "positive",
+                  "negative",
+                  "unsure"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ],
             "title": "State"
           },
@@ -1950,6 +2374,18 @@
             "type": "integer",
             "minimum": 0.0,
             "title": "Expected Version"
+          },
+          "source_md5": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Md5"
           }
         },
         "type": "object",
@@ -2372,6 +2808,19 @@
             },
             "type": "array",
             "title": "Jobs"
+          },
+          "duplicate_projects": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Duplicate Projects"
+          },
+          "conflicts": {
+            "type": "integer",
+            "title": "Conflicts",
+            "default": 0
           }
         },
         "type": "object",
@@ -2404,6 +2853,18 @@
             "maximum": 9.223372036854776e+18,
             "minimum": 0.0,
             "title": "Expected Version"
+          },
+          "source_md5": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{32}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Md5"
           }
         },
         "type": "object",
@@ -2445,7 +2906,8 @@
               "removing",
               "retrying",
               "saved",
-              "failed"
+              "failed",
+              "cancelled"
             ],
             "title": "Status",
             "default": "idle"

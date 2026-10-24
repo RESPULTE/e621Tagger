@@ -4,6 +4,7 @@ import asyncio
 import itertools
 import random
 import time
+from collections import OrderedDict
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
@@ -51,6 +52,7 @@ class E621:
         self.queue = asyncio.PriorityQueue(maxsize=64)
         self.sequence = itertools.count()
         self.inflight = {}
+        self.autocomplete_cache = OrderedDict()
         self.task = None
         self.metrics = {"requests": 0, "throttled": 0, "errors": 0, "last_latency_ms": 0.0}
 
@@ -193,6 +195,33 @@ class E621:
             await self.cache_tags([exact])
             tag = await self.db.one("SELECT * FROM tag_catalog WHERE canonical_name=?", (name,))
         return {**tag, "matched_alias": original if original != name else None}
+
+    async def autocomplete(self, q):
+        cached = self.autocomplete_cache.get(q)
+        if cached and cached[0] > time.monotonic():
+            self.autocomplete_cache.move_to_end(q)
+            return cached[1]
+        data = await self.request("/tags/autocomplete.json", {"search[name_matches]": q, "expiry": "7"})
+        try:
+            if not isinstance(data, list):
+                raise ValueError
+            result = [
+                {
+                    "tag_id": int(tag["id"]),
+                    "canonical_name": str(tag["name"]),
+                    "category": int(tag["category"]),
+                    "post_count": int(tag["post_count"]),
+                    "matched_alias": tag.get("antecedent_name"),
+                }
+                for tag in data[:20]
+            ]
+        except (KeyError, TypeError, ValueError):
+            raise HTTPException(502, "e621 returned invalid autocomplete results") from None
+        self.autocomplete_cache[q] = (time.monotonic() + 3600, result)
+        self.autocomplete_cache.move_to_end(q)
+        while len(self.autocomplete_cache) > 256:
+            self.autocomplete_cache.popitem(last=False)
+        return result
 
     async def tags(self, q, category=None, minimum=0, exact=False):
         if exact:

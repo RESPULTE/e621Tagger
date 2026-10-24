@@ -14,7 +14,7 @@ from . import auth, schemas
 from .api import create_discovery, require_project
 from .jobs import enqueue
 from .neighbor_index import REVISION
-from .reviews import fingerprint, receipt, save_receipt
+from .reviews import attach_neighbor_provenance, fingerprint, receipt, save_receipt
 
 PositiveId = Annotated[int, Path(gt=0, le=2**63 - 1)]
 
@@ -44,6 +44,7 @@ async def status(request: Request):
 @router.post("/projects/{project_id}/neighbors/{post_id}", response_model=schemas.NeighborJob)
 async def lookup(project_id: PositiveId, post_id: PositiveId, body: schemas.Mutation, request: Request):
     db = request.app.state.db
+    project_id = (await require_project(db, project_id))["id"]
     signature = fingerprint(["neighbors", project_id, post_id, REVISION], body.model_dump(mode="json"))
     async with db.transaction() as conn:
         existing = await receipt(conn, body.request_id, signature)
@@ -56,7 +57,8 @@ async def lookup(project_id: PositiveId, post_id: PositiveId, body: schemas.Muta
                 "SELECT 1 FROM project_candidates WHERE project_id=? AND post_id=?", (project_id, post_id)
             )
         ).fetchone()
-        if not candidate:
+        transient = request.app.state.feed.context(project_id, post_id)
+        if not candidate and not transient:
             raise HTTPException(404, "Candidate not found")
         key = f"neighbors:{project_id}:{post_id}:{REVISION}"
         old = await (await conn.execute("SELECT id,status FROM jobs WHERE job_key=?", (key,))).fetchone()
@@ -82,13 +84,14 @@ async def lookup(project_id: PositiveId, post_id: PositiveId, body: schemas.Muta
 
 
 async def evidence(db, project_id, post_id):
-    await require_project(db, project_id)
+    project_id = (await require_project(db, project_id))["id"]
     return await db.one("SELECT * FROM jobs WHERE job_key=?", (f"neighbors:{project_id}:{post_id}:{REVISION}",))
 
 
 @router.get("/projects/{project_id}/neighbors/{post_id}", response_model=schemas.NeighborEvidence)
 async def get_evidence(project_id: PositiveId, post_id: PositiveId, request: Request):
     db = request.app.state.db
+    project_id = (await require_project(db, project_id))["id"]
     job = await evidence(db, project_id, post_id)
     if not job:
         return {"status": "idle", "neighbors": [], "suggested_tags": [], "known_metadata": 0}
@@ -99,8 +102,8 @@ async def get_evidence(project_id: PositiveId, post_id: PositiveId, request: Req
     if ids:
         rows = await db.rows(
             "SELECT p.post_id,p.tags_json,p.unavailable,c.post_id AS candidate_id,l.state FROM posts p "
-            "LEFT JOIN project_candidates c ON c.post_id=p.post_id AND c.project_id=? "
-            "LEFT JOIN labels l ON l.project_id=c.project_id AND l.post_id=p.post_id "
+            "LEFT JOIN canonical_candidates c ON c.post_id=p.post_id AND c.project_id=? "
+            "LEFT JOIN labels l ON l.project_id=c.owner_project_id AND l.post_id=p.post_id "
             "WHERE p.post_id IN (" + ",".join("?" for _ in ids) + ")",
             (project_id, *ids),
         )
@@ -109,6 +112,11 @@ async def get_evidence(project_id: PositiveId, post_id: PositiveId, request: Req
     known = 0
     for item in neighbors:
         row = metadata.get(item["post_id"])
+        transient = request.app.state.feed.peek(item["post_id"])
+        if not row and transient:
+            from .feed import post_row
+
+            row = {**post_row(transient[1]), "candidate_id": None, "state": None}
         item.update(
             {
                 "in_project": bool(row and row["candidate_id"]),
@@ -139,6 +147,7 @@ async def get_evidence(project_id: PositiveId, post_id: PositiveId, request: Req
 @router.post("/projects/{project_id}/neighbors/{post_id}/import", response_model=schemas.NeighborImportResult)
 async def import_neighbors(project_id: PositiveId, post_id: PositiveId, body: schemas.NeighborImport, request: Request):
     db = request.app.state.db
+    project_id = (await require_project(db, project_id))["id"]
     signature = fingerprint(["neighbor-import", project_id, post_id], body.model_dump(mode="json"))
     async with db.transaction() as conn:
         existing = await receipt(conn, body.request_id, signature)
@@ -177,5 +186,15 @@ async def import_neighbors(project_id: PositiveId, post_id: PositiveId, body: sc
                     outcome["job_id"],
                 ),
             )
+        for selected_id in body.post_ids:
+            reviewed = await (
+                await conn.execute(
+                    "SELECT 1 FROM canonical_candidates c JOIN labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id WHERE c.project_id=? AND c.post_id=?",
+                    (project_id, selected_id),
+                )
+            ).fetchone()
+            if reviewed:
+                await attach_neighbor_provenance(conn, project_id, selected_id)
+        outcome["query"] = "id:" + ",".join(map(str, sorted(body.post_ids)))
         await save_receipt(conn, body.request_id, signature, outcome)
         return outcome

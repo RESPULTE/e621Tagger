@@ -111,13 +111,11 @@ export function Datasets() {
   const q = quality.data;
   return (
     <main className="dataset-page">
-      <Link to={`/projects/${projectId}`}>← Candidate gallery</Link>
-      <p className="eyebrow">DATASET QUALITY</p>
-      <h1>Review, group, freeze</h1>
+      <Link to={`/projects/${projectId}?tab=tagged`}>← Candidate gallery</Link>
+      <h1>Datasets</h1>
       <p>
-        Frozen versions keep their labels, provenance and splits when you
-        continue reviewing. Downloads contain metadata and media URLs; they do
-        not bundle original media.
+        Freeze reviewed labels and splits. Export metadata, or explicitly queue
+        original files and download a checked media bundle.
       </p>
       {(quality.error || versions.error) && (
         <p role="alert" className="error">
@@ -314,9 +312,42 @@ export function Datasets() {
       <section>
         <h2>Frozen versions</h2>
         {versions.data?.length === 0 && <p>No frozen versions yet.</p>}
+        <p className="muted">
+          Exports describe one reviewed target. No compatible Hydra trainer or
+          multi-tag loader is configured.
+        </p>
         {versions.data?.map((version) => (
           <article className="dataset-version" key={version.id}>
             <h3>{version.name}</h3>
+            <button
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError("");
+                try {
+                  await api(`/datasets/${version.id}/media`, {
+                    method: "POST",
+                    body: JSON.stringify({ request_id: mutationId() }),
+                  });
+                  setNotice(
+                    "Original downloads queued. Open Downloads for progress and the checked media manifest.",
+                  );
+                } catch (e) {
+                  setError(errorText(e));
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Download dataset media
+            </button>{" "}
+            <Link to={`/projects/${projectId}?tab=downloads`}>Downloads</Link>{" "}
+            <a href={`/api/datasets/${version.id}/media/manifest`}>
+              Checked media manifest
+            </a>{" "}
+            <a href={`/api/datasets/${version.id}/media/bundle`}>
+              Download media bundle
+            </a>
             <p>
               {version.included} supervised samples ·{" "}
               {new Date(version.created_at * 1000).toLocaleString()}

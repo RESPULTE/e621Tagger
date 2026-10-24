@@ -1,0 +1,21 @@
+# Copy to config.toml; keep credentials outside version control.
+# Worker opens this through an SSH tunnel: ssh -N -L 19999:127.0.0.1:9999 ...
+stash_url = "http://127.0.0.1:19999"
+stash_key = "REPLACE_WITH_STASH_API_KEY"
+state = "data/worker.sqlite"
+adult_roots = ["/replace/with/allowed/media/root"]
+ssh_host = "HOME_SERVER_HOST"
+ssh_user = "YOUR_SSH_USER"
+ssh_key = "~/.ssh/YOUR_SSH_KEY"
+model = "../models/hydra-3.5.safetensors"
+threshold = 0.70
+# Use Hydra's supplied taxonomy; no individual tag lists or name matching.
+focus_categories = ["fetish", "action", "character"]
+# Focus labels use threshold above.
+# Other context tags require stronger scores; set focus_only=true to omit them.
+context_threshold = 0.90
+focus_only = false
+# Other animated image formats retain their independent frame cap.
+max_frames = 32
+# Videos and GIFs share this sample count.
+video_frames = 8

@@ -12,8 +12,11 @@ from .api import public, router
 from .config import Settings
 from .datasets import router as datasets_router
 from .db import Database
+from .downloads import Downloads
+from .downloads import router as downloads_router
 from .e621 import E621
 from .embeddings import router as embeddings_router
+from .feed import Feed
 from .jobs import Workers
 from .library import Library
 from .library import router as library_router
@@ -22,6 +25,7 @@ from .mock import SyntheticNeighbors
 from .mock import transport as mock_transport
 from .neighbor_index import PublishedNeighbors
 from .telemetry import Telemetry
+from .transfers import Transfers
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 # httpx request URLs may include source queries; avoid verbose request logs.
@@ -39,14 +43,22 @@ def create_app(settings=None, *, transport=None, start_workers=True):
             await db.open()
             active_transport = transport or (httpx.MockTransport(mock_transport) if config.mock_e621 else None)
             app.state.source = source = E621(config, db, active_transport)
+            app.state.feed = feed = Feed(source, db)
             app.state.media = media = Media(config, db, active_transport)
+            media.feed = feed
             app.state.library = library = Library(db, source, media, config)
-            # Remove abandoned partial downloads after a crash.
-            for path in media.cache_root.glob("*.part"):
-                path.unlink(missing_ok=True)
+            app.state.transfers = transfers = Transfers(db, media, config)
+            library.transfers, library.feed = transfers, feed
+            app.state.downloads = downloads = Downloads(db, source, transfers)
+            await downloads.recover_partials(library)
             source.start()
             app.state.workers = workers = Workers(
-                db, source, media, SyntheticNeighbors() if config.mock_e621 else PublishedNeighbors(), library
+                db,
+                source,
+                media,
+                SyntheticNeighbors() if config.mock_e621 else PublishedNeighbors(),
+                library,
+                downloads,
             )
             if start_workers:
                 await workers.start(config.media_concurrency)
@@ -134,6 +146,7 @@ await self.registration.unregister();for(const client of await self.clients.matc
     app.include_router(datasets_router)
     app.include_router(embeddings_router)
     app.include_router(library_router)
+    app.include_router(downloads_router)
 
     @app.get("/{path:path}")
     async def frontend(path: str):

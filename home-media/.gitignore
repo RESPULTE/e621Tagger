@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+config.toml
+*.sqlite*
+.env
+data/
+upstream/
+models/
+.superdesign/tmp/

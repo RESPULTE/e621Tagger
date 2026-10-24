@@ -1,0 +1,54 @@
+services:
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve@sha256:dae91bc1f9d4c11db54e924d8d25bac7f6c50e080a8f06fc90d9468eaab81b67
+    container_name: homelab-openobserve
+    user: "10001:10001"
+    restart: "no"
+    ports:
+      - "192.168.0.15:5080:5080"
+    env_file: /etc/homelab-monitor/openobserve.env
+    environment:
+      ZO_LOCAL_MODE: "true"
+      ZO_LOCAL_MODE_STORAGE: disk
+      ZO_DATA_DIR: /data
+      ZO_HTTP_TLS_ENABLED: "true"
+      ZO_HTTP_TLS_CERT_PATH: /pki/server.crt
+      ZO_HTTP_TLS_KEY_PATH: /pki/server.key
+      ZO_HTTP_WORKER_NUM: "2"
+      ZO_QUERY_THREAD_NUM: "2"
+      ZO_QUERY_INDEX_THREAD_NUM: "1"
+      ZO_FILE_MOVE_THREAD_NUM: "1"
+      ZO_MEM_DUMP_THREAD_NUM: "1"
+      ZO_FILE_MERGE_THREAD_NUM: "1"
+      ZO_MEMORY_CACHE_ENABLED: "true"
+      ZO_MEMORY_CACHE_MAX_SIZE: "128"
+      ZO_MEMORY_CACHE_SKIP_SIZE: "64"
+      ZO_MEMORY_CACHE_RELEASE_SIZE: "16"
+      ZO_MEMORY_CACHE_DATAFUSION_MAX_SIZE: "256"
+      ZO_MEM_TABLE_MAX_SIZE: "128"
+      ZO_MAX_FILE_SIZE_IN_MEMORY: "32"
+      ZO_MEM_TABLE_BUCKET_NUM: "1"
+      ZO_DISK_CACHE_ENABLED: "false"
+      ZO_CACHE_LATEST_FILES_ENABLED: "false"
+      ZO_COMPACT_FAST_MODE: "false"
+      ZO_COMPACT_DATA_RETENTION_DAYS: "7"
+      ZO_PRINT_KEY_CONFIG: "false"
+      ZO_TELEMETRY: "false"
+      ZO_LOG_JSON_FORMAT: "true"
+      RUST_LOG: warn
+    volumes:
+      - /srv/observability/openobserve:/data
+      - /etc/homelab-monitor/pki:/pki:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1536m
+    cpus: 1
+    pids_limit: 256
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

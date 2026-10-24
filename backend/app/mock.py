@@ -32,7 +32,7 @@ def artwork(post_id: int, preview=False):
     return out.getvalue()
 
 
-def post(post_id):
+def post(post_id, *, checksummed=True):
     root = "https://static1.e621.net"
     video = post_id % 10 == 0
     return {
@@ -47,9 +47,13 @@ def post(post_id):
             "character": ["demo_character"],
         },
         "file": {
-            "md5": hashlib.md5(
-                (Path(__file__).parent / "assets" / "demo.webm").read_bytes() if video else artwork(post_id)
-            ).hexdigest(),
+            "md5": (
+                hashlib.md5(
+                    (Path(__file__).parent / "assets" / "demo.webm").read_bytes() if video else artwork(post_id)
+                ).hexdigest()
+                if checksummed
+                else None
+            ),
             "ext": "webm" if video else "png",
             "width": 160 if video else 1200,
             "height": 120 if video else 900,
@@ -67,6 +71,15 @@ def post(post_id):
 def transport(request):
     path, params = request.url.path, request.url.params
     if request.url.host == "e621.net":
+        if path == "/tags/autocomplete.json":
+            term = params.get("search[name_matches]", "")
+            tags = [
+                {"id": 1, "name": "dragon", "category": 5, "post_count": 400000, "antecedent_name": None},
+                {"id": 3, "name": "dragon_wings", "category": 0, "post_count": 20000, "antecedent_name": None},
+            ]
+            if term.startswith("drak"):
+                return httpx.Response(200, json=[{**tags[0], "antecedent_name": "drake"}])
+            return httpx.Response(200, json=[tag for tag in tags if tag["name"].startswith(term)])
         if path == "/tags.json":
             tags = [
                 {"id": 1, "name": "dragon", "category": 5, "post_count": 400000},
@@ -98,6 +111,10 @@ def transport(request):
                 for term in params.get("tags", "").split():
                     if term == "order:id_desc":
                         continue
+                    if term.startswith("id:"):
+                        if str(item["id"]) not in term[3:].split(","):
+                            return False
+                        continue
                     if term.startswith("rating:"):
                         if item["rating"] != term[7:]:
                             return False
@@ -124,9 +141,11 @@ def transport(request):
 
             selected = []
             for i in range(top, 500, -1):
-                item = post(i)
+                # Filtering metadata must not render hundreds of originals that
+                # will never be returned (especially empty/exhausted searches).
+                item = post(i, checksummed=False)
                 if matches(item):
-                    selected.append(item)
+                    selected.append(post(i))
                 if len(selected) >= int(params.get("limit", 50)):
                     break
             return httpx.Response(200, json={"posts": selected})

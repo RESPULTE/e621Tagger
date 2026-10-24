@@ -6,7 +6,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { Link, Route, Routes } from "react-router-dom";
+import { Link, Route, Routes, useLocation } from "react-router-dom";
 import { api, ApiError, errorText, setCsrf } from "./api/client";
 import { ReviewProvider } from "./components/Reviews";
 import { Home } from "./pages/Home";
@@ -36,6 +36,7 @@ class ErrorBoundary extends Component<
 }
 
 export function App() {
+  const isGallery = /^\/projects\/\d+\/?$/.test(useLocation().pathname);
   const [session, setSession] = useState<{ mock: boolean } | null>(null);
   const [checking, setChecking] = useState(true);
   const [password, setPassword] = useState("");
@@ -116,8 +117,15 @@ export function App() {
         </Link>
         <nav>
           <Link to="/">Projects</Link>
-          <span>Discover · Review · Label</span>
         </nav>
+        {session?.mock && (
+          <span
+            className="demo-badge"
+            title="Synthetic images and mock metadata. No requests to e621."
+          >
+            Preview
+          </span>
+        )}
         {session && !passwordless && (
           <button
             onClick={() => {
@@ -137,9 +145,7 @@ export function App() {
         <p className="centered">Checking session…</p>
       ) : !session ? (
         <main className="login-card">
-          <p className="eyebrow">YOUR PRIVATE REVIEW WORKSPACE</p>
           <h1>{passwordless ? "Connect to Studio" : "Sign in to Studio"}</h1>
-          <p>Search e621. Review the details. Build reliable labels.</p>
           {passwordless ? (
             <button className="primary" onClick={() => void check()}>
               Reconnect
@@ -169,12 +175,6 @@ export function App() {
         </main>
       ) : (
         <ReviewProvider>
-          {session.mock && (
-            <div className="demo-banner">
-              Demo mode — synthetic images and mock metadata. No requests to
-              e621.
-            </div>
-          )}
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/projects/:id" element={<Project />} />
@@ -192,10 +192,7 @@ export function App() {
           </Routes>
         </ReviewProvider>
       )}
-      <footer>
-        Hydra Training Studio · Private review workspace · Source tags are
-        discovery evidence; your reviews are the labels.
-      </footer>
+      {!isGallery && <footer>Hydra · Private tagging workspace</footer>}
     </ErrorBoundary>
   );
 }

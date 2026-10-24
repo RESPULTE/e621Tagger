@@ -43,7 +43,7 @@ async function login(page: Page) {
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
   }
   await expect(
-    page.getByRole("heading", { name: "Find a tag. Build a review set." }),
+    page.getByRole("heading", { name: "Projects", level: 1 }),
   ).toBeVisible();
   const session = await page.request.get("/api/auth/session");
   expect(session.ok()).toBe(true);
@@ -54,10 +54,19 @@ async function login(page: Page) {
 }
 
 async function createProject(page: Page) {
-  await page.getByLabel("Tag name").fill("dragon");
+  // Each workflow gets a distinct explicit target; canonical reuse itself is
+  // tested in storage-review.spec.ts instead of relying on duplicate projects.
+  await page.getByRole("button", { name: "Custom tag", exact: true }).click();
+  await page
+    .getByLabel("Target tag", { exact: true })
+    .fill(
+      `browser_target_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+    );
+  await page
+    .getByRole("combobox", { name: "Discovery query", exact: true })
+    .fill("dragon");
   await page
     .getByRole("button", { name: "Create project", exact: true })
-    .first()
     .click();
   await expect(
     page.getByRole("button", { name: "Open post 1000", exact: true }),
@@ -125,19 +134,21 @@ test("search → import → original → labels → undo → gallery", async ({
   ).toBe(true);
 });
 
-test("mobile selections and failed saves remain reviewable", async ({
-  page,
-}) => {
+test("quick labels and failed saves remain reviewable", async ({ page }) => {
   await login(page);
   await createProject(page);
-  await page.getByLabel("Select post 1000", { exact: true }).check();
-  await page.getByLabel("Select post 999", { exact: true }).check();
-  await page
-    .getByRole("button", { name: "Mark negative", exact: true })
-    .click();
-  await expect(
-    page.getByText("Select posts for batch review", { exact: true }),
-  ).toBeVisible();
+  for (const id of [1000, 999]) {
+    await page
+      .getByRole("button", { name: `Mark post ${id} negative`, exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", {
+        name: `Mark post ${id} negative`,
+        exact: true,
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
+  }
+  await expect(page.locator(".selection-bar")).toHaveCount(0);
   await page
     .getByRole("button", { name: "Open post 999", exact: true })
     .click();
@@ -193,7 +204,7 @@ test("video supports playback, seeking, and compatible MP4", async ({
   await expect(video).toBeVisible();
   await expect(video).toHaveAttribute("controls", "");
   await page.getByRole("button", { name: "Use compatible MP4" }).click();
-  await expect(video).toHaveAttribute("src", /video_mp4$/);
+  await expect(video).toHaveAttribute("src", /video_mp4(?:\?|$)/);
   await expect
     .poll(() => video.evaluate((player: HTMLVideoElement) => player.readyState))
     .toBeGreaterThanOrEqual(1);
@@ -269,7 +280,10 @@ test("unsupported video codec retains MP4 fallback and review controls", async (
   // Original decoding may succeed or fail independently of the MP4 codec.
   const compatible = page.getByRole("button", { name: "Use compatible MP4" });
   if (await compatible.isVisible()) await compatible.click();
-  await expect(page.locator("video")).toHaveAttribute("src", /video_mp4$/);
+  await expect(page.locator("video")).toHaveAttribute(
+    "src",
+    /video_mp4(?:\?|$)/,
+  );
   await expect(page.getByRole("alert")).toContainText(
     "browser does not support its codec",
   );
@@ -281,42 +295,6 @@ test("unsupported video codec retains MP4 fallback and review controls", async (
   await expect(
     page.getByRole("link", { name: "Open the e621 post" }),
   ).toBeVisible();
-});
-
-test("returning from a post restores the gallery scroll position", async ({
-  page,
-}) => {
-  await login(page);
-  await createProject(page);
-  const gallery = page.locator(".gallery-scroll");
-  await gallery.evaluate((element) => {
-    element.scrollTop = 650;
-  });
-  await expect
-    .poll(() => gallery.evaluate((element) => element.scrollTop))
-    .toBeGreaterThan(500);
-  const label = await gallery.evaluate((element) => {
-    const bounds = element.getBoundingClientRect();
-    return Array.from(
-      element.querySelectorAll<HTMLButtonElement>(".thumbnail-link"),
-    )
-      .find((button) => {
-        const rect = button.getBoundingClientRect();
-        return rect.top >= bounds.top && rect.bottom <= bounds.bottom;
-      })
-      ?.getAttribute("aria-label");
-  });
-  expect(label).toBeTruthy();
-  const before = await gallery.evaluate((element) => element.scrollTop);
-  await page.getByRole("button", { name: label!, exact: true }).click();
-  await page.getByRole("link", { name: "Thumbnail gallery" }).click();
-  await expect
-    .poll(async () =>
-      Math.abs(
-        (await gallery.evaluate((element) => element.scrollTop)) - before,
-      ),
-    )
-    .toBeLessThan(10);
 });
 
 test("private access reconnects without a password", async ({ page }) => {
@@ -361,122 +339,10 @@ test("private access reconnects without a password", async ({ page }) => {
   expect(logout.ok()).toBe(true);
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Find a tag. Build a review set." }),
+    page.getByRole("heading", { name: "Projects", level: 1 }),
   ).toBeVisible();
   const after = await (await page.request.get("/api/auth/session")).json();
   expect(after.csrf_token).not.toBe(before.csrf_token);
-});
-
-test("additional query starts with the project selection and remains fully editable", async ({
-  page,
-}) => {
-  await login(page);
-  const url = new URL(page.url());
-  if (
-    url.protocol === "http:" &&
-    !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
-  ) {
-    expect(await page.evaluate(() => window.isSecureContext)).toBe(false);
-    expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe(
-      "undefined",
-    );
-  }
-  await createProject(page);
-  const query = page.getByRole("textbox", {
-    name: "Additional discovery query",
-  });
-  await expect(query).toHaveValue("dragon");
-  await query.fill("dragon score:>100");
-  const importButton = page.getByRole("button", {
-    name: "Import 50",
-    exact: true,
-  });
-  await expect(importButton).toBeEnabled();
-  const [request] = await Promise.all([
-    page.waitForRequest(
-      (request) =>
-        request.url().endsWith("/discovery") && request.method() === "POST",
-    ),
-    importButton.click(),
-  ]);
-  expect(request.postDataJSON().query).toBe("dragon score:>100");
-  await expect(importButton).toBeEnabled();
-  await expect(query).toHaveValue("dragon score:>100");
-  await query.fill("score:>100");
-  const [withoutTag] = await Promise.all([
-    page.waitForRequest(
-      (request) =>
-        request.url().endsWith("/discovery") && request.method() === "POST",
-    ),
-    importButton.click(),
-  ]);
-  expect(withoutTag.postDataJSON().query).toBe("score:>100");
-  expect(withoutTag.postDataJSON().request_id).toMatch(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-  );
-});
-
-test("additional searches show overlaps, filtered results and exhaustion without losing reviews", async ({
-  page,
-}) => {
-  await login(page);
-  await createProject(page);
-  await page.getByLabel("Select post 1000", { exact: true }).check();
-  await page
-    .getByRole("button", { name: "Mark positive", exact: true })
-    .click();
-  await expect(
-    page.getByText("Select posts for batch review", { exact: true }),
-  ).toBeVisible();
-  const query = page.getByRole("textbox", {
-    name: "Additional discovery query",
-  });
-  const submit = page.getByRole("button", { name: "Import 50", exact: true });
-  await query.fill("dragon solo");
-  await submit.click();
-  await expect(page.locator(".import-status")).toContainText(
-    "0 new · 50 already in project",
-  );
-  await expect(
-    page.getByLabel("Search results", { exact: true }),
-  ).not.toHaveValue("");
-  const view = new URL(page.url());
-  const imported = await (
-    await page.request.get(`/api${view.pathname}/candidates${view.search}`)
-  ).json();
-  expect(
-    imported.items.every((post: { sources: string[] }) =>
-      post.sources.includes("query: dragon solo"),
-    ),
-  ).toBe(true);
-  await query.fill("dragon score:>190");
-  await submit.click();
-  await expect(page.locator(".import-status")).toContainText(
-    "No more results for this search",
-  );
-  await expect(
-    page.getByRole("button", { name: "Open post 1000", exact: true }),
-  ).toHaveCount(0);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "27 matching",
-  );
-  await query.fill("no_such_mock_tag");
-  await submit.click();
-  await expect(page.locator(".import-status")).toContainText(
-    "0 matches processed",
-  );
-  await submit.click();
-  await expect(page.locator(".import-status")).toContainText(
-    "No more results for this search",
-  );
-  await page.getByLabel("Search results", { exact: true }).selectOption("");
-  await expect(
-    page.getByRole("button", { name: "Open post 1000", exact: true }),
-  ).toBeVisible();
-  const card = page.locator(".post-card").filter({
-    has: page.getByRole("button", { name: "Open post 1000", exact: true }),
-  });
-  await expect(card).toHaveClass(/positive/);
 });
 
 test("dataset quality freezes a downloadable version and preserves it after review edits", async ({
@@ -500,10 +366,9 @@ test("dataset quality freezes a downloadable version and preserves it after revi
       has: page.getByRole("button", { name: "Open post 998", exact: true }),
     }),
   ).toHaveClass(/negative/);
-  await page.getByRole("link", { name: "Dataset quality & exports" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Review, group, freeze" }),
-  ).toBeVisible();
+  await page.getByRole("tab", { name: "Tagged", exact: true }).click();
+  await page.getByRole("link", { name: "Dataset & export" }).click();
+  await expect(page.getByRole("heading", { name: "Datasets" })).toBeVisible();
   const prepare = page.getByRole("button", {
     name: "Prepare next 64 previews",
   });
@@ -517,7 +382,7 @@ test("dataset quality freezes a downloadable version and preserves it after revi
     .getByRole("button", { name: "Freeze dataset", exact: true })
     .click();
   await expect(
-    page.getByText("Frozen: 2 supervised samples · 48 excluded.", {
+    page.getByText("Frozen: 2 supervised samples · 0 excluded.", {
       exact: true,
     }),
   ).toBeVisible();
@@ -548,7 +413,7 @@ test("dataset quality freezes a downloadable version and preserves it after revi
     }),
   ).toHaveClass(/unsure/);
   expect(await (await page.request.get(href!)).text()).toBe(before);
-  await page.getByRole("link", { name: "Dataset quality & exports" }).click();
+  await page.getByRole("link", { name: "Dataset & export" }).click();
   expect(
     await page
       .locator("body")
@@ -639,59 +504,84 @@ test("bounded neighbor discovery preserves human labels and exposes source tag c
   await page.screenshot({ path: testInfo.outputPath("neighbors.png") });
 });
 
-test("heart saves tagged originals globally and toggles them off without reviewing", async ({
+test("query autocomplete preserves tokens, aliases and prefixes", async ({
   page,
 }) => {
   await login(page);
   await createProject(page);
-  const save = page.getByRole("button", {
-    name: "Save post 999 to Smut folder",
-    exact: true,
+  const query = page.getByRole("combobox", {
+    name: "Discovery query",
   });
-  await save.click();
-  const remove = page.getByRole("button", {
-    name: "Remove saved post 999 from Smut folder",
-    exact: true,
-  });
-  await expect(remove).toHaveAttribute("aria-pressed", "true");
-  const galleryCard = page
-    .locator(".post-card")
-    .filter({
-      has: page.getByRole("button", { name: "Open post 999", exact: true }),
-    });
-  await expect(galleryCard).not.toHaveClass(/positive|negative|unsure/);
+  await query.fill("solo -drak rating:s");
+  await query.press("Home");
+  for (let i = 0; i < 10; i++) await query.press("ArrowRight");
+  await expect(
+    page.getByRole("option", { name: /drake.*dragon/ }),
+  ).toBeVisible();
+  await query.press("ArrowDown");
+  await query.press("Enter");
+  await expect(query).toHaveValue("solo -dragon rating:s");
+  await query.fill("~dra");
+  await expect(
+    page.getByRole("listbox", { name: "Tag suggestions" }),
+  ).toBeVisible();
+  await query.press("ArrowDown");
+  await query.press("Tab");
+  await expect(query).toHaveValue("~dragon ");
+  await expect(query).not.toBeFocused();
+  await query.fill("species:dra");
+  await expect(
+    page.getByRole("listbox", { name: "Tag suggestions" }),
+  ).toBeVisible();
+  await query.press("ArrowDown");
+  await query.press("Enter");
+  await expect(query).toHaveValue("dragon ");
+  await query.fill("rating:");
+  await page.getByRole("option", { name: "s", exact: true }).click();
+  await expect(query).toHaveValue("rating:s ");
+  await query.fill("dra");
+  await expect(
+    page.getByRole("listbox", { name: "Tag suggestions" }),
+  ).toBeVisible();
+  await query.press("Escape");
+  await expect(
+    page.getByRole("listbox", { name: "Tag suggestions" }),
+  ).toHaveCount(0);
+});
+
+test("collection save is idempotent and removal is separately named", async ({
+  page,
+}) => {
+  await login(page);
+  await createProject(page);
   await page
-    .getByRole("button", { name: "Open post 999", exact: true })
+    .getByRole("button", { name: "Save post 997 to Smut folder", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Open post 997", exact: true })
     .click();
   await expect(
     page.getByText("Original and e621 tags saved.", { exact: true }),
   ).toBeVisible();
-  await page.reload();
+  await page
+    .getByRole("button", { name: "Save post 997 to Smut folder", exact: true })
+    .click();
   await expect(
     page.getByRole("button", {
-      name: "Remove saved post 999 from Smut folder",
+      name: "Save post 997 to Smut folder",
       exact: true,
     }),
   ).toHaveAttribute("aria-pressed", "true");
   await page
-    .getByRole("button", {
-      name: "Remove saved post 999 from Smut folder",
-      exact: true,
-    })
+    .getByRole("button", { name: "Remove collection files", exact: true })
     .click();
   await expect(
     page.getByRole("button", {
-      name: "Save post 999 to Smut folder",
+      name: "Save post 997 to Smut folder",
       exact: true,
     }),
   ).toHaveAttribute("aria-pressed", "false");
   await expect(
-    page.getByText("Original and e621 tags saved.", { exact: true }),
-  ).toHaveCount(0);
-  await expect(page.getByText("Unreviewed", { exact: true })).toBeVisible();
-  expect(
-    await page
-      .locator("body")
-      .evaluate((body) => body.scrollWidth <= window.innerWidth),
-  ).toBe(true);
+    page.locator(".detail-review").getByText("Unreviewed", { exact: true }),
+  ).toBeVisible();
 });

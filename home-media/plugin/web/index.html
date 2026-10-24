@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="same-origin">
+  <meta name="color-scheme" content="dark">
+  <title>Tag folders · Private library</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header><a href="/">← Stash</a><strong>Tag folders</strong><button id="logout">Log out</button></header>
+  <main>
+    <h1>Your private library</h1>
+    <p class="muted">Images and videos, together. Tags collect files without moving them.</p>
+    <form id="search-form">
+      <label for="query">Search tags</label>
+      <div class="search-row"><input id="query" list="suggestions" placeholder="vore -comic OR macro" autocomplete="off" maxlength="1000"><datalist id="suggestions"></datalist>
+      <select id="kind" aria-label="Media type"><option value="all">Images + videos</option><option value="image">Images</option><option value="scene">Videos</option></select>
+      <button type="submit">Search</button></div>
+    </form>
+    <details><summary>Search help</summary><p>Space-separated tags require all tags. Use <code>-tag</code> to exclude a tag, <code>OR</code> or <code>|</code> between alternatives, and quotes around a tag containing spaces. Example: <code>vore -comic OR macro</code>.</p></details>
+    <div class="toolbar"><button id="save">Bookmark search</button><button id="refresh">Refresh library</button><span id="status" role="status" aria-live="polite"></span></div>
+    <nav id="bookmarks" aria-label="Saved searches"></nav>
+    <section id="folder-section"><h2>Browse tags</h2><label for="tag-filter">Find a tag folder</label><input id="tag-filter" placeholder="Filter tag names…"><div id="folders" class="folders"></div><button id="more-tags" hidden>Show more tags</button></section>
+    <section><h2 id="results-title">All media</h2><div id="results" class="grid"></div><p id="empty" hidden>No matching files. Try another tag or scan new media in Stash.</p></section>
+    <nav class="pagination" aria-label="Result pages"><button id="previous" disabled>Previous</button><span id="page">Page 1</span><button id="next" disabled>Next</button></nav>
+  </main>
+  <dialog id="viewer"><button id="close" aria-label="Close viewer">Close</button><h2 id="media-title"></h2><div id="media"></div><p id="media-tags"></p><a id="details" href="/">Edit tags and details in Stash →</a><p class="muted">Video tags describe sampled frames; they may miss short events.</p></dialog>
+</body>
+</html>

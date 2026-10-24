@@ -43,8 +43,9 @@ class DatasetCreate(Mutation):
 
 
 class LabelEdit(BaseModel):
-    state: LabelState
+    state: LabelState | None
     expected_version: int = Field(ge=0)
+    source_md5: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
 
 
 class LabelMutation(LabelEdit, Mutation):
@@ -95,7 +96,9 @@ class SaveState(BaseModel):
     version: int = 0
     wanted: bool = False
     present: bool = False
-    status: Literal["idle", "queued", "downloading", "publishing", "removing", "retrying", "saved", "failed"] = "idle"
+    status: Literal[
+        "idle", "queued", "downloading", "publishing", "removing", "retrying", "saved", "failed", "cancelled"
+    ] = "idle"
     error: str | None = None
     updated_at: float = 0
 
@@ -119,6 +122,8 @@ class Candidate(BaseModel):
     event_id: int | None
     sources: list[str]
     favorite: SaveState
+    conflict: bool = False
+    conflicting_reviews: list[dict] = Field(default_factory=list)
 
 
 class CandidatePage(BaseModel):
@@ -145,6 +150,8 @@ class ProjectResult(BaseModel):
     counts: dict[str, int]
     searches: list[dict]
     jobs: list[dict]
+    duplicate_projects: list[dict] = Field(default_factory=list)
+    conflicts: int = 0
 
 
 class EmbeddingStatus(BaseModel):
@@ -203,6 +210,7 @@ class NeighborImportResult(BaseModel):
 class SaveMutation(Mutation):
     wanted: bool
     expected_version: int = Field(ge=0, le=2**63 - 2)
+    source_md5: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
 
 
 class LibraryCapability(BaseModel):

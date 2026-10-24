@@ -4,22 +4,27 @@ import { mediaUrl } from "../api/client";
 
 export function Thumbnail({
   id,
+  md5,
   available = true,
   onLoaded,
 }: {
   id: number;
+  md5?: string | null;
   available?: boolean;
   onLoaded?: () => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const query = useQuery({
-    queryKey: ["thumbnail", id],
+    queryKey: ["thumbnail", id, md5],
     enabled: available,
     staleTime: Infinity,
     gcTime: 30_000,
     retry: false,
     queryFn: async ({ signal }) => {
-      const response = await fetch(mediaUrl(id), { signal });
+      const response = await fetch(mediaUrl(id, "preview", md5), {
+        signal,
+        cache: "no-store",
+      });
       if (response.status === 202) return null;
       if (!response.ok) throw new Error("Thumbnail unavailable");
       return response.blob();

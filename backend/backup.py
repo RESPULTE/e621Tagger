@@ -2,6 +2,7 @@
 
 import argparse
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 
@@ -12,8 +13,10 @@ def backup(root: Path, destination: Path):
         raise ValueError("Choose a new backup path outside the active database")
     destination.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with sqlite3.connect(source.as_uri() + "?mode=ro", uri=True) as reader:
-            with sqlite3.connect(destination) as writer:
+        # Connection context managers commit/rollback but do not close handles.
+        # Closing the writer checkpoints its WAL before the snapshot is copied.
+        with closing(sqlite3.connect(source.as_uri() + "?mode=ro", uri=True)) as reader:
+            with closing(sqlite3.connect(destination)) as writer:
                 reader.backup(writer, pages=256, sleep=0.05)
                 if writer.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
                     raise ValueError("Backup failed SQLite integrity verification")

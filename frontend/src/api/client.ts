@@ -45,7 +45,10 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
             (Array.isArray(detail)
               ? detail.map((item: { msg: string }) => item.msg).join("; ")
               : `Request failed (${response.status})`));
-      if (response.status === 401 && !["/auth/login", "/auth/session"].includes(path))
+      if (
+        response.status === 401 &&
+        !["/auth/login", "/auth/session"].includes(path)
+      )
         window.dispatchEvent(new Event("studio-session-expired"));
       throw new ApiError(response.status, message);
     }
@@ -67,11 +70,17 @@ export function mutationId() {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  const hex = Array.from(bytes, (value) =>
+    value.toString(16).padStart(2, "0"),
+  ).join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
-export const mediaUrl = (id: number, variant = "preview") =>
-  `/api/media/${id}/${variant}`;
+export const mediaUrl = (
+  id: number,
+  variant = "preview",
+  md5?: string | null,
+) =>
+  `/api/media/${id}/${variant}${md5 ? `?source_md5=${encodeURIComponent(md5)}` : ""}`;
 export function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

@@ -15,12 +15,12 @@ from backend.app import mock
 from backend.app.db import SCHEMA, SCHEMA_V2, Database
 from backend.filesystem import disk
 from backend.tests.test_datasets import review
-from backend.tests.test_workflow import import_job, project, run
+from backend.tests.test_workflow import browse, project, run
 
 
 def setup(client):
     created, _ = project(client)
-    import_job(client, created["jobs"][0]["job_id"])
+    browse(client, created["id"])
     return created["id"]
 
 
@@ -68,7 +68,7 @@ def test_save_tags_checksum_idempotency_delete_and_preserve_human_data(client):
     assert b"http://purl.org/dc/elements/1.1/" in next(p for p in files if p.suffix == ".xmp").read_bytes()
     assert not list((root / ".hydra-studio-tmp").iterdir())
     # The saved state is global across projects and cannot become a human label.
-    second = setup(client)
+    second = project(client, custom=True)[0]["id"]
     assert client.get(f"/api/projects/{second}/candidates/999").json()["favorite"]["wanted"]
     assert client.get(f"/api/projects/{second}/candidates/999").json()["state"] is None
     assert client.get(f"/api/projects/{pid}/candidates/999").json()["state"] == "negative"
@@ -203,9 +203,9 @@ async def test_v2_upgrade_backs_up_and_preserves_review_tables(tmp_path):
     db = Database(tmp_path)
     try:
         await db.open()
-        assert (await db.one("PRAGMA user_version"))["user_version"] == 3
+        assert (await db.one("PRAGMA user_version"))["user_version"] == 4
         assert (await db.one("SELECT count(*) AS n FROM projects"))["n"] == 1
-        backup = list((tmp_path / "backups").glob("pre-schema-v3-*.sqlite3"))
+        backup = list((tmp_path / "backups").glob("pre-schema-v4-*.sqlite3"))
         assert len(backup) == 1
         with sqlite3.connect(backup[0]) as old:
             assert old.execute("PRAGMA user_version").fetchone()[0] == 2
@@ -228,7 +228,7 @@ async def test_cancellation_joins_disk_work_before_releasing_writer_lock(client,
         await disk(slow_write)
 
     monkeypatch.setattr(library, "_process", operation)
-    task = asyncio.create_task(library.process({}, {}))
+    task = asyncio.create_task(library.process({}, {"post_id": 999, "version": 1}))
     try:
         await asyncio.to_thread(started.wait, 2)
         assert started.is_set()
@@ -236,12 +236,12 @@ async def test_cancellation_joins_disk_work_before_releasing_writer_lock(client,
         await asyncio.sleep(0.03)
         task.cancel()  # shutdown can cancel a task already handling a timeout
         await asyncio.sleep(0.03)
-        assert library.operation_lock.locked() and not task.done()
+        assert library.operation_locks[999 % 64].locked() and not task.done()
     finally:
         release.set()
     with pytest.raises(asyncio.CancelledError):
         await task
-    assert ended.is_set() and not library.operation_lock.locked()
+    assert ended.is_set() and not library.operation_locks[999 % 64].locked()
 
 
 def test_replacement_during_delete_is_restored_without_deleting_it(client, monkeypatch):
@@ -336,3 +336,12 @@ def test_on_after_interrupted_removal_redownloads_missing_sources(client, monkey
     process(client)
     assert client.get("/api/library/posts/999").json()["status"] == "saved"
     assert len(list(library.root.glob("e621_999_*"))) == 4
+
+
+def test_empty_mock_search_does_not_render_excluded_originals(monkeypatch):
+    def unexpected_render(*_):
+        pytest.fail("A metadata-only empty search rendered an excluded original")
+
+    monkeypatch.setattr(mock, "artwork", unexpected_render)
+    response = mock.transport(httpx.Request("GET", "https://e621.net/posts.json?tags=no_such_mock_tag"))
+    assert response.status_code == 200 and response.json() == {"posts": []}

@@ -9,7 +9,7 @@ import pytest
 from backend.app.db import SCHEMA, Database
 from backend.app.quality import groups, manifest_samples
 from backend.app.schemas import DatasetCreate
-from backend.tests.test_workflow import import_job, project, run
+from backend.tests.test_workflow import browse, project, run
 
 
 def review(client, pid, post_id, state, version=0):
@@ -26,7 +26,7 @@ def review(client, pid, post_id, state, version=0):
 
 def test_frozen_manifest_exports_idempotency_and_later_reviews(client):
     created, _ = project(client)
-    import_job(client, created["jobs"][0]["job_id"])
+    browse(client, created["id"])
     pid = created["id"]
     for post_id, state in ((999, "positive"), (998, "negative"), (997, "unsure"), (1000, "positive")):
         review(client, pid, post_id, state)
@@ -73,7 +73,7 @@ def test_frozen_manifest_exports_idempotency_and_later_reviews(client):
         run(client, mutate())
     quality = client.get(f"/api/projects/{pid}/quality").json()
     assert quality["missing_fingerprints"] == 0
-    assert quality["labels"]["unsure"] == 1 and quality["availability"]["unsupported_media"] == 5
+    assert quality["labels"]["unsure"] == 1 and quality["availability"]["unsupported_media"] == 1
 
 
 def sample(post_id, *, md5=None, dhash=None, state="positive", artist=None):
@@ -122,19 +122,16 @@ def test_candidate_purpose_never_assigns_negative(client):
     created, _ = project(client)
     pid = created["id"]
     for kind in ("unrelated", "hard_negative"):
-        result = client.post(
-            f"/api/projects/{pid}/discovery",
-            json={
-                "request_id": str(uuid4()),
-                "query": "dragon",
-                "source_kind": kind,
-            },
+        response = client.post(
+            f"/api/projects/{pid}/discovery", json={"request_id": str(uuid4()), "query": "dragon", "source_kind": kind}
         )
-        assert result.status_code == 200
-        import_job(client, result.json()["job_id"])
-        candidates = client.get(f"/api/projects/{pid}/candidates?source={kind}").json()
-        assert candidates["total"] == 50
-        assert all(row["state"] is None for row in candidates["items"])
+        assert response.status_code == 200
+        assert len(response.json()["items"]) == 50
+        assert all(p["state"] is None for p in response.json()["items"])
+    assert not run(client, client.app.state.db.rows("SELECT * FROM labels"))
+    assert not run(client, client.app.state.db.rows("SELECT * FROM project_candidates"))
+    review(client, pid, 999, "unsure")
+    assert "hard_negative: dragon" in client.get(f"/api/projects/{pid}/candidates/999").json()["sources"]
 
 
 async def test_v1_migration_preserves_data_and_makes_online_backup(tmp_path):
@@ -146,11 +143,11 @@ async def test_v1_migration_preserves_data_and_makes_online_backup(tmp_path):
     db = Database(tmp_path)
     try:
         await db.open()
-        assert (await db.one("PRAGMA user_version"))["user_version"] == 3
+        assert (await db.one("PRAGMA user_version"))["user_version"] == 4
         assert (await db.one("SELECT count(*) AS n FROM projects"))["n"] == 1
         assert (await db.one("PRAGMA integrity_check"))["integrity_check"] == "ok"
         assert await db.rows("PRAGMA foreign_key_check") == []
-        backups = list((tmp_path / "backups").glob("pre-schema-v3-*.sqlite3"))
+        backups = list((tmp_path / "backups").glob("pre-schema-v4-*.sqlite3"))
         assert len(backups) == 1
         with sqlite3.connect(backups[0]) as conn:
             assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
@@ -159,47 +156,43 @@ async def test_v1_migration_preserves_data_and_makes_online_backup(tmp_path):
         await db.close()
 
 
-def test_legacy_cache_and_source_changes_rebuild_before_fingerprinting(client):
+def test_legacy_cache_is_preserved_but_never_reused_for_browsing(client):
     created, _ = project(client)
-    import_job(client, created["jobs"][0]["job_id"])
+    pid = created["id"]
+    browse(client, pid)
+    review(client, pid, 999, "positive")
     media, db = client.app.state.media, client.app.state.db
-    run(client, media.download_preview(999))
+    media.cache_root.mkdir()
+    legacy = media.cache_root / "999.webp"
+    legacy.write_bytes(b"legacy cache")
 
-    async def legacy():
+    async def seed():
         async with db.transaction() as conn:
-            await conn.execute("UPDATE image_cache SET source_url=NULL,source_md5=NULL WHERE post_id=999")
-            await conn.execute("DELETE FROM image_fingerprints WHERE post_id=999")
+            await conn.execute("INSERT INTO image_cache VALUES(999,'preview','cache/999.webp',12,'legacy',0,NULL,NULL)")
 
-    run(client, legacy())
-    assert client.get("/api/media/999/preview").status_code == 202
-    assert run(client, db.one("SELECT * FROM image_cache WHERE post_id=999")) is None
+    run(client, seed())
+    response = client.get("/api/media/999/preview")
+    assert response.status_code == 200 and response.content != b"legacy cache"
+    assert response.headers["cache-control"] == "private, no-store"
     run(client, media.download_preview(999))
-
-    async def replace_source():
-        async with db.transaction() as conn:
-            await conn.execute("UPDATE posts SET md5='replacement' WHERE post_id=999")
-
-    run(client, replace_source())
-    assert client.get("/api/media/999/preview").status_code == 202
-    run(client, media.download_preview(999))
-    assert run(client, db.one("SELECT md5 FROM image_fingerprints WHERE post_id=999"))["md5"] == "replacement"
+    assert legacy.read_bytes() == b"legacy cache"
+    assert run(client, db.one("SELECT * FROM image_fingerprints WHERE post_id=999"))
 
 
-def test_fingerprint_never_rebinds_cached_bytes_to_concurrent_metadata_refresh(client, monkeypatch):
+def test_fingerprint_never_rebinds_transient_bytes_to_concurrent_metadata_refresh(client, monkeypatch):
     created, _ = project(client)
-    import_job(client, created["jobs"][0]["job_id"])
+    pid = created["id"]
+    browse(client, pid)
+    review(client, pid, 999, "positive")
     media, db = client.app.state.media, client.app.state.db
-    run(client, media.download_preview(999))
-    cached_preview = media.cached_preview
+    original = media.thumbnail_bytes
 
-    async def changed_after_read(post_id):
-        cached = await cached_preview(post_id)
+    async def changed(post):
+        raw = await original(post)
         async with db.transaction() as conn:
-            await conn.execute("UPDATE posts SET md5='concurrent-replacement' WHERE post_id=?", (post_id,))
-        return cached
+            await conn.execute("UPDATE posts SET md5='concurrent-replacement' WHERE post_id=999")
+        return raw
 
-    monkeypatch.setattr(media, "cached_preview", changed_after_read)
+    monkeypatch.setattr(media, "thumbnail_bytes", changed)
     run(client, media.download_preview(999))
-    assert (
-        run(client, db.one("SELECT md5 FROM image_fingerprints WHERE post_id=999"))["md5"] != "concurrent-replacement"
-    )
+    assert run(client, db.one("SELECT * FROM image_fingerprints WHERE post_id=999")) is None

@@ -28,16 +28,44 @@ async def save_receipt(conn, request_id, signature, result):
     )
 
 
-async def transition(conn, project_id, post_id, expected_version, state, *, undo_of=None, source="review"):
+async def attach_neighbor_provenance(conn, project_id, post_id):
+    """Only explicitly selected neighbor evidence can accompany a human review."""
+    await conn.execute(
+        "INSERT OR IGNORE INTO discoveries(project_id,post_id,search_run_id,discovered_at) "
+        "SELECT c.owner_project_id,c.post_id,s.id,j.updated_at FROM canonical_candidates c "
+        "JOIN search_runs s ON s.project_id=c.project_id AND s.source_kind='embedding' "
+        "JOIN jobs j ON j.type='discovery' AND json_extract(j.payload_json,'$.run_id')=s.id "
+        "WHERE c.project_id=? AND c.post_id=? AND EXISTS(SELECT 1 FROM json_each(j.payload_json,'$.seed_ids') ids WHERE ids.value=c.post_id)",
+        (project_id, post_id),
+    )
+
+
+async def transition(
+    conn, project_id, post_id, expected_version, state, *, undo_of=None, source="review", source_md5=None
+):
+    conflict = await (
+        await conn.execute("SELECT 1 FROM project_conflicts WHERE project_id=? AND post_id=?", (project_id, post_id))
+    ).fetchone()
+    if conflict:
+        raise HTTPException(409, "Duplicate projects contain conflicting reviews; explicit resolution is required")
+    owner = await (
+        await conn.execute(
+            "SELECT owner_project_id FROM canonical_candidates WHERE project_id=? AND post_id=?", (project_id, post_id)
+        )
+    ).fetchone()
+    if owner:
+        project_id = owner["owner_project_id"]
     row = await (
         await conn.execute(
-            "SELECT c.review_version,l.state FROM project_candidates c LEFT JOIN labels l USING(project_id,post_id) "
+            "SELECT c.review_version,l.state,p.md5 FROM project_candidates c JOIN posts p USING(post_id) LEFT JOIN labels l USING(project_id,post_id) "
             "WHERE c.project_id=? AND c.post_id=?",
             (project_id, post_id),
         )
     ).fetchone()
     if not row:
         raise HTTPException(404, "Post is not a candidate in this project")
+    if state is not None and source_md5 and source_md5 != row["md5"]:
+        raise HTTPException(409, "Original identity changed; existing review snapshots were preserved")
     if row["review_version"] != expected_version:
         raise HTTPException(
             409,
@@ -69,12 +97,47 @@ async def transition(conn, project_id, post_id, expected_version, state, *, undo
     return {"post_id": post_id, "state": state, "version": version, "event_id": cursor.lastrowid}
 
 
-async def edit_labels(db, project_id, request_id, items):
+async def edit_labels(db, project_id, request_id, items, *, posts=()):
     signature = fingerprint(["labels", project_id], items)
     async with db.transaction() as conn:
         existing = await receipt(conn, request_id, signature)
         if existing is not None:
             return existing
+        from .jobs import persist_post
+
+        for post, query, kind in posts:
+            prior = await (
+                await conn.execute(
+                    "SELECT md5,(EXISTS(SELECT 1 FROM labels WHERE post_id=posts.post_id) OR EXISTS(SELECT 1 FROM label_events WHERE post_id=posts.post_id)) AS reviewed FROM posts WHERE post_id=?",
+                    (post["id"],),
+                )
+            ).fetchone()
+            if prior and prior["reviewed"] and prior["md5"] != (post.get("file") or {}).get("md5"):
+                raise HTTPException(
+                    409, "Original identity changed since an earlier review/save; existing snapshots were preserved"
+                )
+            if not prior or not prior["reviewed"]:
+                await persist_post(conn, post)
+            await conn.execute(
+                "INSERT OR IGNORE INTO project_candidates(project_id,post_id,first_seen_at) VALUES(?,?,?)",
+                (project_id, post["id"], time.time()),
+            )
+            await conn.execute(
+                "INSERT OR IGNORE INTO search_runs(project_id,query,source_kind) VALUES(?,?,?)",
+                (project_id, query, kind),
+            )
+            run = await (
+                await conn.execute(
+                    "SELECT id FROM search_runs WHERE project_id=? AND query=? AND source_kind=?",
+                    (project_id, query, kind),
+                )
+            ).fetchone()
+            await conn.execute(
+                "INSERT OR IGNORE INTO discoveries VALUES(?,?,?,?)", (project_id, post["id"], run["id"], time.time())
+            )
+        for item in items:
+            if item["state"] is not None:
+                await attach_neighbor_provenance(conn, project_id, item["post_id"])
         results = [
             await transition(
                 conn,
@@ -83,6 +146,7 @@ async def edit_labels(db, project_id, request_id, items):
                 item["expected_version"],
                 item["state"],
                 source="batch" if len(items) > 1 else "review",
+                source_md5=item.get("source_md5"),
             )
             for item in items
         ]
@@ -98,7 +162,7 @@ async def undo_label(db, project_id, post_id, mutation):
             return existing
         event = await (
             await conn.execute(
-                "SELECT * FROM label_events WHERE id=? AND project_id=? AND post_id=?",
+                "SELECT e.* FROM label_events e JOIN project_family f ON f.member_id=e.project_id WHERE e.id=? AND f.project_id=? AND e.post_id=?",
                 (mutation.event_id, project_id, post_id),
             )
         ).fetchone()

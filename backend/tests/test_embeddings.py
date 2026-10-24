@@ -11,7 +11,7 @@ from fastapi import HTTPException
 
 from backend.app.neighbor_index import FILES, REVISION, ROWS, PublishedNeighbors
 from backend.tests.test_datasets import review
-from backend.tests.test_workflow import import_job, project, run
+from backend.tests.test_workflow import browse, import_job, project, run
 
 
 def header(kind):
@@ -117,7 +117,7 @@ def completed_evidence(client, pid, seed=999):
 def test_neighbor_import_preserves_reviews_provenance_and_frozen_data(client):
     created, _ = project(client)
     pid = created["id"]
-    import_job(client, created["jobs"][0]["job_id"])
+    browse(client, created["id"])
     review(client, pid, 998, "positive")
     run(client, client.app.state.media.download_preview(998))
     frozen = client.post(
@@ -135,11 +135,14 @@ def test_neighbor_import_preserves_reviews_provenance_and_frozen_data(client):
     assert all(r.status_code == 200 for r in responses)
     assert responses[0].json() == responses[1].json()
     imported = responses[0].json()
+    # Selection attaches provenance synchronously, before any background fetch.
+    immediate = client.get(f"/api/projects/{pid}/candidates/998").json()
+    assert any("embedding:" in source for source in immediate["sources"])
     import_job(client, imported["job_id"])
     rows = client.get(f"/api/projects/{pid}/candidates?run_id={imported['run_id']}").json()["items"]
-    assert len(rows) == 2 and rows[0]["state"] == "positive" and rows[1]["state"] is None
+    assert len(rows) == 1 and rows[0]["state"] == "positive"
     assert any("embedding:" in s and result["artifact_sha256"] in s for s in rows[0]["sources"])
-    assert client.get(f"/api/projects/{pid}/candidates?source=embedding").json()["total"] == 2
+    assert client.get(f"/api/projects/{pid}/candidates?source=embedding").json()["total"] == 1
     after = client.post(
         f"/api/projects/{pid}/datasets", json={"request_id": str(uuid4()), "name": "After neighbors"}
     ).json()
@@ -166,10 +169,10 @@ def test_neighbor_import_preserves_reviews_provenance_and_frozen_data(client):
 def test_neighbor_scope_disabled_queue_limits_and_no_automatic_labels(client):
     created, _ = project(client)
     pid = created["id"]
-    import_job(client, created["jobs"][0]["job_id"])
+    browse(client, created["id"])
     path, job_id, _ = completed_evidence(client, pid)
-    second, _ = project(client)
-    import_job(client, second["jobs"][0]["job_id"])
+    second, _ = project(client, True)
+    browse(client, second["id"])
     bad = client.post(
         f"/api/projects/{second['id']}/neighbors/999/import",
         json={"request_id": str(uuid4()), "job_id": job_id, "post_ids": [998]},
@@ -185,13 +188,13 @@ def test_neighbor_scope_disabled_queue_limits_and_no_automatic_labels(client):
     assert client.get("/api/embeddings/status").json()["enabled"] is False
     assert client.post(path, json={"request_id": str(uuid4())}).status_code == 409
     assert client.get(path).json()["status"] == "done"
-    assert client.get(f"/api/projects/{pid}").json()["counts"]["unreviewed"] == 50
+    assert client.get(f"/api/projects/{pid}").json()["counts"]["total"] == 0
 
 
 def test_neighbor_worker_restart_recovery_and_failure_isolation(client):
     created, _ = project(client)
     pid = created["id"]
-    import_job(client, created["jobs"][0]["job_id"])
+    browse(client, created["id"])
     path = f"/api/projects/{pid}/neighbors/999"
     job_id = client.post(path, json={"request_id": str(uuid4())}).json()["job_id"]
 
@@ -213,13 +216,13 @@ def test_neighbor_worker_restart_recovery_and_failure_isolation(client):
     run(client, work())
     assert client.get(path).json()["status"] == "done"
     assert client.get("/health").status_code == 200
-    assert client.get(f"/api/projects/{pid}").json()["counts"]["unreviewed"] == 50
+    assert client.get(f"/api/projects/{pid}").json()["counts"]["total"] == 0
 
 
 def test_neighbor_input_bounds_and_offline_failure_leave_review_available(client):
     created, _ = project(client)
     pid = created["id"]
-    import_job(client, created["jobs"][0]["job_id"])
+    browse(client, created["id"])
     path = f"/api/projects/{pid}/neighbors/999"
     for bad in (0, -1, 2**80):
         assert client.post(f"/api/projects/{pid}/neighbors/{bad}", json={"request_id": str(uuid4())}).status_code == 422

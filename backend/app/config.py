@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     metadata_interval: float = Field(default=1.0, ge=1.0)
     media_interval: float = Field(default=0.25, ge=0.0)
     media_concurrency: int = Field(default=4, ge=1, le=8)
+    download_concurrency: int = Field(default=2, ge=1, le=4)
     queue_limit: int = Field(default=64, ge=4, le=256)
     cache_bytes: int = Field(default=5 * 1024**3, ge=1024 * 1024)
     preview_max_bytes: int = Field(default=8 * 1024**2, ge=1024)

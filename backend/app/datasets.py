@@ -20,19 +20,26 @@ from .reviews import fingerprint, receipt, save_receipt
 router = APIRouter(prefix="/api", dependencies=[Depends(auth.require_session)])
 
 SNAPSHOT = """SELECT p.*,c.review_version,l.state,l.reviewed_at,
- (SELECT max(id) FROM label_events e WHERE e.project_id=c.project_id AND e.post_id=c.post_id) AS event_id,
+ EXISTS(SELECT 1 FROM project_conflicts x WHERE x.project_id=c.project_id AND x.post_id=c.post_id) AS project_conflict,
+ (SELECT max(id) FROM label_events e WHERE e.project_id=c.owner_project_id AND e.post_id=c.post_id) AS event_id,
  (SELECT json_group_array(json_object('run_id',s.id,'kind',s.source_kind,'query',s.query,'discovered_at',d.discovered_at))
  FROM discoveries d JOIN search_runs s ON s.id=d.search_run_id
- WHERE d.project_id=c.project_id AND d.post_id=c.post_id) AS provenance_json,f.dhash
- FROM project_candidates c JOIN posts p USING(post_id) LEFT JOIN labels l USING(project_id,post_id)
+ WHERE d.project_id=c.owner_project_id AND d.post_id=c.post_id) AS provenance_json,f.dhash
+ FROM canonical_candidates c JOIN posts p USING(post_id) JOIN labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id
  LEFT JOIN image_fingerprints f ON f.post_id=p.post_id AND f.md5 IS p.md5 AND f.preview_url IS p.preview_url
  WHERE c.project_id=? ORDER BY c.post_id LIMIT ?"""
 
 
 async def snapshot(conn, project_id):
-    project = await (await conn.execute("SELECT * FROM projects WHERE id=?", (project_id,))).fetchone()
+    project = await (
+        await conn.execute(
+            "SELECT p.* FROM projects p JOIN canonical_projects k ON k.project_id=p.id JOIN projects requested ON requested.target_kind=k.target_kind AND requested.target_id=k.target_id WHERE requested.id=?",
+            (project_id,),
+        )
+    ).fetchone()
     if project is None:
         raise HTTPException(404, "Project not found")
+    project_id = project["id"]
     rows = await (await conn.execute(SNAPSHOT, (project_id, MAX_CANDIDATES + 1))).fetchall()
     if len(rows) > MAX_CANDIDATES:
         raise HTTPException(413, f"This dataset workflow supports at most {MAX_CANDIDATES} project candidates")
@@ -43,7 +50,7 @@ async def snapshot(conn, project_id):
         await conn.execute(
             "SELECT s.id,json_extract(j.payload_json,'$.neighbor_evidence') AS evidence_json "
             "FROM search_runs s JOIN jobs j ON j.type='discovery' AND json_extract(j.payload_json,'$.run_id')=s.id "
-            "WHERE s.project_id=? AND s.source_kind='embedding'",
+            "WHERE s.project_id IN (SELECT member_id FROM project_family WHERE project_id=?) AND s.source_kind='embedding'",
             (project_id,),
         )
     ).fetchall()
@@ -109,7 +116,7 @@ async def freeze(project_id: int, body: schemas.DatasetCreate, request: Request)
     version_id = str(uuid4())
     split_counts = dict(Counter(sample["split"] for sample in included))
     warnings = [
-        "dHash uses cached preview images; crops, color changes and other near-duplicates may escape detection.",
+        "dHash uses transient preview images; crops, color changes and other near-duplicates may escape detection.",
         "Availability is metadata at freeze time, not a guarantee that a remote URL will remain downloadable.",
     ]
     if set(split_counts) != {"train", "validation", "test"}:
@@ -156,7 +163,7 @@ async def freeze(project_id: int, body: schemas.DatasetCreate, request: Request)
             return existing
         await conn.execute(
             "INSERT INTO datasets VALUES(?,?,?,?,?,?)",
-            (version_id, project_id, manifest["name"], captured, digest, encoded),
+            (version_id, project["id"], manifest["name"], captured, digest, encoded),
         )
         await save_receipt(conn, body.request_id, signature, result)
     return result
@@ -169,7 +176,7 @@ async def versions(project_id: int, request: Request):
         raise HTTPException(404, "Project not found")
     return await db.rows(
         "SELECT id,name,created_at,manifest_sha256,json_extract(manifest_json,'$.counts.included') AS included "
-        "FROM datasets WHERE project_id=? ORDER BY created_at DESC LIMIT 100",
+        "FROM datasets WHERE project_id IN (SELECT member_id FROM project_family WHERE project_id=(SELECT project_id FROM project_family WHERE member_id=?)) ORDER BY created_at DESC LIMIT 100",
         (project_id,),
     )
 

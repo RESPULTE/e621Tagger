@@ -1,0 +1,6 @@
+{
+  "repository": "https://github.com/Fenrir784/e621tagger",
+  "commit": "d304b7ced9a3cb6558bf5a4fc8fe6e969e6b312b",
+  "model": "https://huggingface.co/RedRocket/Hydra/resolve/main/models/hydra-3.5.safetensors",
+  "sha256": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca"
+}
