@@ -1,3 +1,4 @@
+import { TaskProgress } from "../components/TaskProgress";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorText, mutationId } from "../api/client";
@@ -67,10 +68,11 @@ export function Downloads() {
             </span>
           </div>
           <div className="download-progress">
-            <progress
+            <TaskProgress
+              active={["pending", "running"].includes(job.status)}
               value={job.progress_bytes}
-              max={job.total_bytes || Math.max(1, job.progress_bytes * 2)}
-              aria-label={`${job.purpose} progress`}
+              total={job.total_bytes ?? undefined}
+              label={`${job.purpose} progress`}
             />
             <span>
               {(job.progress_bytes / 1048576).toFixed(1)} MiB

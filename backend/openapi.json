@@ -1513,6 +1513,276 @@
         }
       }
     },
+    "/api/projects/{project_id}/similar": {
+      "post": {
+        "summary": "Enqueue",
+        "operationId": "enqueue_api_projects__project_id__similar_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimilarityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilaritySearch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Listing",
+        "operationId": "listing_api_projects__project_id__similar_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarityList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/similar/{search_id}": {
+      "get": {
+        "summary": "Detail",
+        "operationId": "detail_api_projects__project_id__similar__search_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "search_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Search Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilaritySearch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/projects/{project_id}/similar/{search_id}/{action}": {
+      "post": {
+        "summary": "Control",
+        "operationId": "control_api_projects__project_id__similar__search_id___action__post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "search_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Search Id"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Action"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Mutation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilaritySearch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/processing-machine/poll": {
+      "post": {
+        "summary": "Poll",
+        "operationId": "poll_api_processing_machine_poll_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerPoll"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerAssignment"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/processing-machine/results": {
+      "post": {
+        "summary": "Complete",
+        "operationId": "complete_api_processing_machine_results_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkerResult"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/library/status": {
       "get": {
         "summary": "Capability",
@@ -1952,6 +2222,16 @@
             ],
             "title": "Source Md5"
           },
+          "similarity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SimilarityContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "post_id": {
             "type": "integer",
             "exclusiveMinimum": 0.0,
@@ -1992,6 +2272,16 @@
       },
       "Candidate": {
         "properties": {
+          "similarity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SimilarityContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "post_id": {
             "type": "integer",
             "title": "Post Id"
@@ -2386,6 +2676,16 @@
               }
             ],
             "title": "Source Md5"
+          },
+          "similarity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SimilarityContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -2474,6 +2774,39 @@
         ],
         "title": "Login"
       },
+      "LookupJob": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "lease": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Lease"
+          },
+          "post_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "exclusiveMinimum": 0.0,
+            "title": "Post Id"
+          },
+          "index_revision": {
+            "type": "string",
+            "const": "02bd7bd04c732dd3de011d88d642a1d21024f70d",
+            "title": "Index Revision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "lease",
+          "post_id",
+          "index_revision"
+        ],
+        "title": "LookupJob"
+      },
       "MediaPrefetch": {
         "properties": {
           "post_ids": {
@@ -2504,6 +2837,36 @@
           "request_id"
         ],
         "title": "Mutation"
+      },
+      "Neighbor": {
+        "properties": {
+          "post_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "exclusiveMinimum": 0.0,
+            "title": "Post Id"
+          },
+          "rank": {
+            "type": "integer",
+            "maximum": 64.0,
+            "minimum": 1.0,
+            "title": "Rank"
+          },
+          "distance": {
+            "type": "number",
+            "maximum": 2.01,
+            "minimum": 0.0,
+            "title": "Distance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "post_id",
+          "rank",
+          "distance"
+        ],
+        "title": "Neighbor"
       },
       "NeighborEvidence": {
         "properties": {
@@ -2935,6 +3298,198 @@
         ],
         "title": "SaveState"
       },
+      "SimilarityContext": {
+        "properties": {
+          "seed_post_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "exclusiveMinimum": 0.0,
+            "title": "Seed Post Id"
+          },
+          "index_revision": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Index Revision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seed_post_id",
+          "index_revision"
+        ],
+        "title": "SimilarityContext"
+      },
+      "SimilarityList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SimilaritySearch"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "available"
+        ],
+        "title": "SimilarityList"
+      },
+      "SimilarityRequest": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "post_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "exclusiveMinimum": 0.0,
+            "title": "Post Id"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 32.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 32
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "post_id"
+        ],
+        "title": "SimilarityRequest"
+      },
+      "SimilarityResult": {
+        "properties": {
+          "post_id": {
+            "type": "integer",
+            "title": "Post Id"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "distance": {
+            "type": "number",
+            "title": "Distance"
+          },
+          "metadata_state": {
+            "type": "string",
+            "title": "Metadata State"
+          },
+          "candidate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Candidate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "post_id",
+          "rank",
+          "distance",
+          "metadata_state"
+        ],
+        "title": "SimilarityResult"
+      },
+      "SimilaritySearch": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "project_id": {
+            "type": "integer",
+            "title": "Project Id"
+          },
+          "source_post_id": {
+            "type": "integer",
+            "title": "Source Post Id"
+          },
+          "requested_limit": {
+            "type": "integer",
+            "title": "Requested Limit"
+          },
+          "index_revision": {
+            "type": "string",
+            "title": "Index Revision"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "checked": {
+            "type": "integer",
+            "title": "Checked"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarityResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "project_id",
+          "source_post_id",
+          "requested_limit",
+          "index_revision",
+          "status",
+          "stage",
+          "checked",
+          "total",
+          "results"
+        ],
+        "title": "SimilaritySearch"
+      },
       "SuggestedTag": {
         "properties": {
           "name": {
@@ -3057,6 +3612,106 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WorkerAssignment": {
+        "properties": {
+          "job": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LookupJob"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "WorkerAssignment"
+      },
+      "WorkerPoll": {
+        "properties": {
+          "worker_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Worker Id"
+          },
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          },
+          "index_revision": {
+            "type": "string",
+            "const": "02bd7bd04c732dd3de011d88d642a1d21024f70d",
+            "title": "Index Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "worker_id",
+          "ready",
+          "index_revision"
+        ],
+        "title": "WorkerPoll"
+      },
+      "WorkerResult": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "lease": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Lease"
+          },
+          "post_id": {
+            "type": "integer",
+            "maximum": 9.223372036854776e+18,
+            "exclusiveMinimum": 0.0,
+            "title": "Post Id"
+          },
+          "index_revision": {
+            "type": "string",
+            "const": "02bd7bd04c732dd3de011d88d642a1d21024f70d",
+            "title": "Index Revision"
+          },
+          "worker_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Worker Id"
+          },
+          "coverage": {
+            "type": "string",
+            "enum": [
+              "available",
+              "not_indexed"
+            ],
+            "title": "Coverage"
+          },
+          "neighbors": {
+            "items": {
+              "$ref": "#/components/schemas/Neighbor"
+            },
+            "type": "array",
+            "maxItems": 64,
+            "title": "Neighbors"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "lease",
+          "post_id",
+          "index_revision",
+          "worker_id",
+          "coverage",
+          "neighbors"
+        ],
+        "title": "WorkerResult"
       }
     }
   }

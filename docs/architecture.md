@@ -35,3 +35,21 @@ Dataset media lives under the owned data root's `exports/<dataset UUID>/`, indep
 ## Training boundary
 
 Hydra checkpoint/inference code has many output labels, but this repository supplies no compatible trainer, data loader, loss or artifact writer. Studio exports one explicitly reviewed scalar target per project. Neither a multi-tag query nor a negative conjunction review is decomposed into component labels. No multi-tag training claim or new trainer is introduced. See [dataset policy](datasets.md), [operations](operations.md) and the evidence report retained with this release.
+
+
+## Processing-machine similarity discovery
+
+`similarity_worker.py` runs on the RTX 4070 PC, where `hydra_knn.py` performs exact
+post-ID lookup against three pinned read-only NumPy arrays. The server never mounts
+the index. `processing_machine.py` owns a bounded outbound-polled bridge with a
+separate scoped bearer credential, seed-bound leases, timeouts and heartbeat expiry.
+Only authenticated worker replies can supply ranks/distances. Offline status blocks
+new searches and retries, while retained result folders remain available for review.
+`similarity.py` owns session-scoped, bounded in-memory tasks and metadata hydration;
+it reuses Feed, the upstream scheduler and the virtualized gallery. It does not write
+searches or unreviewed candidates into SQLite. Upstream metadata and media starts
+share one admission gate; previews share a bounded transient byte cache.
+Schema v5 adds event-linked similarity provenance. Review transactions validate
+membership against verified worker evidence, preserve version/idempotency checks, and persist
+only selected evidence. Undo events copy the restored decision's evidence, allowing
+bounded bulk reads during dataset freezing. See [the contract](similarity.md).

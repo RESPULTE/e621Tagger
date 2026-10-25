@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
 from . import auth, schemas
 from .jobs import enqueue
-from .reviews import edit_labels, fingerprint, receipt, save_receipt, undo_label
+from .reviews import fingerprint, receipt, review_request, save_receipt, undo_label
 
 router = APIRouter(prefix="/api", dependencies=[Depends(auth.require_session)])
 public = APIRouter(prefix="/api/auth")
@@ -378,37 +378,18 @@ async def candidate_detail(project_id: int, post_id: int, request: Request):
 @router.patch("/projects/{project_id}/labels/{post_id}", response_model=schemas.LabelResult)
 async def label(project_id: int, post_id: int, body: schemas.LabelMutation, request: Request):
     project_id = (await require_project(request.app.state.db, project_id))["id"]
-    posts = await request.app.state.feed.review_posts(project_id, [post_id]) if body.state is not None else []
-    return (
-        await edit_labels(
-            request.app.state.db,
-            project_id,
-            body.request_id,
-            [
-                {
-                    "post_id": post_id,
-                    "state": body.state,
-                    "expected_version": body.expected_version,
-                    **({"source_md5": body.source_md5} if body.source_md5 else {}),
-                }
-            ],
-            posts=posts,
-        )
-    )[0]
+    items = [{**body.model_dump(exclude_none=True, exclude={"request_id"}), "post_id": post_id, "state": body.state}]
+    return (await review_request(request.app.state, project_id, body.request_id, items))[0]
 
 
 @router.post("/projects/{project_id}/labels/batch", response_model=list[schemas.LabelResult])
 async def batch(project_id: int, body: schemas.BatchLabels, request: Request):
     project_id = (await require_project(request.app.state.db, project_id))["id"]
-    posts = await request.app.state.feed.review_posts(
-        project_id, [item.post_id for item in body.items if item.state is not None]
-    )
-    return await edit_labels(
-        request.app.state.db,
+    return await review_request(
+        request.app.state,
         project_id,
         body.request_id,
         [{**item.model_dump(exclude_none=True), "state": item.state} for item in body.items],
-        posts=posts,
     )
 
 

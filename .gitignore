@@ -36,3 +36,5 @@ data/
 .ruff_cache/
 .superdesign/tmp/
 artifacts/
+hydra-index/
+hydra35_embed_*.npy

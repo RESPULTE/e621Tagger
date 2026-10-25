@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorText, mutationId, type Candidate } from "../api/client";
+import { useFindSimilar } from "./Similarity";
+import { useLongPress } from "./useLongPress";
 import type { components } from "../api/schema";
 
 type Saved = components["schemas"]["SaveState"];
@@ -166,6 +168,12 @@ export function SaveThumbnail({
   children: React.ReactNode;
 }) {
   const save = useCollectionSave(project, post);
+  const similar = useFindSimilar(project, post.post_id);
+  const hold = useLongPress(() => {
+    cancel();
+    down.current = null;
+    void similar.find();
+  }, post.post_id);
   const [heart, setHeart] = useState(false);
   const [notice, setNotice] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -215,9 +223,22 @@ export function SaveThumbnail({
     <>
       <button
         ref={element}
-        className="thumbnail-link"
+        className={`thumbnail-link ${hold.armed ? "similarity-armed" : ""}`}
+        title="Hold then release to find similar; Shift+S"
+        onKeyDown={hold.key}
+        onContextMenu={(e) => e.preventDefault()}
+        onPointerLeave={() => {
+          hold.cancel();
+          // Touch generates pointerleave after pointerup. Keep that completed
+          // tap available for the second tap; cancel only an unfinished press.
+          if (down.current) {
+            cancel();
+            down.current = null;
+          }
+        }}
         aria-label={`Open post ${post.post_id}`}
         onPointerDown={(e) => {
+          hold.down(e);
           if (!e.isPrimary || e.button !== 0) return;
           if (timer.current) clearTimeout(timer.current);
           timer.current = null;
@@ -229,6 +250,7 @@ export function SaveThumbnail({
           };
         }}
         onPointerMove={(e) => {
+          hold.move(e);
           const d = down.current;
           if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10) {
             d.moved = true;
@@ -236,10 +258,12 @@ export function SaveThumbnail({
           }
         }}
         onPointerCancel={() => {
+          hold.cancel();
           cancel();
           down.current = null;
         }}
         onPointerUp={(e) => {
+          if (hold.up(e)) return;
           const d = down.current;
           down.current = null;
           if (!d || d.moved || performance.now() - d.at > 500) {
@@ -285,6 +309,11 @@ export function SaveThumbnail({
           }
         }}
         onClick={(e) => {
+          if (hold.consumed.current && e.detail !== 0) {
+            hold.consumed.current = false;
+            e.preventDefault();
+            return;
+          }
           if (e.detail === 0) {
             cancel();
             onOpen();
@@ -293,12 +322,16 @@ export function SaveThumbnail({
         onDoubleClick={(e) => e.preventDefault()}
       >
         {children}
+        {hold.armed && (
+          <span className="similarity-hint">Release to find similar</span>
+        )}
         {heart && (
           <span className="save-heart" aria-hidden="true">
             ♥
           </span>
         )}
       </button>
+      {similar.notice}
       <span className="sr-only" role="status">
         {notice || save.error}
       </span>

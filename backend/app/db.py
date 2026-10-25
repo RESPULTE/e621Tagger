@@ -114,6 +114,13 @@ UPDATE jobs SET status='cancelled',error='Legacy discovery stopped; Query now fe
 """
 
 
+SCHEMA_V5 = """
+CREATE TABLE similarity_provenance(
+ event_id INTEGER PRIMARY KEY REFERENCES label_events(id), seed_post_id INTEGER NOT NULL,
+ neighbor_rank INTEGER NOT NULL, l2_distance REAL NOT NULL, index_revision TEXT NOT NULL);
+"""
+
+
 class Database:
     def __init__(self, root: Path):
         self.root = root.resolve()
@@ -150,26 +157,27 @@ class Database:
         await self.connection.execute("PRAGMA busy_timeout=5000")
         current = await self.connection.execute("PRAGMA user_version")
         version = (await current.fetchone())[0]
-        if version > 4:
+        if version > 5:
             raise RuntimeError("Database schema is newer than this application")
         if version == 0:
             await self.connection.executescript(
-                "BEGIN IMMEDIATE;" + SCHEMA + SCHEMA_V2 + SCHEMA_V3 + SCHEMA_V4 + "PRAGMA user_version=4; COMMIT;"
+                "BEGIN IMMEDIATE;" + SCHEMA + SCHEMA_V2 + SCHEMA_V3 + SCHEMA_V4 + SCHEMA_V5 + "PRAGMA user_version=5; COMMIT;"
             )
-        elif version in {1, 2, 3}:
+        elif version in {1, 2, 3, 4}:
             from backend.backup import backup
 
             # The process lock is already held. Use SQLite online backup, never a
             # raw DB-file copy that could omit WAL commits. Failure aborts startup.
-            destination = self.root / "backups" / f"pre-schema-v4-{time.time_ns()}.sqlite3"
+            destination = self.root / "backups" / f"pre-schema-v5-{time.time_ns()}.sqlite3"
             await asyncio.to_thread(backup, self.root, destination)
             try:
                 await self.connection.executescript(
                     "BEGIN IMMEDIATE;"
                     + (SCHEMA_V2 if version == 1 else "")
                     + (SCHEMA_V3 if version < 3 else "")
-                    + SCHEMA_V4
-                    + "PRAGMA user_version=4; COMMIT;"
+                    + (SCHEMA_V4 if version < 4 else "")
+                    + SCHEMA_V5
+                    + "PRAGMA user_version=5; COMMIT;"
                 )
             except BaseException:
                 await self.connection.rollback()

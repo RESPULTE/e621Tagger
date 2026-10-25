@@ -266,7 +266,7 @@ async def test_migration_preserves_conflicting_duplicate_reviews_and_events(tmp_
             await edit_labels(db, 1, uuid4(), [{"post_id": 999, "state": "unsure", "expected_version": 1}])
         assert {r["state"] for r in await db.rows("SELECT * FROM labels")} == {"positive", "negative"}
         assert not await db.rows("PRAGMA foreign_key_check")
-        assert len(list((tmp_path / "backups").glob("pre-schema-v4-*"))) == 1
+        assert len(list((tmp_path / "backups").glob("pre-schema-v5-*"))) == 1
     finally:
         await db.close()
 

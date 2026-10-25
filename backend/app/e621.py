@@ -54,6 +54,7 @@ class E621:
         self.inflight = {}
         self.autocomplete_cache = OrderedDict()
         self.task = None
+        self.gate = None
         self.metrics = {"requests": 0, "throttled": 0, "errors": 0, "last_latency_ms": 0.0}
 
     def start(self):
@@ -99,6 +100,8 @@ class E621:
                     start = time.monotonic()
                     try:
                         self.metrics["requests"] += 1
+                        if self.gate:
+                            await self.gate.acquire()
                         response = await self.client.get(path, params=dict(params))
                         self.metrics["last_latency_ms"] = round((time.monotonic() - start) * 1000, 1)
                     except httpx.TransportError:

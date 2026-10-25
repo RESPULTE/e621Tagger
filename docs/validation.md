@@ -1,5 +1,48 @@
 # Validation — 21 October 2026
 
+## Find Similar processing-PC continuation — 25 October 2026
+
+The complete pinned index was downloaded and SHA-256 verified on the RTX 4070
+Windows PC only: 3,967,504,800 array bytes. A 1,000-row warm lookup measurement
+on this PC recorded median 0.2043 ms, p95 0.4133 ms and max 0.9250 ms; checksum
+startup took 5.793 s. These timings exclude polling, metadata and thumbnails.
+
+An isolated Ubuntu container exercised the real PC worker and index with synthetic
+metadata: four neighbors were hydrated, stopped-worker heartbeat expiry produced
+the exact offline message and 503 for a new search, and an existing result could
+still be reviewed offline. Lookup plus polling and synthetic metadata took 4.60 s
+in this single integration run. No production label was created by this probe.
+
+Focused backend checks passed 50 tests after retention, worker-authentication,
+lease, distance-range and early-Windows-timer fixes. The worker restart correction
+then passed all 10 worker/bridge tests. Chromium desktop/mobile and iPhone WebKit
+review/storage/similarity checks passed 46 tests with 8 expected device/auth/codec
+skips. This remains browser emulation rather than a physical iPhone check.
+
+Before activation, migration of an isolated production snapshot from schema 2 to
+5 preserved table hashes, including 5 projects, 533 posts, 754 candidate memberships,
+6 labels, 15 review events, 759 discovery records, 12 search runs, 65 mutation receipts,
+0 frozen datasets and 272 legacy cache records. The automatic pre-schema backup
+also passed integrity and content checks. Activation uses a copied data volume,
+preserving the original schema-2 volume; runtime status must be checked separately.
+
+Activation completed on 25 October as `find-similar-pc-final2-20261025` (source bundle
+SHA-256 `2423a3aa24eef79b280db179c7f6fcd3fc936bcea38bd395238b7ddcadbdaa3b`).
+Production uses the copied `hydra-studio_similarity-pc-20261025` volume; the original
+`hydra-studio_studio-data` volume remains at schema 2. Private configuration and
+pre/post migration snapshots are retained under the deployment's
+`validation/find-similar-pc-20261025/activation2/`. Do not start the old image against
+the new volume. The first read-only-volume backup attempt failed before migration;
+the successful sequence copied the stopped volume before SQLite recovery/backup.
+
+Final backend suite: **99 passed, 1 skipped**. Ruff, regenerated-contract equality,
+TypeScript/Vite and the final Ubuntu Docker image build passed. Production health,
+offline status before worker startup, and one real-index/live-metadata result from
+the PC worker were verified. After that transient search, all core table hashes
+still matched the pre-upgrade records; no production labels or saves were submitted.
+The worker is running in the PC background. Automatic startup after Windows sign-in
+is not installed; use the worker command in [setup](similarity.md) after reboot.
+
 ## Embedding discovery — 24 October 2026
 
 Release `fdd07f9` (feature `72fdd53`) is deployed privately. Windows Python 3.10 and Ubuntu image Python 3.11 each passed **46 backend tests**; Ruff, regenerated API contracts and local/Docker TypeScript/Vite builds passed. Full local browser matrix: **25 passed, 8 expected skips** (includes three inapplicable passwordless reconnect cases). Full isolated Ubuntu passwordless matrix: **28 passed, 5 expected browser/device skips**. A subsequent UI-only correction makes Hide tags also hide neighbor suggestions after reload; its complete neighbor flow passed **3/3 locally and 3/3 against the final Ubuntu image**. No backend source changed for that correction.

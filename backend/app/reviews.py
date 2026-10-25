@@ -94,10 +94,20 @@ async def transition(
         "VALUES(?,?,?,?,?,?,?,?)",
         (project_id, post_id, row["state"], state, version, now, source, undo_of),
     )
+    if undo_of is not None and state is not None:
+        # Each undo event carries the restored decision's evidence. Snapshot reads
+        # then remain bounded without walking arbitrarily long undo histories.
+        await conn.execute(
+            "INSERT INTO similarity_provenance SELECT ?,seed_post_id,neighbor_rank,l2_distance,index_revision "
+            "FROM similarity_provenance WHERE event_id=(SELECT id FROM label_events "
+            "WHERE project_id=? AND post_id=? AND version<(SELECT version FROM label_events WHERE id=?) "
+            "ORDER BY version DESC LIMIT 1)",
+            (cursor.lastrowid, project_id, post_id, undo_of),
+        )
     return {"post_id": post_id, "state": state, "version": version, "event_id": cursor.lastrowid}
 
 
-async def edit_labels(db, project_id, request_id, items, *, posts=()):
+async def edit_labels(db, project_id, request_id, items, *, posts=(), evidence=None):
     signature = fingerprint(["labels", project_id], items)
     async with db.transaction() as conn:
         existing = await receipt(conn, request_id, signature)
@@ -150,8 +160,42 @@ async def edit_labels(db, project_id, request_id, items, *, posts=()):
             )
             for item in items
         ]
+        for result in results:
+            context = (evidence or {}).get(result["post_id"])
+            if context and result["state"] is not None:
+                await conn.execute(
+                    "INSERT INTO similarity_provenance(event_id,seed_post_id,neighbor_rank,l2_distance,index_revision) "
+                    "VALUES(?,?,?,?,?)",
+                    (
+                        result["event_id"],
+                        context["seed_post_id"],
+                        context["rank"],
+                        context["distance"],
+                        context["revision"],
+                    ),
+                )
         await save_receipt(conn, request_id, signature, results)
         return results
+
+
+async def review_request(state, project_id, request_id, items):
+    """Replay receipts before network/index access; commit evidence with the label."""
+    signature = fingerprint(["labels", project_id], items)
+    async with state.db.transaction() as conn:
+        existing = await receipt(conn, request_id, signature)
+    if existing is not None:
+        return existing
+    evidence = {}
+    for item in items:
+        context = item.get("similarity")
+        if context and item["state"] is not None:
+            row = await state.similarity.review_evidence(project_id, context["seed_post_id"])
+            neighbor = next((n for n in row["neighbors"] if n["post_id"] == item["post_id"]), None)
+            if row["revision"] != context["index_revision"] or neighbor is None:
+                raise HTTPException(409, "Similarity evidence is invalid or changed; reopen the source search")
+            evidence[item["post_id"]] = dict(neighbor, seed_post_id=context["seed_post_id"], revision=row["revision"])
+    posts = await state.feed.review_posts(project_id, [i["post_id"] for i in items if i["state"] is not None])
+    return await edit_labels(state.db, project_id, request_id, items, posts=posts, evidence=evidence)
 
 
 async def undo_label(db, project_id, post_id, mutation):

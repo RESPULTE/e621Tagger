@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import type { SimilarSearch } from "./Similarity";
 import { recordMetric } from "../api/telemetry";
 import {
   api,
@@ -90,6 +91,23 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
         /* In-memory undo remains available. */
       }
       results.forEach((result) => {
+        client.setQueriesData<SimilarSearch>(
+          { queryKey: ["similarity", operation.project] },
+          (old) =>
+            old
+              ? {
+                  ...old,
+                  results: old.results.map((entry) =>
+                    entry.post_id === result.post_id && entry.candidate
+                      ? {
+                          ...entry,
+                          candidate: { ...entry.candidate, ...result },
+                        }
+                      : entry,
+                  ),
+                }
+              : old,
+        );
         client.setQueryData<Candidate>(
           ["post", operation.project, result.post_id],
           (old) => (old ? { ...old, ...result } : undefined),
@@ -160,6 +178,7 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
     const request_id = mutationId();
     const items = posts.map((post) => ({
       post_id: post.post_id,
+      ...(post.similarity ? { similarity: post.similarity } : {}),
       expected_version: post.version,
       state,
       ...(state && post.md5 ? { source_md5: post.md5 } : {}),

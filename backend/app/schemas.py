@@ -42,10 +42,16 @@ class DatasetCreate(Mutation):
     near_hamming: int = Field(default=4, ge=0, le=8)
 
 
+class SimilarityContext(BaseModel):
+    seed_post_id: int = Field(gt=0, le=2**63 - 1)
+    index_revision: str = Field(min_length=1, max_length=64)
+
+
 class LabelEdit(BaseModel):
     state: LabelState | None
     expected_version: int = Field(ge=0)
     source_md5: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+    similarity: SimilarityContext | None = None
 
 
 class LabelMutation(LabelEdit, Mutation):
@@ -104,6 +110,7 @@ class SaveState(BaseModel):
 
 
 class Candidate(BaseModel):
+    similarity: SimilarityContext | None = None
     post_id: int
     rating: str | None
     md5: str | None
@@ -130,6 +137,39 @@ class CandidatePage(BaseModel):
     items: list[Candidate]
     next_cursor: str | None
     total: int
+
+
+class SimilarityRequest(Mutation):
+    post_id: int = Field(gt=0, le=2**63 - 1)
+    limit: int = Field(default=32, ge=1, le=32)
+
+
+class SimilarityResult(BaseModel):
+    post_id: int
+    rank: int
+    distance: float
+    metadata_state: str
+    candidate: Candidate | None = None
+
+
+class SimilaritySearch(BaseModel):
+    id: str
+    project_id: int
+    source_post_id: int
+    requested_limit: int
+    index_revision: str
+    status: str
+    stage: str
+    error: str | None = None
+    checked: int
+    total: int
+    results: list[SimilarityResult]
+
+
+class SimilarityList(BaseModel):
+    items: list[SimilaritySearch]
+    available: bool
+    message: str | None = None
 
 
 class TagResult(BaseModel):

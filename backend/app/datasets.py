@@ -55,6 +55,15 @@ async def snapshot(conn, project_id):
         )
     ).fetchall()
     evidence = {row["id"]: json.loads(row["evidence_json"]) for row in evidence_rows if row["evidence_json"]}
+    selected_rows = await (
+        await conn.execute(
+            "SELECT * FROM similarity_provenance WHERE event_id IN ("
+            "SELECT max(e.id) FROM label_events e JOIN project_family f ON f.member_id=e.project_id "
+            "WHERE f.project_id=? GROUP BY e.project_id,e.post_id)",
+            (project_id,),
+        )
+    ).fetchall()
+    selected_evidence = {row["event_id"]: dict(row) for row in selected_rows}
     for sample in samples:
         provenance = json.loads(sample["provenance_json"])
         for source in provenance:
@@ -63,6 +72,17 @@ async def snapshot(conn, project_id):
                 neighbor = next((n for n in context["neighbors"] if n["post_id"] == sample["post_id"]), None)
                 if neighbor:
                     source["embedding"] = {k: v for k, v in context.items() if k != "neighbors"} | neighbor
+        selected = selected_evidence.get(sample["event_id"])
+        if selected:
+            provenance.append(
+                {
+                    "kind": "hydra35_knn",
+                    "candidate_post_id": sample["post_id"],
+                    "target_kind": project["target_kind"],
+                    "target_id": project["target_id"],
+                    **dict(selected),
+                }
+            )
         sample["provenance_json"] = json.dumps(provenance)
     return dict(project), samples
 

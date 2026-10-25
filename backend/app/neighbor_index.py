@@ -41,8 +41,14 @@ async def safe_request(request):
 
 
 class PublishedNeighbors:
-    def __init__(self, *, transport=None):
+    def __init__(self, *, transport=None, gate=None):
         self.transport = transport
+        self.gate = gate
+
+    async def prepare_request(self, request):
+        await safe_request(request)
+        if self.gate:
+            await self.gate.acquire()
 
     async def lookup(self, seed_id):
         try:
@@ -61,7 +67,7 @@ class PublishedNeighbors:
             max_redirects=3,
             timeout=10,
             limits=httpx.Limits(max_connections=1),
-            event_hooks={"request": [safe_request]},
+            event_hooks={"request": [self.prepare_request]},
         ) as client:
 
             async def read(kind, start, length):

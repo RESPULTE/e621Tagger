@@ -517,6 +517,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/similar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listing */
+        get: operations["listing_api_projects__project_id__similar_get"];
+        put?: never;
+        /** Enqueue */
+        post: operations["enqueue_api_projects__project_id__similar_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/similar/{search_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detail */
+        get: operations["detail_api_projects__project_id__similar__search_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/similar/{search_id}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Control */
+        post: operations["control_api_projects__project_id__similar__search_id___action__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/processing-machine/poll": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Poll */
+        post: operations["poll_api_processing_machine_poll_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/processing-machine/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete */
+        post: operations["complete_api_processing_machine_results_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/library/status": {
         parameters: {
             query?: never;
@@ -699,6 +785,7 @@ export interface components {
             expected_version: number;
             /** Source Md5 */
             source_md5?: string | null;
+            similarity?: components["schemas"]["SimilarityContext"] | null;
             /** Post Id */
             post_id: number;
         };
@@ -714,6 +801,7 @@ export interface components {
         };
         /** Candidate */
         Candidate: {
+            similarity?: components["schemas"]["SimilarityContext"] | null;
             /** Post Id */
             post_id: number;
             /** Rating */
@@ -858,6 +946,7 @@ export interface components {
             expected_version: number;
             /** Source Md5 */
             source_md5?: string | null;
+            similarity?: components["schemas"]["SimilarityContext"] | null;
         };
         /** LabelResult */
         LabelResult: {
@@ -884,6 +973,26 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** LookupJob */
+        LookupJob: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Lease
+             * Format: uuid
+             */
+            lease: string;
+            /** Post Id */
+            post_id: number;
+            /**
+             * Index Revision
+             * @constant
+             */
+            index_revision: "02bd7bd04c732dd3de011d88d642a1d21024f70d";
+        };
         /** MediaPrefetch */
         MediaPrefetch: {
             /** Post Ids */
@@ -896,6 +1005,15 @@ export interface components {
              * Format: uuid
              */
             request_id: string;
+        };
+        /** Neighbor */
+        Neighbor: {
+            /** Post Id */
+            post_id: number;
+            /** Rank */
+            rank: number;
+            /** Distance */
+            distance: number;
         };
         /** NeighborEvidence */
         NeighborEvidence: {
@@ -1069,6 +1187,74 @@ export interface components {
              */
             updated_at: number;
         };
+        /** SimilarityContext */
+        SimilarityContext: {
+            /** Seed Post Id */
+            seed_post_id: number;
+            /** Index Revision */
+            index_revision: string;
+        };
+        /** SimilarityList */
+        SimilarityList: {
+            /** Items */
+            items: components["schemas"]["SimilaritySearch"][];
+            /** Available */
+            available: boolean;
+            /** Message */
+            message?: string | null;
+        };
+        /** SimilarityRequest */
+        SimilarityRequest: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Post Id */
+            post_id: number;
+            /**
+             * Limit
+             * @default 32
+             */
+            limit: number;
+        };
+        /** SimilarityResult */
+        SimilarityResult: {
+            /** Post Id */
+            post_id: number;
+            /** Rank */
+            rank: number;
+            /** Distance */
+            distance: number;
+            /** Metadata State */
+            metadata_state: string;
+            candidate?: components["schemas"]["Candidate"] | null;
+        };
+        /** SimilaritySearch */
+        SimilaritySearch: {
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id: number;
+            /** Source Post Id */
+            source_post_id: number;
+            /** Requested Limit */
+            requested_limit: number;
+            /** Index Revision */
+            index_revision: string;
+            /** Status */
+            status: string;
+            /** Stage */
+            stage: string;
+            /** Error */
+            error?: string | null;
+            /** Checked */
+            checked: number;
+            /** Total */
+            total: number;
+            /** Results */
+            results: components["schemas"]["SimilarityResult"][];
+        };
         /** SuggestedTag */
         SuggestedTag: {
             /** Name */
@@ -1113,6 +1299,57 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WorkerAssignment */
+        WorkerAssignment: {
+            job?: components["schemas"]["LookupJob"] | null;
+        };
+        /** WorkerPoll */
+        WorkerPoll: {
+            /**
+             * Worker Id
+             * Format: uuid
+             */
+            worker_id: string;
+            /** Ready */
+            ready: boolean;
+            /**
+             * Index Revision
+             * @constant
+             */
+            index_revision: "02bd7bd04c732dd3de011d88d642a1d21024f70d";
+        };
+        /** WorkerResult */
+        WorkerResult: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Lease
+             * Format: uuid
+             */
+            lease: string;
+            /** Post Id */
+            post_id: number;
+            /**
+             * Index Revision
+             * @constant
+             */
+            index_revision: "02bd7bd04c732dd3de011d88d642a1d21024f70d";
+            /**
+             * Worker Id
+             * Format: uuid
+             */
+            worker_id: string;
+            /**
+             * Coverage
+             * @enum {string}
+             */
+            coverage: "available" | "not_indexed";
+            /** Neighbors */
+            neighbors: components["schemas"]["Neighbor"][];
         };
     };
     responses: never;
@@ -2111,6 +2348,205 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["NeighborImportResult"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listing_api_projects__project_id__similar_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimilarityList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enqueue_api_projects__project_id__similar_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimilarityRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimilaritySearch"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detail_api_projects__project_id__similar__search_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                search_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimilaritySearch"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    control_api_projects__project_id__similar__search_id___action__post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                search_id: string;
+                action: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Mutation"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimilaritySearch"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    poll_api_processing_machine_poll_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerPoll"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkerAssignment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_api_processing_machine_results_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerResult"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

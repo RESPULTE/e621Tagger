@@ -25,6 +25,11 @@ import { useReviews } from "../components/Reviews";
 import { Thumbnail } from "../components/Thumbnail";
 import { FavoriteButton, SaveThumbnail } from "../components/FavoriteButton";
 import { QueryInput } from "../components/QueryInput";
+import {
+  SimilarityFolders,
+  useSimilarity,
+  similarityCandidates,
+} from "../components/Similarity";
 import { Downloads } from "./Downloads";
 
 export function Project() {
@@ -43,9 +48,16 @@ export function Project() {
     queryFn: () => api<ProjectInfo>(`/projects/${projectId}`),
     refetchInterval: 2000,
   });
-  const tab = ["query", "tagged", "downloads"].includes(params.get("tab") ?? "")
+  const tab = ["query", "tagged", "similarity", "downloads"].includes(
+    params.get("tab") ?? "",
+  )
     ? params.get("tab")!
     : "query";
+  const similarity = useSimilarity(
+    projectId,
+    tab === "similarity",
+    params.get("search"),
+  );
   const query = params.get("q") ?? project.data?.query ?? "";
   const candidates = useInfiniteQuery({
     queryKey: [
@@ -56,7 +68,7 @@ export function Project() {
       visit,
       revision,
     ],
-    enabled: !!project.data && tab !== "downloads",
+    enabled: !!project.data && ["query", "tagged"].includes(tab),
     initialPageParam: null as string | null,
     queryFn: ({ pageParam, signal }) => {
       const search = new URLSearchParams({ limit: "50" });
@@ -73,14 +85,17 @@ export function Project() {
     gcTime: 0,
     retry: false,
   });
-  const items = [
-    ...new Map(
-      (candidates.data?.pages.flatMap((p) => p.items) ?? []).map((p) => [
-        p.post_id,
-        p,
-      ]),
-    ).values(),
-  ];
+  const items =
+    tab === "similarity"
+      ? similarityCandidates(similarity.detail.data)
+      : [
+          ...new Map(
+            (candidates.data?.pages.flatMap((p) => p.items) ?? []).map((p) => [
+              p.post_id,
+              p,
+            ]),
+          ).values(),
+        ];
   const focusedPost = items.find((p) => p.post_id === focused) ?? items[0];
   useLayoutEffect(() => {
     if (!scroll.current) return;
@@ -102,7 +117,7 @@ export function Project() {
     (rows.at(-1)?.index ?? 0) >= Math.ceil(items.length / columns) - 3;
   useEffect(() => {
     if (
-      tab !== "downloads" &&
+      ["query", "tagged"].includes(tab) &&
       nearEnd &&
       candidates.hasNextPage &&
       !candidates.isFetching &&
@@ -133,10 +148,14 @@ export function Project() {
     previous.current = first;
   }, [first]);
   function openPost(post: Candidate) {
-    navigate(`/projects/${projectId}/posts/${post.post_id}`, {
+    const context = post.similarity
+      ? `?seed=${post.similarity.seed_post_id}&index=${encodeURIComponent(post.similarity.index_revision)}`
+      : "";
+    navigate(`/projects/${projectId}/posts/${post.post_id}${context}`, {
       state: {
         ids: items.map((p) => p.post_id),
         gallery: `/projects/${projectId}?${params}`,
+        similarity: post.similarity,
       },
     });
   }
@@ -157,7 +176,11 @@ export function Project() {
         event.ctrlKey ||
         event.metaKey ||
         event.altKey ||
-        !focusedPost
+        !focusedPost ||
+        (tab === "similarity" &&
+          !similarity.detail.data?.results.find(
+            (r) => r.post_id === focusedPost.post_id,
+          )?.candidate)
       )
         return;
       const state = (
@@ -219,56 +242,62 @@ export function Project() {
           </div>
         </div>
         <nav className="project-tabs" role="tablist" aria-label="Project views">
-          {(["query", "tagged", "downloads"] as const).map((value, i) => (
-            <button
-              key={value}
-              role="tab"
-              aria-selected={tab === value}
-              aria-controls={`panel-${value}`}
-              id={`tab-${value}`}
-              tabIndex={tab === value ? 0 : -1}
-              className={tab === value ? "active" : ""}
-              onClick={() => switchTab(value)}
-              onKeyDown={(event) => {
-                if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
-                  event.preventDefault();
-                  const next = (i + (event.key === "ArrowRight" ? 1 : 2)) % 3;
-                  switchTab(["query", "tagged", "downloads"][next]);
-                  document
-                    .getElementById(
-                      `tab-${["query", "tagged", "downloads"][next]}`,
-                    )
-                    ?.focus();
-                }
-              }}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.7"
-                aria-hidden="true"
+          {(["query", "tagged", "similarity", "downloads"] as const).map(
+            (value, i) => (
+              <button
+                key={value}
+                role="tab"
+                aria-selected={tab === value}
+                aria-controls={`panel-${value}`}
+                id={`tab-${value}`}
+                tabIndex={tab === value ? 0 : -1}
+                className={tab === value ? "active" : ""}
+                onClick={() => switchTab(value)}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+                    event.preventDefault();
+                    const next = (i + (event.key === "ArrowRight" ? 1 : 3)) % 4;
+                    switchTab(
+                      ["query", "tagged", "similarity", "downloads"][next],
+                    );
+                    document
+                      .getElementById(
+                        `tab-${["query", "tagged", "similarity", "downloads"][next]}`,
+                      )
+                      ?.focus();
+                  }
+                }}
               >
-                {value === "query" ? (
-                  <>
-                    <circle cx="10" cy="10" r="6" />
-                    <path d="m15 15 6 6" />
-                  </>
-                ) : value === "tagged" ? (
-                  <path d="M3 3h9l9 9-9 9-9-9V3Zm5 5h.01" />
-                ) : (
-                  <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
-                )}
-              </svg>
-              {value === "query"
-                ? "Query"
-                : value === "tagged"
-                  ? "Tagged"
-                  : "Downloads"}
-            </button>
-          ))}
+                <svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  aria-hidden="true"
+                >
+                  {value === "query" ? (
+                    <>
+                      <circle cx="10" cy="10" r="6" />
+                      <path d="m15 15 6 6" />
+                    </>
+                  ) : value === "tagged" ? (
+                    <path d="M3 3h9l9 9-9 9-9-9V3Zm5 5h.01" />
+                  ) : (
+                    <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
+                  )}
+                </svg>
+                {value === "query"
+                  ? "Query"
+                  : value === "tagged"
+                    ? "Tagged"
+                    : value === "similarity"
+                      ? "Similarity"
+                      : "Downloads"}
+              </button>
+            ),
+          )}
         </nav>
         {project.error && (
           <p className="error" role="alert">
@@ -294,7 +323,18 @@ export function Project() {
             <Downloads />
           ) : (
             <>
-              {tab === "query" ? (
+              {tab === "similarity" ? (
+                <SimilarityFolders
+                  project={projectId}
+                  state={similarity}
+                  select={(id) => {
+                    const next = new URLSearchParams(params);
+                    next.set("search", id);
+                    setParams(next);
+                    scroll.current?.scrollTo(0, 0);
+                  }}
+                />
+              ) : tab === "query" ? (
                 <form className="additional-search" onSubmit={search}>
                   <QueryInput
                     label="Discovery query"
@@ -315,7 +355,7 @@ export function Project() {
                   </span>
                 </div>
               )}
-              {candidates.error && (
+              {tab !== "similarity" && candidates.error && (
                 <p className="error" role="alert">
                   {errorText(candidates.error)}{" "}
                   <button onClick={() => void candidates.refetch()}>
@@ -323,7 +363,8 @@ export function Project() {
                   </button>
                 </p>
               )}
-              {!items.length &&
+              {tab !== "similarity" &&
+                !items.length &&
                 !candidates.isPending &&
                 !candidates.isFetching && (
                   <div className="empty-state">
@@ -369,6 +410,24 @@ export function Project() {
                       {items
                         .slice(row.index * columns, (row.index + 1) * columns)
                         .map((post) => {
+                          const neighbor =
+                            tab === "similarity"
+                              ? similarity.detail.data?.results.find(
+                                  (r) => r.post_id === post.post_id,
+                                )
+                              : undefined;
+                          if (neighbor && neighbor.metadata_state !== "ready")
+                            return (
+                              <article key={post.post_id} className="post-card">
+                                <span className="thumbnail-placeholder">
+                                  Loading post #{post.post_id}…
+                                </span>
+                                <span>
+                                  #{neighbor.rank} ·{" "}
+                                  {neighbor.distance.toFixed(3)}
+                                </span>
+                              </article>
+                            );
                           const pending =
                             reviews.pending[`${projectId}:${post.post_id}`];
                           const state = pending?.saving
@@ -397,6 +456,12 @@ export function Project() {
                                   </span>
                                 )}
                               </SaveThumbnail>
+                              {neighbor && (
+                                <div className="similarity-rank">
+                                  #{neighbor.rank} ·{" "}
+                                  {neighbor.distance.toFixed(3)}
+                                </div>
+                              )}
                               <div className="card-meta">
                                 <span>
                                   Score {post.score} ·{" "}
@@ -454,11 +519,13 @@ export function Project() {
                   ))}
                 </div>
                 <div className="feed-status" aria-live="polite">
-                  {candidates.isFetching
-                    ? "Loading…"
-                    : !candidates.hasNextPage && items.length
-                      ? "End of results"
-                      : ""}
+                  {tab === "similarity"
+                    ? (similarity.detail.data?.stage ?? "")
+                    : candidates.isFetching
+                      ? "Loading…"
+                      : !candidates.hasNextPage && items.length
+                        ? "End of results"
+                        : ""}
                 </div>
               </div>
             </>

@@ -143,11 +143,11 @@ async def test_v1_migration_preserves_data_and_makes_online_backup(tmp_path):
     db = Database(tmp_path)
     try:
         await db.open()
-        assert (await db.one("PRAGMA user_version"))["user_version"] == 4
+        assert (await db.one("PRAGMA user_version"))["user_version"] == 5
         assert (await db.one("SELECT count(*) AS n FROM projects"))["n"] == 1
         assert (await db.one("PRAGMA integrity_check"))["integrity_check"] == "ok"
         assert await db.rows("PRAGMA foreign_key_check") == []
-        backups = list((tmp_path / "backups").glob("pre-schema-v4-*.sqlite3"))
+        backups = list((tmp_path / "backups").glob("pre-schema-v5-*.sqlite3"))
         assert len(backups) == 1
         with sqlite3.connect(backups[0]) as conn:
             assert conn.execute("PRAGMA user_version").fetchone()[0] == 1

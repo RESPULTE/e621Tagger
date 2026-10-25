@@ -439,23 +439,12 @@ test("bounded neighbor discovery preserves human labels and exposes source tag c
   await expect(
     page.getByRole("heading", { name: "Post #999", exact: true, level: 1 }),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Find similar posts", exact: true })
-    .click();
-  await expect(page.getByLabel("Select neighbor 998")).toBeVisible();
-  await page.getByText("Embedding provenance", { exact: true }).click();
-  await expect(
-    page.getByText("Synthetic fixtures only; no semantic retrieval validation"),
-  ).toBeVisible();
-  await page.getByLabel("Select neighbor 998").check();
-  await page.getByLabel("Select neighbor 997").check();
-  await page
-    .getByRole("button", {
-      name: "Import selected neighbors (2/50)",
-      exact: true,
-    })
-    .click();
-  await page.getByRole("link", { name: "Open these search results" }).click();
+  const media = page.getByLabel("Post 999 media; hold to find similar", {
+    exact: true,
+  });
+  await media.focus();
+  await media.press("Shift+S");
+  await page.getByRole("link", { name: "Open results", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Open post 998", exact: true }),
   ).toBeVisible();
@@ -471,36 +460,31 @@ test("bounded neighbor discovery preserves human labels and exposes source tag c
     }),
   ).toHaveClass(/positive/);
   await page
-    .getByRole("button", { name: "Open post 998", exact: true })
+    .getByText("Source tags and neighbor tag counts", { exact: true })
     .click();
-  await page.getByText("Discovered through", { exact: true }).click();
-  await expect(
-    page.getByText(/embedding: hydra35:synthetic:seed:999/),
-  ).toBeVisible();
-  await page.goto(page.url().replace(/posts\/998$/, "posts/999"));
-  await expect(page.getByLabel("Select neighbor 998")).toBeVisible();
   await expect(
     page.getByText(/neighbors have available local metadata/),
   ).toBeVisible();
   const suggestions = page
-    .getByRole("region", { name: "Embedding assistance" })
+    .getByLabel("Embedding assistance", { exact: true })
     .getByRole("list");
   await expect(suggestions).toBeVisible();
-  await page.getByLabel("Hide tags").check();
+  await page.getByLabel("Hide tags", { exact: true }).check();
   await expect(suggestions).toHaveCount(0);
   await page.reload();
-  await expect(
-    page.getByText("Tag suggestions are hidden for review."),
-  ).toBeVisible();
-  await page.getByLabel("Hide tags").uncheck();
-  await expect(suggestions).toBeVisible();
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth > window.innerWidth,
-  );
-  expect(overflow).toBe(false);
   await page
-    .getByRole("heading", { name: "Similar posts & tag suggestions" })
-    .scrollIntoViewIfNeeded();
+    .getByText("Source tags and neighbor tag counts", { exact: true })
+    .click();
+  await expect(
+    page.getByText("Tag suggestions are hidden for review.", { exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Hide tags", { exact: true }).uncheck();
+  await expect(suggestions).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    ),
+  ).toBe(false);
   await page.screenshot({ path: testInfo.outputPath("neighbors.png") });
 });
 

@@ -10,10 +10,15 @@ import {
 } from "../api/client";
 import { ReviewButtons, useReviews } from "../components/Reviews";
 import { TagSidebar } from "../components/TagSidebar";
-import { EmbeddingAssist } from "../components/EmbeddingAssist";
+import { useFindSimilar } from "../components/Similarity";
+import { useLongPress } from "../components/useLongPress";
 import { FavoriteButton } from "../components/FavoriteButton";
 
-type NavigationState = { ids?: number[]; gallery?: string };
+type NavigationState = {
+  ids?: number[];
+  gallery?: string;
+  similarity?: Candidate["similarity"];
+};
 export function Post() {
   const { id, postId } = useParams();
   const projectId = Number(id),
@@ -41,17 +46,29 @@ export function Post() {
   const video = useRef<HTMLVideoElement>(null);
   const ids = navigation.ids ?? [currentId];
   const index = ids.indexOf(currentId);
-  const post = query.data;
+  const contextParams = new URLSearchParams(location.search);
+  const seed = Number(contextParams.get("seed"));
+  const indexRevision = contextParams.get("index");
+  const context =
+    Number.isSafeInteger(seed) && seed > 0 && indexRevision
+      ? { seed_post_id: seed, index_revision: indexRevision }
+      : navigation.similarity;
+  const post = query.data ? { ...query.data, similarity: context } : undefined;
+  const similar = useFindSimilar(projectId, currentId);
+  const hold = useLongPress(() => void similar.find(), currentId);
   const isVideo = ["mp4", "webm"].includes(post?.media_ext ?? "");
   const imageTypes = ["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp"];
   const isImage = imageTypes.includes(post?.media_ext ?? "");
   const gallery = navigation.gallery ?? `/projects/${projectId}`;
   function move(delta: number) {
     if (index + delta < 0 || index + delta >= ids.length) return;
-    navigate(`/projects/${projectId}/posts/${ids[index + delta]}`, {
-      state: navigation,
-      replace: true,
-    });
+    navigate(
+      `/projects/${projectId}/posts/${ids[index + delta]}${location.search}`,
+      {
+        state: navigation,
+        replace: true,
+      },
+    );
   }
   useEffect(() => {
     setMediaError(false);
@@ -92,11 +109,18 @@ export function Post() {
       } else if (event.key.toLowerCase() === "z") {
         event.preventDefault();
         void reviews.undoLast(projectId, post).then((postId) => {
-          if (postId && postId !== currentId)
-            navigate(`/projects/${projectId}/posts/${postId}`, {
-              state: navigation,
-              replace: true,
-            });
+          if (postId && postId !== currentId) {
+            // Undo history spans the project; an unrelated post must not inherit
+            // the current folder's KNN evidence on its next review.
+            const inFolder = ids.includes(postId);
+            navigate(
+              `/projects/${projectId}/posts/${postId}${inFolder ? location.search : ""}`,
+              {
+                state: inFolder ? navigation : { gallery, ids: [postId] },
+                replace: true,
+              },
+            );
+          }
         });
       } else if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
         event.preventDefault();
@@ -235,7 +259,23 @@ export function Post() {
                 .
               </div>
             ) : (
-              <div className={`media-stage ${actualSize ? "actual-size" : ""}`}>
+              <div
+                className={`media-stage ${actualSize ? "actual-size" : ""} ${hold.armed ? "similarity-armed" : ""}`}
+                tabIndex={0}
+                aria-label={`Post ${currentId} media; hold to find similar`}
+                onPointerDown={hold.down}
+                onPointerMove={hold.move}
+                onPointerUp={hold.up}
+                onPointerCancel={hold.cancel}
+                onPointerLeave={hold.cancel}
+                onKeyDown={hold.key}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                {hold.armed && (
+                  <span className="similarity-hint">
+                    Release to find similar
+                  </span>
+                )}
                 {isVideo ? (
                   <video
                     ref={video}
@@ -285,12 +325,7 @@ export function Post() {
                 .
               </p>
             )}
-            <EmbeddingAssist
-              key={`${projectId}:${currentId}`}
-              project={projectId}
-              post={currentId}
-              hideTags={hideTags}
-            />
+            {similar.notice}
             <div className="detail-review">
               <div>
                 <strong>

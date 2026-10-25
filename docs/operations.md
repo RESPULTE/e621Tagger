@@ -32,7 +32,9 @@ Disk-full/SQLite failures return an unacknowledged-save error. Free space and re
 
 ## Optional published neighbors
 
-`STUDIO_PUBLISHED_NEIGHBORS` defaults to true and is passed through Compose. It permits only explicit known-ID lookups against a pinned public Hydra index, using bounded byte ranges. Set false for offline-only operation; this does not remove previously stored evidence. Failure or missing coverage appears in the post's Similar posts panel; reviews do not depend on upstream index health. A separate durable `neighbors` queue has one worker and a 16-job active limit. No Torch, NumPy, checkpoint or index files are added to the server. See [the adapter contract](optional-workers.md) for limits and verification boundaries.
+Find Similar uses a checksum-verified NumPy KNN index held only on the RTX 4070 processing PC. Follow [worker installation and limits](similarity.md). Set the scoped `STUDIO_SIMILARITY_WORKER_TOKEN` on the server and in the PC worker's private token file; the worker polls outbound and never opens an incoming port. Server startup does not read an index. The Similarity tab reports **Processing machine offline** after 15 seconds without a heartbeat. Retained results remain reviewable; new searches/retries need the worker online. Searches use bounded session memory and are not restored after server restart. `STUDIO_UPSTREAM_INTERVAL` gates metadata, CDN and legacy published-neighbor request starts together, in addition to existing cooldowns.
+
+`STUDIO_PUBLISHED_NEIGHBORS` still controls the legacy bounded remote-neighbor APIs and durable queue for compatible callers. New similarity searches never fall back to that provider. Existing evidence remains readable.
 
 ## Optional heart saves to the main collection
 

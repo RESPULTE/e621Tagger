@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type Locator } from "@playwright/test";
 
 async function open(page: Page) {
   await page.goto("/");
@@ -20,6 +20,16 @@ async function open(page: Page) {
   await expect(
     page.getByRole("button", { name: "Open post 999", exact: true }),
   ).toBeVisible();
+}
+
+async function doubleTouch(page: Page, target: Locator) {
+  await target.scrollIntoViewIfNeeded();
+  const box = (await target.boundingBox())!;
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  // Resolve actionability once: two locator.tap() calls can spend >300 ms
+  // scrolling/stabilizing in WebKit and accidentally exercise two single taps.
+  await page.touchscreen.tap(x, y);
+  await page.touchscreen.tap(x, y);
 }
 
 test("fresh Query, persistent reviews, compact tabs and infinite loading", async ({
@@ -89,8 +99,7 @@ test("double pointer tap is an idempotent save; single click and keyboard open",
     exact: true,
   });
   if (isMobile) {
-    await thumb.tap();
-    await thumb.tap();
+    await doubleTouch(page, thumb);
   } else await thumb.dblclick({ delay: 75 });
   await expect(page).toHaveURL(url);
   await expect(thumb.locator(".save-heart")).toBeVisible();
@@ -98,8 +107,7 @@ test("double pointer tap is an idempotent save; single click and keyboard open",
     page.getByRole("button", { name: "Mark post 998 negative", exact: true }),
   ).toHaveAttribute("aria-pressed", "false");
   if (isMobile) {
-    await thumb.tap();
-    await thumb.tap();
+    await doubleTouch(page, thumb);
   } else await thumb.dblclick({ delay: 75 });
   await page.getByRole("tab", { name: "Downloads", exact: true }).click();
   await expect(

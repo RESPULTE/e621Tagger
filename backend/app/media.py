@@ -5,6 +5,7 @@ import io
 import re
 import time
 import warnings
+from collections import OrderedDict
 from urllib.parse import urljoin, urlsplit
 
 import httpx
@@ -49,8 +50,17 @@ class Media:
         }
         self.cache_root = db.root / "cache"
         self.feed = None
+        self.gate = None
+        self.previews = OrderedDict()
+        self.preview_bytes = 0
+        self.preview_tasks = {}
 
     async def close(self):
+        tasks = [entry[0] for entry in self.preview_tasks.values()]
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.previews.clear()
         await self.client.aclose()
 
     async def acquire_slot(self, kind="preview"):
@@ -107,6 +117,8 @@ class Media:
                 self.host_next[host] = time.monotonic() + self.settings.media_interval
             self.timings.record("host_wait_ms", (time.monotonic() - started) * 1000)
             started = time.monotonic()
+            if self.gate:
+                await self.gate.acquire()
             response = await self.client.send(self.client.build_request(method, url, headers=headers), stream=True)
             self.timings.record("upstream_headers_ms", (time.monotonic() - started) * 1000)
             if response.status_code in {429, 503}:
@@ -169,6 +181,36 @@ class Media:
                 return out.getvalue()
 
     async def thumbnail_bytes(self, post):
+        if not post:
+            raise HTTPException(404, "Thumbnail unavailable")
+        key = (post["post_id"], post["md5"], post["preview_url"], post["unavailable"])
+        cached = self.previews.get(key)
+        if cached:
+            self.previews.move_to_end(key)
+            return cached
+        entry = self.preview_tasks.get(key)
+        if entry is None:
+            entry = [asyncio.create_task(self._thumbnail_bytes(post)), 0]
+            self.preview_tasks[key] = entry
+        entry[1] += 1
+        try:
+            raw = await asyncio.shield(entry[0])
+            if key not in self.previews and len(raw) <= self.settings.transient_preview_bytes:
+                self.previews[key] = raw
+                self.preview_bytes += len(raw)
+                while self.preview_bytes > self.settings.transient_preview_bytes:
+                    _, removed = self.previews.popitem(last=False)
+                    self.preview_bytes -= len(removed)
+            return raw
+        finally:
+            entry[1] -= 1
+            if not entry[1]:
+                self.preview_tasks.pop(key, None)
+                if not entry[0].done():
+                    entry[0].cancel()
+                await asyncio.gather(entry[0], return_exceptions=True)
+
+    async def _thumbnail_bytes(self, post):
         if not post or post["unavailable"] or not post["preview_url"]:
             raise HTTPException(404, "Thumbnail unavailable")
         response = None

@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     secure_cookie: bool = True
     mock_e621: bool = False
     published_neighbors: bool = True
+    similarity_worker_token: str = Field(default="", repr=False, min_length=0)
+    upstream_interval: float = Field(default=1.0, ge=0.0)
+    transient_preview_bytes: int = Field(default=32 * 1024**2, ge=0, le=256 * 1024**2)
     library_root: Path | None = None
     library_max_bytes: int = Field(default=256 * 1024**2, ge=1024, le=2 * 1024**3)
     library_reserve_bytes: int = Field(default=128 * 1024**2, ge=0)
@@ -38,6 +41,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_runtime(self):
+        if self.similarity_worker_token and len(self.similarity_worker_token) < 32:
+            raise ValueError("STUDIO_SIMILARITY_WORKER_TOKEN must contain at least 32 characters")
         if not self.passwordless and not re.fullmatch(r"scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}", self.password_hash):
             raise ValueError("Set STUDIO_PASSWORD_HASH using python -m backend.app.auth hash-password")
         if not self.mock_e621 and not self.e621_username.strip():

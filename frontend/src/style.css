@@ -1299,6 +1299,7 @@ footer {
 /* Fresh discovery, durable reviews, explicit downloads. */
 .project-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 3px;
   border-bottom: 1px solid var(--border, #366185);
   margin: 0 0 10px;
@@ -1432,3 +1433,15 @@ footer {
     font-size: 11px;
   }
 }
+.similarity-folders { padding: 10px 12px; border-bottom: 1px solid #35465b; min-width: 0; overflow-wrap: anywhere; }
+.similarity-folders details { max-height: 220px; overflow: auto; }
+.similarity-folder-list { display: flex; flex-wrap: wrap; gap: 8px; max-height: 180px; overflow: auto; }
+.similarity-folder { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px solid #35465b; border-radius: 5px; }
+.similarity-folder .active { outline: 2px solid #79b7ed; }
+.similarity-folder progress { width: 90px; }
+.similarity-notice { display: block; padding: 4px; font-size: 12px; overflow-wrap: anywhere; }
+.similarity-armed { outline: 3px solid #79b7ed !important; outline-offset: -3px; }
+.similarity-hint { position: absolute; z-index: 2; inset: auto 4px 4px; padding: 6px; background: #101d2fee; color: white; text-align: center; pointer-events: none; }
+.similarity-rank { padding: 2px 6px; font-size: 12px; }
+.thumbnail-link, .media-stage img { -webkit-touch-callout: none; user-select: none; }
+.media-stage { position: relative; }

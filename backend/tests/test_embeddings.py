@@ -97,6 +97,29 @@ async def test_index_network_failure_does_not_leak_signed_urls():
     assert error.value.status_code == 503 and "secret" not in error.value.detail
 
 
+async def test_published_neighbor_requests_and_redirects_share_upstream_gate():
+    class Gate:
+        calls = 0
+
+        async def acquire(self):
+            self.calls += 1
+
+    gate, transport = Gate(), IndexTransport()
+    redirected = False
+
+    def respond(request):
+        nonlocal redirected
+        if not redirected:
+            redirected = True
+            return httpx.Response(302, headers={"Location": str(request.url) + "?redirected=1"})
+        return transport(request)
+
+    reader = PublishedNeighbors(transport=httpx.MockTransport(respond), gate=gate)
+    result = await reader.lookup(14)
+    assert result["coverage"] == "available"
+    assert gate.calls == len(transport.requests) + 1
+
+
 def completed_evidence(client, pid, seed=999):
     path = f"/api/projects/{pid}/neighbors/{seed}"
     body = {"request_id": str(uuid4())}

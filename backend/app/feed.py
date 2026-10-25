@@ -68,12 +68,39 @@ class Feed:
         item = self.posts.get(post_id)
         return item if item and item[0] >= time.monotonic() - self.ttl else None
 
-    async def raw(self, post_id, *, fresh=False):
+    async def raw(self, post_id, *, fresh=False, background=False):
         item = self.peek(post_id)
         if item and not fresh:
             return item[1]
+        if background and not fresh:
+            stored = await self.db.one(
+                "SELECT * FROM posts WHERE post_id=? AND fetched_at>?", (post_id, time.time() - self.ttl)
+            )
+            if stored:
+                post = {
+                    "id": post_id,
+                    "rating": stored["rating"],
+                    "created_at": stored["posted_at"],
+                    "tags": json.loads(stored["tags_json"]),
+                    "score": {"total": stored["score"]},
+                    "file": {
+                        "url": stored["file_url"],
+                        "md5": stored["md5"],
+                        "ext": stored["media_ext"],
+                        "width": stored["width"],
+                        "height": stored["height"],
+                    },
+                    "preview": {"url": stored["preview_url"]},
+                    "sample": {
+                        "url": stored["sample_url"],
+                        "alternates": {"variants": {"mp4": {"url": stored["video_url"]}}},
+                    },
+                    "flags": {"deleted": bool(stored["unavailable"])},
+                }
+                self.remember(post)
+                return post
         try:
-            post = (await self.source.request(f"/posts/{post_id}.json"))["post"]
+            post = (await self.source.request(f"/posts/{post_id}.json", background=background))["post"]
         except HTTPException as exc:
             if exc.status_code != 404:
                 raise

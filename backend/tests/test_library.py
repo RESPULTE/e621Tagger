@@ -203,9 +203,9 @@ async def test_v2_upgrade_backs_up_and_preserves_review_tables(tmp_path):
     db = Database(tmp_path)
     try:
         await db.open()
-        assert (await db.one("PRAGMA user_version"))["user_version"] == 4
+        assert (await db.one("PRAGMA user_version"))["user_version"] == 5
         assert (await db.one("SELECT count(*) AS n FROM projects"))["n"] == 1
-        backup = list((tmp_path / "backups").glob("pre-schema-v4-*.sqlite3"))
+        backup = list((tmp_path / "backups").glob("pre-schema-v5-*.sqlite3"))
         assert len(backup) == 1
         with sqlite3.connect(backup[0]) as old:
             assert old.execute("PRAGMA user_version").fetchone()[0] == 2

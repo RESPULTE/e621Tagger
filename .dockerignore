@@ -48,3 +48,5 @@ backend/openapi.json
 artifacts
 home-media
 *.zip
+hydra-index
+**/hydra35_embed_*.npy

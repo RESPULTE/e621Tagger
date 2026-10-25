@@ -24,8 +24,13 @@ from .media import Media
 from .mock import SyntheticNeighbors
 from .mock import transport as mock_transport
 from .neighbor_index import PublishedNeighbors
+from .processing_machine import ProcessingMachine
+from .processing_machine import router as processing_machine_router
+from .similarity import Similarity
+from .similarity import router as similarity_router
 from .telemetry import Telemetry
 from .transfers import Transfers
+from .upstream import UpstreamGate
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 # httpx request URLs may include source queries; avoid verbose request logs.
@@ -38,7 +43,7 @@ def create_app(settings=None, *, transport=None, start_workers=True):
         app.state.settings = config = settings or Settings()
         app.state.db = db = Database(config.data_root)
         app.state.telemetry = Telemetry()
-        source = media = workers = None
+        source = media = workers = similarity = processing_machine = None
         try:
             await db.open()
             active_transport = transport or (httpx.MockTransport(mock_transport) if config.mock_e621 else None)
@@ -46,6 +51,10 @@ def create_app(settings=None, *, transport=None, start_workers=True):
             app.state.feed = feed = Feed(source, db)
             app.state.media = media = Media(config, db, active_transport)
             media.feed = feed
+            source.gate = media.gate = UpstreamGate(0 if config.mock_e621 else config.upstream_interval)
+            app.state.processing_machine = processing_machine = ProcessingMachine(config.similarity_worker_token)
+            index = SyntheticNeighbors() if config.mock_e621 else processing_machine
+            app.state.similarity = similarity = Similarity(index, feed)
             app.state.library = library = Library(db, source, media, config)
             app.state.transfers = transfers = Transfers(db, media, config)
             library.transfers, library.feed = transfers, feed
@@ -56,7 +65,7 @@ def create_app(settings=None, *, transport=None, start_workers=True):
                 db,
                 source,
                 media,
-                SyntheticNeighbors() if config.mock_e621 else PublishedNeighbors(),
+                SyntheticNeighbors() if config.mock_e621 else PublishedNeighbors(gate=source.gate),
                 library,
                 downloads,
             )
@@ -64,6 +73,10 @@ def create_app(settings=None, *, transport=None, start_workers=True):
                 await workers.start(config.media_concurrency)
             yield
         finally:
+            if similarity:
+                await similarity.close()
+            if processing_machine:
+                await processing_machine.close()
             if workers:
                 await workers.close()
             if source:
@@ -145,6 +158,8 @@ await self.registration.unregister();for(const client of await self.clients.matc
     app.include_router(router)
     app.include_router(datasets_router)
     app.include_router(embeddings_router)
+    app.include_router(similarity_router)
+    app.include_router(processing_machine_router)
     app.include_router(library_router)
     app.include_router(downloads_router)
 
