@@ -2,8 +2,11 @@ import { test, expect, type Page } from '@playwright/test';
 import { createReviewProject } from './project-fixture';
 async function login(page: Page) {
   await page.goto('/');
-  await page.getByLabel('Studio password').fill('studio-browser-test-password');
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  const options = await (await page.request.get('/api/auth/options')).json();
+  if (options.password_required) {
+    await page.getByLabel('Studio password').fill('studio-browser-test-password');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  }
   await expect(page.getByRole('button', { name: 'Projects', exact: true })).toBeVisible();
 }
 async function dock(page: Page) {
