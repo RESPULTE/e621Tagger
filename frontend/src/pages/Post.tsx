@@ -39,6 +39,7 @@ export function Post() {
     queryFn: () => api<Project>(`/projects/${projectId}`),
   });
   const [focused, setFocused] = useState<MediaSample>();
+  const [animatedImage, setAnimatedImage] = useState(true);
   const [mediaError, setMediaError] = useState(false);
   const [mediaReady, setMediaReady] = useState(false);
   const [barHidden, setBarHidden] = useState(false);
@@ -83,6 +84,7 @@ export function Post() {
     });
   }, [samples.samples, currentId, post?.md5]);
   const isVideo = ["mp4", "webm"].includes(post?.media_ext ?? "");
+  const isSampleMedia = isVideo || (animatedImage && ["gif", "webp", "avif"].includes(post?.media_ext ?? ""));
   const imageTypes = ["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp"];
   const isImage = imageTypes.includes(post?.media_ext ?? "");
   const gallery = navigation.gallery ?? `/projects/${projectId}`;
@@ -99,6 +101,7 @@ export function Post() {
   useEffect(() => {
     setMediaError(false);
     setFocused(undefined);
+    setAnimatedImage(true);
     setMediaReady(false);
   }, [currentId]);
   useEffect(() => {
@@ -119,6 +122,7 @@ export function Post() {
       ];
       if (state) {
         event.preventDefault();
+        if (isSampleMedia && !focused) return;
         if (focused) {
           void samples
             .update(focused, { state: focused.state === state ? null : state })
@@ -251,8 +255,8 @@ export function Post() {
                 samples={samples.samples}
                 focused={focused}
                 setFocused={setFocused}
+                onAnimationDetected={setAnimatedImage}
                 capture={samples.capture}
-                update={samples.update}
               />
             ) : (
               <SaveMedia
@@ -296,8 +300,8 @@ export function Post() {
               <h2>Tags</h2>
               <TagSidebar tags={post.tags} hidden={false} />
             </section>
-            <div
-              className={`detail-review${barHidden ? " is-collapsed" : ""}`}
+            {(!isSampleMedia || focused) && <div
+              className={`detail-review${barHidden && !focused ? " is-collapsed" : ""}`}
               role="group"
               aria-label="Review artwork"
               onKeyDownCapture={() => setBarHidden(false)}
@@ -335,7 +339,7 @@ export function Post() {
               ) : (
                 <ReviewButtons project={projectId} post={post} />
               )}
-            </div>
+            </div>}
           </>
         )}
       </main>

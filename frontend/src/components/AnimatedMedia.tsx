@@ -18,13 +18,10 @@ type Props = {
   samples: MediaSample[];
   focused?: MediaSample;
   setFocused: (sample?: MediaSample) => void;
+  onAnimationDetected: (animated: boolean) => void;
   capture: (
     blob: Blob,
     time: number | null,
-  ) => Promise<MediaSample | undefined>;
-  update: (
-    sample: MediaSample,
-    changes: { state?: "positive" | "negative" | null; favorite?: boolean },
   ) => Promise<MediaSample | undefined>;
 };
 export function AnimatedMedia({
@@ -33,6 +30,7 @@ export function AnimatedMedia({
   samples,
   focused,
   setFocused,
+  onAnimationDetected,
   capture,
 }: Props) {
   const video = useRef<HTMLVideoElement>(null);
@@ -65,8 +63,7 @@ export function AnimatedMedia({
   }, []);
   const [enabled, setEnabled] = useState(false),
     [fallback, setFallback] = useState(false),
-    [ready, setReady] = useState(false),
-    [seeking, setSeeking] = useState(false);
+    [ready, setReady] = useState(false);
   const [duration, setDuration] = useState(0),
     [time, setTime] = useState(0),
     [playing, setPlaying] = useState(false),
@@ -82,6 +79,9 @@ export function AnimatedMedia({
   const frameUrl = frame
     ? `/api/posts/${post.post_id}/animation/frames/${frame.index}?source_md5=${source}`
     : "";
+  useEffect(() => {
+    if (animation) onAnimationDetected(animation.animated);
+  }, [animation, onAnimationDetected]);
   useEffect(() => {
     if (!playing || !animation?.duration_ms) return;
     let last = performance.now();
@@ -138,10 +138,44 @@ export function AnimatedMedia({
     if (videoType && video.current) {
       video.current.pause();
       if (Math.abs(video.current.currentTime - ms / 1000) > 0.0001) {
-        setSeeking(true);
+        selecting.current = true;
         video.current.currentTime = ms / 1000;
       }
     } else setTime(ms);
+  }
+  function pause() {
+    video.current?.pause();
+    setPlaying(false);
+  }
+  async function waitForFrame(player: HTMLVideoElement) {
+    if (!player.seeking && player.readyState >= 2) return;
+    // A double tap can arrive before an earlier timeline seek has decoded.
+    // Wait for the browser instead of rejecting a valid capture gesture.
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timeout);
+        player.removeEventListener("seeked", check);
+        player.removeEventListener("loadeddata", check);
+        player.removeEventListener("error", fail);
+        player.removeEventListener("emptied", fail);
+      };
+      const check = () => {
+        if (!player.seeking && player.readyState >= 2) {
+          cleanup();
+          resolve();
+        }
+      };
+      const fail = () => {
+        cleanup();
+        reject(new Error("Could not load the frame. Try seeking again."));
+      };
+      const timeout = window.setTimeout(fail, 5000);
+      player.addEventListener("seeked", check);
+      player.addEventListener("loadeddata", check);
+      player.addEventListener("error", fail);
+      player.addEventListener("emptied", fail);
+      check();
+    });
   }
   async function captureFrame() {
     if (busy.current) return;
@@ -152,18 +186,17 @@ export function AnimatedMedia({
       let at: number;
       if (videoType) {
         const player = video.current;
+        if (!player) throw new Error("Video is unavailable.");
+        player.pause();
+        await waitForFrame(player);
+        if (!mounted.current || focusIntent.current !== intent) return;
         if (
-          !player ||
-          player.seeking ||
-          seeking ||
-          player.readyState < 2 ||
           !player.videoWidth ||
           !player.videoHeight
         )
           throw new Error(
             "Wait for the frame to finish seeking before capturing.",
           );
-        player.pause();
         at = Math.round(player.currentTime * 1000);
         const scale = Math.min(
           1,
@@ -192,6 +225,7 @@ export function AnimatedMedia({
         if (!response.ok) throw new Error("Could not load this frame.");
         blob = await response.blob();
       }
+      if (!mounted.current || focusIntent.current !== intent) return;
       const sample = await capture(blob, at);
       if (sample && mounted.current && focusIntent.current === intent) {
         setFocused(sample);
@@ -219,32 +253,6 @@ export function AnimatedMedia({
     setTime(sample.timestamp_ms ?? 0);
     setFocused(sample);
   }
-  async function selectThumbnail() {
-    const intent = ++focusIntent.current;
-    video.current?.pause();
-    setPlaying(false);
-    const existing = samples.find((sample) => sample.kind === "thumbnail");
-    if (existing) {
-      setFocused(existing);
-      return;
-    }
-    if (busy.current) return;
-    busy.current = true;
-    try {
-      const response = await fetch(
-        mediaUrl(post.post_id, "preview", post.md5),
-        { credentials: "same-origin" },
-      );
-      if (!response.ok) throw new Error("Could not load thumbnail.");
-      const sample = await capture(await response.blob(), null);
-      if (sample && mounted.current && focusIntent.current === intent)
-        setFocused(sample);
-    } catch (e) {
-      if (mounted.current) setError(errorText(e));
-    } finally {
-      busy.current = false;
-    }
-  }
   return (
     <div className="animated-viewer">
       <SaveMedia
@@ -258,7 +266,7 @@ export function AnimatedMedia({
         {focused && (
           <img
             key={focused.id}
-            className={`sample-image sample-${focused.state ?? "undecided"}`}
+            className={`sample-image sample-${focused.state ?? "undecided"}${videoType ? " sample-video-overlay" : ""}`}
             src={focused.image_url}
             alt={
               focused.kind === "thumbnail"
@@ -275,9 +283,9 @@ export function AnimatedMedia({
         )}
         {videoType && (
           <video
-            style={{ display: focused ? "none" : undefined }}
             ref={video}
             controls
+            loop
             playsInline
             preload="metadata"
             src={mediaUrl(
@@ -293,7 +301,6 @@ export function AnimatedMedia({
               setTime(event.currentTarget.currentTime * 1000)
             }
             onSeeking={() => {
-              setSeeking(true);
               if (!selecting.current) {
                 focusIntent.current++;
                 setFocused(undefined);
@@ -303,14 +310,6 @@ export function AnimatedMedia({
             onSeeked={(event) => {
               const player = event.currentTarget;
               setTime(player.currentTime * 1000);
-              requestAnimationFrame(() => {
-                if (
-                  mounted.current &&
-                  !player.seeking &&
-                  player.readyState >= 2
-                )
-                  setSeeking(false);
-              });
             }}
             onPlay={() => {
               focusIntent.current++;
@@ -334,17 +333,6 @@ export function AnimatedMedia({
           <button onClick={() => void enable()}>Enable frame sampling</button>
         ) : enabled ? (
           <>
-            <button onClick={() => void selectThumbnail()}>Thumbnail</button>
-            {focused && videoType && (
-              <button
-                onClick={() => {
-                  setFocused(undefined);
-                  void video.current?.play();
-                }}
-              >
-                Resume
-              </button>
-            )}
             {!videoType && (
               <button
                 onClick={() => {
@@ -364,6 +352,7 @@ export function AnimatedMedia({
           time={time}
           samples={samples}
           onSeek={seek}
+          onPause={pause}
           onCapture={() => void captureFrame()}
           onSelect={select}
         />

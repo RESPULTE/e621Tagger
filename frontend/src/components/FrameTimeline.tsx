@@ -5,6 +5,7 @@ type Props = {
   time: number;
   samples: MediaSample[];
   onSeek: (ms: number) => void;
+  onPause: () => void;
   onCapture: () => void;
   onSelect: (sample: MediaSample) => void;
 };
@@ -13,6 +14,7 @@ export function FrameTimeline({
   time,
   samples,
   onSeek,
+  onPause,
   onCapture,
   onSelect,
 }: Props) {
@@ -29,13 +31,17 @@ export function FrameTimeline({
   const down = (event: PointerEvent<HTMLElement>, cursor: boolean) => {
     if (!event.isPrimary || event.button !== 0) return;
     event.stopPropagation();
+    if (cursor) onPause();
     event.currentTarget.setPointerCapture(event.pointerId);
     gesture.current = {
       pointer: event.pointerId,
       x: event.clientX,
       moved: !cursor,
     };
-    if (!cursor) seekAt(event.clientX);
+    if (!cursor) {
+      tap.current = null;
+      seekAt(event.clientX);
+    }
   };
   const move = (event: PointerEvent<HTMLElement>) => {
     const g = gesture.current;

@@ -9,14 +9,15 @@
 }
 .frame-timeline-wrap {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 0;
   margin: 12px 8px 20px;
   animation: timeline-arrive 220ms ease-out;
 }
 .frame-timeline {
   position: relative;
-  flex: 1;
+  width: 100%;
   height: 62px;
   touch-action: none;
   cursor: pointer;
@@ -41,32 +42,25 @@
 }
 /* Separate hit lanes keep the playhead from covering a nearby saved sample. */
 .frame-checkpoint {
-  top: -6px;
+  top: 6px;
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: 4px;
   z-index: 2;
 }
 .frame-checkpoint::before {
   content: "";
   position: absolute;
-  inset: 7px;
+  left: 4px;
+  right: 4px;
+  top: 10px;
+  height: 7px;
   border: 2px solid #102747;
-  border-radius: 50%;
+  border-radius: 3px;
   background: #e8c446;
   transition:
     background 180ms,
     scale 180ms;
-}
-.frame-checkpoint::after {
-  content: "";
-  position: absolute;
-  left: 13px;
-  top: 20px;
-  height: 6px;
-  width: 2px;
-  background: #7892ac;
-  pointer-events: none;
 }
 .frame-checkpoint.positive::before {
   background: #8ed8a1;
@@ -141,6 +135,17 @@
 }
 .sample-image.sample-negative {
   border-color: #f3a5a5;
+}
+/* Keep the saved still interactive while leaving native playback controls exposed. */
+.media-stage .sample-video-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+  clip-path: inset(0 0 56px);
+  z-index: 1;
 }
 .detail-layout .post-content {
   padding-bottom: 190px;
