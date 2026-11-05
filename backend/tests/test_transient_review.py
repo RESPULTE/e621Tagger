@@ -50,12 +50,12 @@ def test_browsing_is_transient_reviews_survive_and_clear_is_independent(client):
     assert client.get("/api/media/999/original", headers={"Range": "bytes=0-15"}).status_code == 206
     assert client.get("/api/media/1000/original", headers={"Range": "bytes=0-15"}).status_code == 206
     assert not list(db.root.glob("cache/*"))
-    for post, state in ((999, "positive"), (998, "negative"), (997, "unsure")):
+    for post, state in ((999, "positive"), (998, "negative")):
         label(client, pid, post, state)
     tagged = client.get(f"/api/projects/{pid}/candidates").json()
-    assert {p["state"] for p in tagged["items"]} == {"positive", "negative", "unsure"}
-    assert tagged["total"] == 3
-    assert run(client, db.one("SELECT count(*) AS n FROM posts"))["n"] == 3
+    assert {p["state"] for p in tagged["items"]} == {"positive", "negative"}
+    assert tagged["total"] == 2
+    assert run(client, db.one("SELECT count(*) AS n FROM posts"))["n"] == 2
     assert not list(db.root.glob("cache/*"))
     # A fresh query starts at upstream's current first page and overlays labels.
     page = client.get(f"/api/projects/{pid}/query").json()
@@ -65,9 +65,9 @@ def test_browsing_is_transient_reviews_survive_and_clear_is_independent(client):
     job = run(client, db.one("SELECT * FROM jobs WHERE type='library'"))
     run(client, client.app.state.library.process(job, json.loads(job["payload_json"])))
     files = {p.name: p.read_bytes() for p in client.app.state.library.root.glob("e621_*")}
-    assert len(files) == 4
+    assert len(files) == 1 and next(iter(files)).endswith(".png")
     label(client, pid, 999, None, 1)
-    assert client.get(f"/api/projects/{pid}/candidates").json()["total"] == 2
+    assert client.get(f"/api/projects/{pid}/candidates").json()["total"] == 1
     assert {p.name: p.read_bytes() for p in client.app.state.library.root.glob("e621_*")} == files
     assert client.get("/api/library/posts/999").json()["status"] == "saved"
 
@@ -85,7 +85,6 @@ def test_explicit_export_and_collection_use_same_transfers_and_checked_bytes(cli
     client.get(f"/api/projects/{pid}/query")
     label(client, pid, 999, "positive")
     label(client, pid, 998, "negative")
-    label(client, pid, 997, "unsure")
     for post in (999, 998):
         run(client, client.app.state.media.download_preview(post))
     response = client.post(
@@ -96,7 +95,7 @@ def test_explicit_export_and_collection_use_same_transfers_and_checked_bytes(cli
     frozen = response.json()
     did = frozen["id"]
     original = client.get(f"/api/datasets/{did}/export?format=json").content
-    assert len(json.loads(original)["samples"]) == 3
+    assert len(json.loads(original)["samples"]) == 2
     assert not list((client.app.state.db.root / "exports").glob("**/*"))
     body = {"request_id": str(uuid4())}
     first = client.post(f"/api/datasets/{did}/media", json=body)
@@ -137,4 +136,4 @@ def test_explicit_export_and_collection_use_same_transfers_and_checked_bytes(cli
     assert client.get(f"/api/datasets/{did}/export?format=json").content == original
     assert client.app.state.transfers.metrics["completed"] == 3
     assert client.app.state.transfers.metrics["peak_active"] <= 2
-    assert client.get(f"/api/projects/{pid}/candidates").json()["total"] == 3
+    assert client.get(f"/api/projects/{pid}/candidates").json()["total"] == 2

@@ -1,6 +1,6 @@
 """Explicit, global collection saves. Human labels and datasets are never written.
 
-Originals publish last using no-clobber hard links. A durable inode/hash manifest
+Originals publish using no-clobber hard links. A durable inode/hash manifest
 is reserved before publication, so restart can finish partial saves or removals
 without adopting an existing collection file. No recursive deletion is used.
 """
@@ -15,7 +15,6 @@ import time
 from pathlib import Path
 from typing import Annotated
 from uuid import UUID, uuid4
-from xml.etree import ElementTree as ET
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi import Path as APIPath
@@ -43,6 +42,24 @@ def state(post_id, row=None):
     }
 
 
+async def queue_intent(conn, post_id, version, wanted, *, source=None, context=None):
+    """Commit one versioned save/removal intent; callers own conflict checks."""
+    await conn.execute(
+        "INSERT INTO saved_media(post_id,version,wanted,status,updated_at) VALUES(?,?,?,'queued',?) "
+        "ON CONFLICT(post_id) DO UPDATE SET version=excluded.version,wanted=excluded.wanted,status='queued',error=NULL,updated_at=excluded.updated_at",
+        (post_id, version, int(wanted), time.time()),
+    )
+    # Superseded queued work must not delay the intent that cancels it.
+    await conn.execute(
+        "UPDATE jobs SET status='done',result_json=? WHERE type='library' AND status='pending' "
+        "AND json_extract(payload_json,'$.post_id')=?",
+        (json.dumps({"outcome": "superseded"}), post_id),
+    )
+    return await enqueue(conn, "library", f"library:{post_id}:{version}", {
+        **(context or {}), "post_id": post_id, "version": version, "source": source,
+    })
+
+
 def conflict(message="Saved files changed outside Studio; existing files were left untouched"):
     return HTTPException(409, message)
 
@@ -62,49 +79,13 @@ def digest(path):
     return value.hexdigest()
 
 
-def captions(post, token):
-    tags = post.get("tags")
-    if not isinstance(tags, dict) or any(
-        not isinstance(v, list) or any(not isinstance(t, str) for t in v) for v in tags.values()
-    ):
-        raise HTTPException(502, "e621 returned invalid categorized tags")
-    all_tags = sorted({tag for values in tags.values() for tag in values})
-    if len(all_tags) > 20000 or any(len(tag) > 1000 or "\x00" in tag for tag in all_tags):
-        raise HTTPException(413, "Post tags exceed the metadata limit")
-    metadata = {
-        **post,
-        "_hydra_studio": {
-            "schema_version": 1,
-            "ownership_token": token,
-            "post_url": f"https://e621.net/posts/{post['id']}",
-            "saved_at": time.time(),
-            "tag_source": "e621 source tags; independent from Studio human labels",
-        },
-    }
-    raw = json.dumps(metadata, ensure_ascii=False, sort_keys=True, allow_nan=False, indent=2).encode("utf-8")
-    if len(raw) > 1024 * 1024:
-        raise HTTPException(413, "Post metadata exceeds 1 MiB")
-    # Sidecars preserve canonical tag spellings. Never rewrite original bytes to
-    # embed metadata: the e621 MD5 remains an independently checked identity.
-    rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-    dc = "http://purl.org/dc/elements/1.1/"
-    ET.register_namespace("rdf", rdf)
-    ET.register_namespace("dc", dc)
-    xmp = ET.Element("{adobe:ns:meta/}xmpmeta")
-    description = ET.SubElement(ET.SubElement(xmp, f"{{{rdf}}}RDF"), f"{{{rdf}}}Description")
-    bag = ET.SubElement(ET.SubElement(description, f"{{{dc}}}subject"), f"{{{rdf}}}Bag")
-    for tag in all_tags:
-        ET.SubElement(bag, f"{{{rdf}}}li").text = tag
-    ET.SubElement(description, f"{{{dc}}}source").text = f"https://e621.net/posts/{post['id']}"
-    return raw, (", ".join(all_tags) + "\n").encode("utf-8"), ET.tostring(xmp, encoding="utf-8", xml_declaration=True)
-
-
 class Library:
     def __init__(self, db, source, media, settings):
         self.db, self.source, self.media, self.settings = db, source, media, settings
         self.root = settings.library_root.absolute() if settings.library_root is not None else None
         self.operation_locks = [asyncio.Lock() for _ in range(64)]
         self.active_jobs = {}
+        self.operations = {}
         self.transfers = None
         self.feed = None
 
@@ -115,13 +96,35 @@ class Library:
             and not self.root.is_symlink()
             and regular(self.root / ".hydra-studio-library-id")
         )
+        if available:
+            try:
+                self.destination()
+            except HTTPException:
+                available = False
         return {
             "configured": self.root is not None,
             "available": available,
-            "message": "Saves originals and e621 tag sidecars directly to your Smut folder."
+            "message": (f"Saves only original media to Smut/{self.settings.library_subdirectory}."
+                        if self.settings.library_subdirectory else "Saves only original media to your Smut folder.")
             if available
             else "Smut folder is offline or not configured. Review remains available.",
         }
+
+    def destination(self, record=None):
+        # The collection marker/identity stays at its mounted root. Each file
+        # manifest records its destination so enabling Inbox preserves older
+        # top-level saves and their deletion/recovery paths.
+        directory = record.get("directory", "") if record is not None else self.settings.library_subdirectory
+        if not isinstance(directory, str) or (directory and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,99}", directory)):
+            raise conflict("Saved destination is invalid; files were preserved")
+        if self.root is None:
+            raise HTTPException(409, "Smut folder saving is not configured")
+        destination = self.root / directory
+        if not destination.is_dir() or self.root.is_symlink() or destination.is_symlink():
+            raise HTTPException(503, "Save destination is missing or unsafe; existing files were preserved")
+        if destination.stat().st_dev != self.root.stat().st_dev:
+            raise HTTPException(409, "Save destination must share the collection filesystem")
+        return destination
 
     async def prepare_root(self):
         if self.root is None:
@@ -168,13 +171,29 @@ class Library:
         async with self.operation_locks[payload["post_id"] % len(self.operation_locks)]:
             try:
                 operation = asyncio.create_task(self._process(job, payload))
+                stop = asyncio.Event()
+                stopped = asyncio.create_task(stop.wait())
+                self.operations[(payload["post_id"], payload["version"])] = (operation, stop)
                 try:
-                    await asyncio.wait_for(asyncio.shield(operation), timeout=self.settings.library_timeout)
+                    done, _ = await asyncio.wait({operation, stopped}, timeout=self.settings.library_timeout,
+                                                 return_when=asyncio.FIRST_COMPLETED)
+                    if not done:
+                        raise asyncio.TimeoutError
+                    if stop.is_set():
+                        # Off intents stop this operation without cancelling the
+                        # scheduler that must run the subsequent removal.
+                        await cancel_and_join(operation)
+                        await self.finish(job, payload["post_id"], payload["version"], "superseded")
+                    else:
+                        await operation
                 except BaseException:
-                    # wait_for itself can be cancelled again during shutdown.
+                    # The wrapper can be cancelled again during shutdown.
                     # Retain the writer lock until inner disk cleanup is joined.
                     await cancel_and_join(operation)
                     raise
+                finally:
+                    stopped.cancel()
+                    await asyncio.gather(stopped, return_exceptions=True)
             except asyncio.TimeoutError:
                 raise HTTPException(
                     504, "Collection save timed out; retry when storage and CDN are available"
@@ -185,6 +204,17 @@ class Library:
                 ) from None
             finally:
                 self.active_jobs.pop((payload["post_id"], payload["version"]), None)
+                self.operations.pop((payload["post_id"], payload["version"]), None)
+
+    async def cancel_superseded(self, post_id, version):
+        """Abort blocked network reads and join owned staging cleanup after commit."""
+        operations = [entry for (post, old_version), entry in list(self.operations.items())
+                      if post == post_id and old_version < version]
+        for _, stop in operations:
+            stop.set()
+        # process() alone owns cancellation: cancelling twice can interrupt its
+        # staging-finally block while it is awaiting the cleanup journal.
+        await asyncio.gather(*(asyncio.shield(operation) for operation, _ in operations), return_exceptions=True)
 
     async def _process(self, job, payload):
         post_id, version = payload["post_id"], payload["version"]
@@ -231,9 +261,11 @@ class Library:
         if md5 != snapshot["md5"] or file["url"] != snapshot["file_url"]:
             raise conflict("Post original changed since this view; refresh before saving")
         self.media.validate_url(file["url"])
+        directory = self.settings.library_subdirectory
+        destination = self.destination({"directory": directory})
         base = f"e621_{post_id}_{md5}"
-        names = [base + "." + ext, base + ".json", base + ".txt", base + ".xmp"]
-        if any((self.root / name).exists() or (self.root / name).is_symlink() for name in names):
+        names = [base + "." + ext]
+        if any((destination / name).exists() or (destination / name).is_symlink() for name in names):
             raise conflict("A matching filename already exists; Studio will not overwrite or adopt it")
         token = uuid4().hex
         stage = self.root / ".hydra-studio-tmp" / token
@@ -255,8 +287,6 @@ class Library:
             expected_size = file.get("size")
             await self.download(original, file["url"], md5, expected_size, post_id, version)
             await disk(original.rename, stage / names[0])
-            for name, data in zip(names[1:], captions(post, token)):
-                await self.write_staged_file(job["id"], stage / name, data)
             if not await self.current(post_id, version):
                 await self.finish(job, post_id, version, "superseded")
                 return
@@ -264,6 +294,8 @@ class Library:
             await disk(sync_directory, stage.parent)
             entries = await disk(self.describe, stage, names)
             record = {"schema_version": 1, "root_id": root_id, "token": token, "files": entries, "original": names[0]}
+            if directory:
+                record["directory"] = directory
             async with self.db.transaction() as conn:
                 current = await (
                     await conn.execute("SELECT version,wanted,status FROM saved_media WHERE post_id=?", (post_id,))
@@ -283,19 +315,6 @@ class Library:
             # files. After reservation retain them for exact crash recovery.
             if not reserved:
                 await self.clean_staging(job["id"])
-
-    async def write_staged_file(self, job_id, path, data):
-        with path.open("xb") as stream:
-            identity = os.fstat(stream.fileno())
-            entry = {"name": path.name, "inode": identity.st_ino, "device": identity.st_dev}
-            async with self.db.transaction() as conn:
-                await conn.execute(
-                    "UPDATE library_staging SET files_json=json_insert(files_json,'$[#]',json(?)) WHERE job_id=?",
-                    (json.dumps(entry), job_id),
-                )
-            await disk(stream.write, data)
-            await disk(stream.flush)
-            await disk(os.fsync, stream.fileno())
 
     async def clean_staging(self, job_id):
         row = await self.db.one("SELECT * FROM library_staging WHERE job_id=?", (job_id,))
@@ -420,11 +439,12 @@ class Library:
 
     def publish_files(self, record):
         stage = self.paths(record)
-        # Metadata is present before the original becomes visible. Hard-linking
-        # never replaces another file, even if one appears after the preflight.
+        root = self.destination(record)
+        # Hard-linking never replaces another file, even if one appears
+        # after the preflight. Older multi-file journals remain recoverable.
         entries = sorted(record["files"], key=lambda entry: entry["name"] == record["original"])
         for entry in entries:
-            destination = self.root / entry["name"]
+            destination = root / entry["name"]
             if destination.exists() or destination.is_symlink():
                 self.verify(destination, entry)
                 continue
@@ -439,24 +459,25 @@ class Library:
             except OSError:
                 raise HTTPException(507, "Smut folder could not safely publish the saved files") from None
 
-        sync_directory(self.root)
+        sync_directory(root)
 
     def remove_files(self, record):
         stage = self.paths(record)
+        root = self.destination(record)
         stage.mkdir(mode=0o700, exist_ok=True)
         sync_directory(stage.parent)
         # Check everything before starting. Quarantine each name atomically,
         # then recheck its identity: unlinking a verified pathname directly can
         # delete an external replacement made between verification and unlink.
         for entry in record["files"]:
-            destination = self.root / entry["name"]
+            destination = root / entry["name"]
             quarantine = stage / (".remove-" + entry["name"])
             if quarantine.exists() or quarantine.is_symlink():
                 self.verify(quarantine, entry)
             if destination.exists() or destination.is_symlink():
                 self.verify(destination, entry)
         for entry in record["files"]:
-            destination = self.root / entry["name"]
+            destination = root / entry["name"]
             quarantine = stage / (".remove-" + entry["name"])
             if quarantine.exists():
                 # A crash after quarantine but before acknowledgement resumes
@@ -477,7 +498,7 @@ class Library:
                 try:
                     os.link(quarantine, destination, follow_symlinks=False)
                     quarantine.unlink()
-                    sync_directory(self.root)
+                    sync_directory(root)
                     sync_directory(stage)
                 except OSError:
                     raise conflict(
@@ -486,17 +507,18 @@ class Library:
                 raise
         # Make removal of visible names durable before deleting recovery links
         # or clearing the database manifest. Missing files are already removed.
-        sync_directory(self.root)
+        sync_directory(root)
         sync_directory(stage)
         self.clean_record_stage(record)
 
     def recover_for_save(self, record):
         stage = self.paths(record)
+        root = self.destination(record)
         complete = True
         for entry in record["files"]:
             present = False
             for path in (
-                self.root / entry["name"],
+                root / entry["name"],
                 stage / entry["name"],
                 stage / (".remove-" + entry["name"]),
             ):
@@ -586,27 +608,32 @@ async def saved_state(post_id: PositiveId, request: Request):
 @router.put("/projects/{project_id}/library/{post_id}", response_model=schemas.SaveState)
 async def set_saved(project_id: PositiveId, post_id: PositiveId, body: schemas.SaveMutation, request: Request):
     db = request.app.state.db
-    from .api import require_project
     from .jobs import persist_post
+    from .projects import require_active_project, require_project
 
-    project_id = (await require_project(db, project_id))["id"]
+    project = await require_project(db, project_id)
+    project_id = project["id"]
     signature = fingerprint(["save-media", project_id, post_id], body.model_dump(mode="json", exclude_none=True))
     async with db.transaction() as conn:
+        await require_active_project(conn, project_id)
         previous = await receipt(conn, body.request_id, signature)
         if previous is not None:
             return previous
     known = await db.one("SELECT 1 FROM posts WHERE post_id=?", (post_id,))
     if not known and not request.app.state.feed.peek(post_id):
         raise HTTPException(404, "Open or browse this post before explicitly saving it")
-    source = await request.app.state.feed.row(post_id) if body.wanted else None
-    raw = await request.app.state.feed.raw(post_id) if not known else None
+    raw = await request.app.state.feed.raw(post_id) if body.wanted or not known else None
+    from .feed import post_row
+
+    source = post_row(raw) if body.wanted else None
     if body.source_md5 and source and body.source_md5 != source["md5"]:
         raise conflict("Post original changed since this view; refresh before saving")
     async with db.transaction() as conn:
+        await require_active_project(conn, project_id)
         previous = await receipt(conn, body.request_id, signature)
         if previous is not None:
             return previous
-        if raw:
+        if raw and not known:
             await persist_post(conn, raw)
         candidate = await (await conn.execute("SELECT * FROM posts WHERE post_id=?", (post_id,))).fetchone()
         if not candidate:
@@ -646,32 +673,28 @@ async def set_saved(project_id: PositiveId, post_id: PositiveId, body: schemas.S
                 (post_id,),
             )
         ).fetchone()
-        if queued >= 16 and not own:
+        if body.wanted and queued >= 16 and not own:
             raise HTTPException(429, "Save queue is full; retry shortly")
         version = body.expected_version + 1
-        await conn.execute(
-            "INSERT INTO saved_media(post_id,version,wanted,status,updated_at) VALUES(?,?,?,'queued',?) "
-            "ON CONFLICT(post_id) DO UPDATE SET version=excluded.version,wanted=excluded.wanted,status='queued',error=NULL,updated_at=excluded.updated_at",
-            (post_id, version, int(body.wanted), time.time()),
-        )
-        # Obsolete queued work cannot prevent an off toggle from reaching the
-        # single filesystem worker. A running transfer checks version per chunk.
-        await conn.execute(
-            "UPDATE jobs SET status='done',result_json='{}' WHERE type='library' AND status='pending' AND json_extract(payload_json,'$.post_id')=?",
-            (post_id,),
-        )
-        await enqueue(
-            conn,
-            "library",
-            f"library:{post_id}:{version}",
-            {
-                "post_id": post_id,
-                "version": version,
-                "source": {"md5": source["md5"], "file_url": source["file_url"]} if source else None,
-            },
-        )
+        if body.wanted:
+            upvotes = (raw.get("score") or {}).get("up")
+            context = {"project_id": project_id, "display": {
+                "search_tag": project["display_name"],
+                "upvotes": upvotes if type(upvotes) is int and upvotes >= 0 else None,
+            }}
+        else:
+            previous_job = await (await conn.execute(
+                "SELECT payload_json FROM jobs WHERE job_key=?", (f"library:{post_id}:{body.expected_version}",),
+            )).fetchone()
+            previous_payload = json.loads(previous_job["payload_json"]) if previous_job else {}
+            context = {key: previous_payload[key] for key in ("project_id", "display") if key in previous_payload}
+        await queue_intent(conn, post_id, version, body.wanted,
+                           source={"md5": source["md5"], "file_url": source["file_url"]} if source else None,
+                           context=context)
         result = state(
             post_id, await (await conn.execute("SELECT * FROM saved_media WHERE post_id=?", (post_id,))).fetchone()
         )
         await save_receipt(conn, body.request_id, signature, result)
-        return result
+    if not body.wanted:
+        await request.app.state.library.cancel_superseded(post_id, version)
+    return result

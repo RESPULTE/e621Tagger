@@ -21,7 +21,7 @@ export function TagSidebar({
   if (hidden) return <p className="muted">Tags hidden while reviewing.</p>;
   return (
     <div className="tag-list">
-      {order
+      {[...order, ...Object.keys(tags).filter((category) => !order.includes(category))]
         .filter((category) => tags[category]?.length)
         .map((category) => (
           <section key={category}>

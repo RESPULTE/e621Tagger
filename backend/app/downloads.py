@@ -18,7 +18,8 @@ from backend.filesystem import disk, sync_directory
 
 from . import auth, schemas
 from .jobs import enqueue
-from .library import digest, regular
+from .library import digest, queue_intent, regular
+from .library import state as saved_state
 from .reviews import fingerprint, receipt, save_receipt
 
 router = APIRouter(prefix="/api", dependencies=[Depends(auth.require_session)])
@@ -222,20 +223,60 @@ async def queue_export(dataset_id: UUID, body: schemas.Mutation, request: Reques
 
 @router.get("/downloads")
 async def list_downloads(request: Request):
-    rows = await request.app.state.db.rows(
+    db = request.app.state.db
+    rows = await db.rows(
         "SELECT id,type,status,attempts,error,progress_bytes,total_bytes,result_json,payload_json,updated_at FROM jobs WHERE type IN ('library','dataset_media') ORDER BY id DESC LIMIT 200"
     )
-    for row in rows:
-        payload = json.loads(row.pop("payload_json"))
+    prepared = [(row, json.loads(row.pop("payload_json"))) for row in rows]
+    post_ids = sorted({payload["post_id"] for _, payload in prepared})
+    project_ids = sorted({payload["project_id"] for _, payload in prepared if payload.get("project_id")})
+    slots = ",".join("?" for _ in post_ids)
+    posts = {row["post_id"]: row for row in await db.rows(
+        f"SELECT post_id,preview_url FROM posts WHERE post_id IN ({slots})", post_ids,
+    )} if post_ids else {}
+    saves = {row["post_id"]: row for row in await db.rows(
+        f"SELECT * FROM saved_media WHERE post_id IN ({slots})", post_ids,
+    )} if post_ids else {}
+    projects = {row["id"]: row for row in await db.rows(
+        "SELECT id,display_name FROM projects WHERE id IN (" + ",".join("?" for _ in project_ids) + ")", project_ids,
+    )} if project_ids else {}
+    items, seen = [], set()
+    for row, payload in prepared:
+        post_id = payload["post_id"]
+        favorite = None
+        can_delete = False
+        if row["type"] == "library":
+            if post_id in seen:
+                continue
+            seen.add(post_id)
+            saved = saves.get(post_id)
+            if saved and not saved["wanted"] and not saved["present"] and saved["status"] == "idle":
+                continue  # Preserve durable job history without showing deleted files.
+            favorite = saved_state(post_id, saved)
+            can_delete = bool(saved and saved["version"] == payload["version"]
+                              and (saved["wanted"] or saved["present"] or saved["record_json"])
+                              and not (not saved["wanted"] and saved["status"] in {"queued", "removing"}))
+        stored = posts.get(post_id)
+        display = payload.get("display", {})
+        upvotes = display.get("upvotes")
+        cached = request.app.state.feed.peek(post_id)
+        if upvotes is None and cached:
+            upvotes = (cached[1].get("score") or {}).get("up")
         row.update(
             purpose="Collection" if row["type"] == "library" else "Dataset export",
-            post_id=payload["post_id"],
+            post_id=post_id,
             dataset_id=payload.get("dataset_id"),
             destination="Smut" if row["type"] == "library" else "Dataset exports",
+            thumbnail_url=f"/api/media/{post_id}/preview" if stored and stored["preview_url"] else None,
+            upvotes=upvotes if type(upvotes) is int and upvotes >= 0 else None,
+            search_tag=display.get("search_tag") or projects.get(payload.get("project_id"), {}).get("display_name"),
+            project_id=payload.get("project_id"),
+            favorite=favorite, can_delete=can_delete,
         )
         row.pop("result_json")
+        items.append(row)
     return {
-        "items": rows,
+        "items": items,
         "metrics": request.app.state.transfers.metrics,
         "active": (
             await request.app.state.db.one(
@@ -248,7 +289,7 @@ async def list_downloads(request: Request):
 @router.post("/downloads/{job_id}/{action}")
 async def control(job_id: int, action: str, body: schemas.Mutation, request: Request):
     db = request.app.state.db
-    if action not in {"cancel", "retry"}:
+    if action not in {"cancel", "retry", "delete"}:
         raise HTTPException(404, "Unknown download action")
     signature = fingerprint(["download-control", job_id, action], {})
     async with db.transaction() as conn:
@@ -261,7 +302,22 @@ async def control(job_id: int, action: str, body: schemas.Mutation, request: Req
         if not job:
             raise HTTPException(404, "Download not found")
         payload = json.loads(job["payload_json"])
-        if action == "cancel":
+        if action == "delete":
+            if job["type"] != "library":
+                raise HTTPException(422, "Delete applies to favourites; frozen dataset exports are preserved")
+            saved = await (await conn.execute("SELECT * FROM saved_media WHERE post_id=?", (payload["post_id"],))).fetchone()
+            if not saved or saved["version"] != payload["version"]:
+                raise HTTPException(409, "Favourite changed since this download; refresh before deleting")
+            if saved["wanted"] or saved["present"] or saved["record_json"]:
+                version = saved["version"] + 1
+                context = {key: payload[key] for key in ("project_id", "display") if key in payload}
+                await queue_intent(conn, payload["post_id"], version, False, context=context)
+            else:
+                version = saved["version"]
+            saved = await (await conn.execute("SELECT * FROM saved_media WHERE post_id=?", (payload["post_id"],))).fetchone()
+            result = {"id": job_id, "status": saved["status"], "favorite": saved_state(payload["post_id"], saved)}
+            await save_receipt(conn, body.request_id, signature, result)
+        elif action == "cancel":
             if job["status"] in {"done", "cancelled", "failed"}:
                 result = {"id": job_id, "status": job["status"]}
                 await save_receipt(conn, body.request_id, signature, result)
@@ -289,22 +345,32 @@ async def control(job_id: int, action: str, body: schemas.Mutation, request: Req
                 saved = await (
                     await conn.execute("SELECT * FROM saved_media WHERE post_id=?", (payload["post_id"],))
                 ).fetchone()
+                # Older Cancel advances the saved version without rewriting its
+                # job payload. Permit that exact cancelled state, never a later
+                # save/removal from another tab.
+                legacy_cancel = (saved["status"] == "cancelled" and job["status"] == "cancelled"
+                                 and saved["version"] == payload["version"] + 1)
+                if saved["version"] != payload["version"] and not legacy_cancel:
+                    raise HTTPException(409, "Favourite changed since this download; refresh before retrying")
                 payload["version"] = saved["version"] + 1
                 await conn.execute(
                     "UPDATE saved_media SET version=?,status='queued',error=NULL,updated_at=? WHERE post_id=?",
                     (payload["version"], time.time(), payload["post_id"]),
                 )
+                await conn.execute("UPDATE jobs SET job_key=? WHERE id=?",
+                                   (f"library:{payload['post_id']}:{payload['version']}", job_id))
             await conn.execute(
                 "UPDATE jobs SET status='pending',attempts=0,available_at=?,error=NULL,payload_json=?,updated_at=? WHERE id=?",
                 (time.time(), json.dumps(payload), time.time(), job_id),
             )
-        result = {
-            "id": job_id,
-            "status": (await (await conn.execute("SELECT status FROM jobs WHERE id=?", (job_id,))).fetchone())[
-                "status"
-            ],
-        }
-        await save_receipt(conn, body.request_id, signature, result)
+        if action != "delete":
+            result = {
+                "id": job_id,
+                "status": (await (await conn.execute("SELECT status FROM jobs WHERE id=?", (job_id,))).fetchone())["status"],
+            }
+            await save_receipt(conn, body.request_id, signature, result)
+    if action == "delete":
+        await request.app.state.library.cancel_superseded(payload["post_id"], version)
     return result
 
 

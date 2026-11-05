@@ -1,0 +1,202 @@
+{
+  "sample_count": 6,
+  "raw_cosine": [
+    0.999984860420227,
+    0.9999762773513794,
+    0.9999576210975647,
+    0.9999855160713196,
+    0.9999809861183167,
+    0.9999876618385315
+  ],
+  "raw_relative_l2": [
+    0.00555450189858675,
+    0.006897503975778818,
+    0.00936359353363514,
+    0.005424081347882748,
+    0.006235496606677771,
+    0.0049607218243181705
+  ],
+  "raw_max_absolute_error": [
+    0.015625,
+    0.021484375,
+    0.0301513671875,
+    0.017578125,
+    0.0234375,
+    0.015625
+  ],
+  "raw_parity_passed": true,
+  "tolerances": {
+    "cosine_min": 0.999,
+    "relative_l2_max": 0.03
+  },
+  "sample_centered_top1_agreement": 1.0,
+  "sample_centered_ranking_agreement": 1.0,
+  "sample_centered_overlap_at_k": 1.0,
+  "ranking_k": 5,
+  "reference_rankings": [
+    [
+      1,
+      5,
+      2,
+      4,
+      3
+    ],
+    [
+      0,
+      5,
+      4,
+      2,
+      3
+    ],
+    [
+      3,
+      5,
+      4,
+      0,
+      1
+    ],
+    [
+      2,
+      5,
+      4,
+      1,
+      0
+    ],
+    [
+      3,
+      5,
+      2,
+      0,
+      1
+    ],
+    [
+      0,
+      1,
+      3,
+      4,
+      2
+    ]
+  ],
+  "generated_rankings": [
+    [
+      1,
+      5,
+      2,
+      4,
+      3
+    ],
+    [
+      0,
+      5,
+      4,
+      2,
+      3
+    ],
+    [
+      3,
+      5,
+      4,
+      0,
+      1
+    ],
+    [
+      2,
+      5,
+      4,
+      1,
+      0
+    ],
+    [
+      3,
+      5,
+      2,
+      0,
+      1
+    ],
+    [
+      0,
+      1,
+      3,
+      4,
+      2
+    ]
+  ],
+  "historical_search_compatible": false,
+  "limitation": "Small paired sample only; corpus centroid and published KNN agreement are unverified",
+  "dataset_revision": "02bd7bd04c732dd3de011d88d642a1d21024f70d",
+  "source_sample": {
+    "dataset_revision": "02bd7bd04c732dd3de011d88d642a1d21024f70d",
+    "shard": "embeds/e621_static_00000.hydra35_embed.msgpack",
+    "prefix_bytes": 131072,
+    "prefix_sha256": "905ee21f58e68f455b37017d40d0c39d274ee08aea51660e4a919afd6bd3e7dd",
+    "publisher_shard_sha256": "8a75e8361149b48b3d7fea41c9cfdf22f3572fe6ebdf7cef49f36d73f054a11b"
+  },
+  "repeat_max_absolute_error": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "embedding_space": "5de6cd51f1a756b98b8c56bceea44f643b65eaeb9265a10753c30390f4d89250",
+  "pipeline": {
+    "pipeline": "hydra-forward-embedding-v1",
+    "source_sha256": "289494f2945dcc8a23d2ef6e243fe3a4bb7133b413cde27b11cef238314002d7",
+    "checkpoint_sha256": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+    "architecture": "naflexvit_so400m_patch16_siglip+rr_hydra2",
+    "max_seqlen": 1024,
+    "precision": "bfloat16",
+    "torch": "2.8.0+cu128",
+    "cuda_runtime": "12.8",
+    "numpy": "2.2.6",
+    "pyvips": "3.2.0",
+    "libvips": "8.18.7",
+    "raw_output": "float32-copy-of-bfloat16-embedding-head",
+    "dimension": 2048,
+    "transform": "float32-l2-normalize-no-centering",
+    "historical_compatible": false
+  },
+  "images": [
+    {
+      "post_id": 14,
+      "md5": "3e47080200fbde2d7d2ccf419343ab0a",
+      "sha256": "8dc0383e01b3ff0b4af51ba57159b81557090664dbe350398ae2db2b72094c08"
+    },
+    {
+      "post_id": 15,
+      "md5": "326065d926185463f00b684e3c763cee",
+      "sha256": "5f019658e808e9567f959ac8e20ac6cf88c508811b73339506af41ddbfc88b25"
+    },
+    {
+      "post_id": 17,
+      "md5": "9fceaae92efc38ef8d975b6401bd44f5",
+      "sha256": "aa8e80079ed84067c63730dd2cc20bccfc4c32fe14f6643b2a62580cc32948bd"
+    },
+    {
+      "post_id": 20,
+      "md5": "8e1328c41cc7a9c787df6619ee733e7b",
+      "sha256": "6ba23f8c6440029ed264932a51411dbde2065978f1990181d4f703b3179a2421"
+    },
+    {
+      "post_id": 22,
+      "md5": "6b9ba65517aa76e21053ee5895a2d0f0",
+      "sha256": "12b9bfeef7694908ccc7045073ffe650b43d88444d1530898ce294cd20500845"
+    },
+    {
+      "post_id": 23,
+      "md5": "8a7262d86c9e8cb188ae5be44a4cfd08",
+      "sha256": "b23442ccb512030472e3ac03a350b657ee4170310aae1df82324294a974f35b5"
+    }
+  ],
+  "embedding_ms": [
+    446.2639000012132,
+    79.80379999935394,
+    64.62409999949159,
+    58.866899998974986,
+    67.85490000038408,
+    61.42579999868758
+  ],
+  "gpu": "NVIDIA GeForce RTX 4070 Laptop GPU",
+  "peak_gpu_bytes": 1142071296
+}

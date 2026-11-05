@@ -68,7 +68,7 @@ def test_labels_conflicts_atomic_batch_and_durable_undo(client):
             "request_id": str(uuid4()),
             "items": [
                 {"post_id": 999, "state": "negative", "expected_version": 0},
-                {"post_id": 1000, "state": "unsure", "expected_version": 0},
+                {"post_id": 1000, "state": "negative", "expected_version": 0},
             ],
         },
     )
@@ -130,7 +130,7 @@ def test_restart_and_worker_recovery(settings):
         assert (
             client.patch(
                 f"/api/projects/{created['id']}/labels/1000",
-                json={"request_id": str(uuid4()), "state": "unsure", "expected_version": 0},
+                json={"request_id": str(uuid4()), "state": "negative", "expected_version": 0},
             ).status_code
             == 200
         )
@@ -138,7 +138,7 @@ def test_restart_and_worker_recovery(settings):
         login = client.post("/api/auth/login", json={"password": PASSWORD})
         client.headers["X-CSRF-Token"] = login.json()["csrf_token"]
         row = client.get(f"/api/projects/{created['id']}/candidates/1000").json()
-        assert row["state"] == "unsure" and row["version"] == 1
+        assert row["state"] == "negative" and row["version"] == 1
 
 
 def test_online_backup_and_sqlite_busy_save(client, settings, tmp_path):

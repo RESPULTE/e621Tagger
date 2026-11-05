@@ -9,6 +9,7 @@ __pycache__
 dist
 build
 .venv
+.venv-similarity
 models
 **/__pycache__
 **/*.pyc

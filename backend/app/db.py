@@ -120,6 +120,39 @@ CREATE TABLE similarity_provenance(
  neighbor_rank INTEGER NOT NULL, l2_distance REAL NOT NULL, index_revision TEXT NOT NULL);
 """
 
+SCHEMA_V6 = """
+CREATE VIEW active_labels AS SELECT * FROM labels WHERE state IN ('positive','negative');
+DROP VIEW canonical_candidates;
+DROP VIEW project_conflicts;
+CREATE VIEW project_conflicts AS SELECT f.project_id,l.post_id,count(DISTINCT l.state) AS states
+ FROM active_labels l JOIN project_family f ON f.member_id=l.project_id
+ GROUP BY f.project_id,l.post_id HAVING states>1;
+CREATE VIEW canonical_candidates AS SELECT project_id,owner_project_id,post_id,review_version,first_seen_at FROM (
+ SELECT f.project_id,c.project_id AS owner_project_id,c.post_id,c.review_version,c.first_seen_at,
+ row_number() OVER(PARTITION BY f.project_id,c.post_id ORDER BY l.state IS NULL,c.project_id!=f.project_id,c.project_id) AS rank
+ FROM project_candidates c JOIN project_family f ON f.member_id=c.project_id
+ LEFT JOIN active_labels l ON l.project_id=c.project_id AND l.post_id=c.post_id) WHERE rank=1;
+CREATE TRIGGER labels_binary_insert BEFORE INSERT ON labels WHEN NEW.state NOT IN ('positive','negative')
+ BEGIN SELECT RAISE(ABORT,'Only binary reviews may be written'); END;
+CREATE TRIGGER labels_binary_update BEFORE UPDATE ON labels WHEN NEW.state NOT IN ('positive','negative')
+ BEGIN SELECT RAISE(ABORT,'Only binary reviews may be written'); END;
+CREATE TABLE retrieval_provenance(
+ event_id INTEGER PRIMARY KEY REFERENCES label_events(id), query_type TEXT NOT NULL,
+ query_sha256 TEXT NOT NULL, source_post_id INTEGER, source_md5 TEXT,
+ candidate_md5 TEXT NOT NULL, model_revision TEXT NOT NULL, embedding_space TEXT NOT NULL,
+ index_revision TEXT NOT NULL, metric TEXT NOT NULL, neighbor_rank INTEGER NOT NULL, distance REAL NOT NULL);
+"""
+
+
+SCHEMA_V7 = """
+CREATE TABLE deleted_projects(
+ project_id INTEGER PRIMARY KEY REFERENCES projects(id), deleted_at REAL NOT NULL);
+DROP VIEW project_family;
+CREATE VIEW project_family AS SELECT p.id AS member_id,k.project_id AS project_id
+ FROM projects p JOIN canonical_projects k USING(target_kind,target_id)
+ WHERE NOT EXISTS(SELECT 1 FROM deleted_projects d WHERE d.project_id=p.id);
+"""
+
 
 class Database:
     def __init__(self, root: Path):
@@ -157,18 +190,19 @@ class Database:
         await self.connection.execute("PRAGMA busy_timeout=5000")
         current = await self.connection.execute("PRAGMA user_version")
         version = (await current.fetchone())[0]
-        if version > 5:
+        if version > 7:
             raise RuntimeError("Database schema is newer than this application")
         if version == 0:
             await self.connection.executescript(
-                "BEGIN IMMEDIATE;" + SCHEMA + SCHEMA_V2 + SCHEMA_V3 + SCHEMA_V4 + SCHEMA_V5 + "PRAGMA user_version=5; COMMIT;"
+                "BEGIN IMMEDIATE;" + SCHEMA + SCHEMA_V2 + SCHEMA_V3 + SCHEMA_V4 + SCHEMA_V5 + SCHEMA_V6
+                + SCHEMA_V7 + "PRAGMA user_version=7; COMMIT;"
             )
-        elif version in {1, 2, 3, 4}:
+        elif version in {1, 2, 3, 4, 5, 6}:
             from backend.backup import backup
 
             # The process lock is already held. Use SQLite online backup, never a
             # raw DB-file copy that could omit WAL commits. Failure aborts startup.
-            destination = self.root / "backups" / f"pre-schema-v5-{time.time_ns()}.sqlite3"
+            destination = self.root / "backups" / f"pre-schema-v7-{time.time_ns()}.sqlite3"
             await asyncio.to_thread(backup, self.root, destination)
             try:
                 await self.connection.executescript(
@@ -176,8 +210,10 @@ class Database:
                     + (SCHEMA_V2 if version == 1 else "")
                     + (SCHEMA_V3 if version < 3 else "")
                     + (SCHEMA_V4 if version < 4 else "")
-                    + SCHEMA_V5
-                    + "PRAGMA user_version=5; COMMIT;"
+                    + (SCHEMA_V5 if version < 5 else "")
+                    + (SCHEMA_V6 if version < 6 else "")
+                    + SCHEMA_V7
+                    + "PRAGMA user_version=7; COMMIT;"
                 )
             except BaseException:
                 await self.connection.rollback()

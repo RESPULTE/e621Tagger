@@ -1,0 +1,10 @@
+# Processing PC only. Install CUDA Torch from the official wheel index first.
+# The home-server image continues to install requirements.txt only.
+-r requirements.txt
+torch==2.8.0
+safetensors==0.4.5
+einops==0.8.1
+msgpack==1.2.4
+faiss-cpu==1.15.1
+pyvips[binary]==3.2.0
+pyvips-binary==8.18.7

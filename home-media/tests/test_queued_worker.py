@@ -716,7 +716,8 @@ def test_stop_on_current_job_after_next_job_is_prepared(monkeypatch, tmp_path):
         assert first_prepared.wait(timeout=3), "current job was not prepared"
         assert next_prepared.wait(timeout=3), "lookahead job was not prepared"
         prediction_attempts.append(prepared.signature)
-        assert prepared.signature.endswith("image.jpg:model-v1")
+        assert prepared.signature.startswith("/media/adult/image.jpg:")
+        assert len(prepared.signature.rsplit(":", 1)[1]) == 64
         raise StopRequested("stop current job")
 
     monkeypatch.setattr(worker, "prepare_remote", prepare)
@@ -726,7 +727,8 @@ def test_stop_on_current_job_after_next_job_is_prepared(monkeypatch, tmp_path):
 
     assert len(temp_paths) == 2
     assert all(not path.exists() for path in temp_paths)
-    assert prediction_attempts == ["/media/adult/image.jpg:model-v1"]
+    assert len(prediction_attempts) == 1
+    assert prediction_attempts[0].startswith("/media/adult/image.jpg:")
     assert state.statuses == [
         ("image:image-1", "running"),
         ("image:image-1", "interrupted"),

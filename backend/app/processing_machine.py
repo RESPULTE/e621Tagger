@@ -1,159 +1,62 @@
-"""Bounded, outbound-polled lookup bridge. The server never opens the index."""
+"""Authenticated outbound GPU image-search bridge; no historical lookup provider."""
 
-import asyncio
 import hmac
 import time
-from collections import OrderedDict
-from typing import Annotated, Literal
-from uuid import UUID, uuid4
+from typing import Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
+from starlette.responses import Response
 
-from .neighbor_index import REVISION
-
-PostId = Annotated[int, Field(strict=True, gt=0, le=2**63 - 1)]
-OFFLINE = "Processing machine offline"
+from .image_jobs import ImageCapability, ImageJob, ImageJobs, ImageResult
 
 
 class WorkerPoll(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    protocol_version: Literal[2]
     worker_id: UUID
-    ready: bool
-    index_revision: Literal[REVISION]
-
-
-class LookupJob(BaseModel):
-    id: UUID
-    lease: UUID
-    post_id: PostId
-    index_revision: Literal[REVISION]
+    image_capability: ImageCapability | None = None
+    busy: bool = False
 
 
 class WorkerAssignment(BaseModel):
-    job: LookupJob | None = None
-
-
-class Neighbor(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    post_id: PostId
-    rank: int = Field(strict=True, ge=1, le=64)
-    distance: float = Field(ge=0, le=2.01, allow_inf_nan=False)
-
-
-class WorkerResult(LookupJob):
-    model_config = ConfigDict(extra="forbid")
-    worker_id: UUID
-    coverage: Literal["available", "not_indexed"]
-    neighbors: list[Neighbor] = Field(max_length=64)
+    job: ImageJob | None = None
 
 
 class ProcessingMachine:
-    revision = REVISION
-
     def __init__(self, token):
         self.token = token
         self.worker_id = None
         self.seen = 0
-        self.ready = False
         self.heartbeat_ttl = 15
-        self.lookup_timeout = 20
-        self.requests = {}
-        self.cache = OrderedDict()
+        self.images = ImageJobs(self)
 
     @property
     def error(self):
-        if not self.token or time.monotonic() - self.seen >= self.heartbeat_ttl:
-            return OFFLINE
-        if not self.ready:
-            return "Processing machine index unavailable; install or validate the index on that machine"
-        return None
+        return self.images.error
+
+    @property
+    def revision(self):
+        return self.images.capability.index_revision if self.images.capability else ""
+
+    @property
+    def corpus_size(self):
+        return self.images.capability.corpus_size if self.images.capability else None
+
+    async def search_image(self, query, *, raw=None, post=None):
+        return await self.images.search(query, raw=raw, post=post)
 
     def poll(self, body):
         now = time.monotonic()
         if self.worker_id != body.worker_id and now - self.seen < self.heartbeat_ttl:
             raise HTTPException(409, "Another processing worker is online")
-        self.worker_id, self.seen, self.ready = body.worker_id, now, body.ready
-        if self.ready:
-            for item in self.requests.values():
-                if item["future"].done() or item["expires"] <= now:
-                    continue
-                if item["lease"] is None:
-                    item["lease"] = uuid4()
-                    item["worker"] = body.worker_id
-                    return {"job": {k: item[k] for k in ("id", "lease", "post_id", "index_revision")}}
-        return {"job": None}
-
-    async def lookup(self, seed_id):
-        now = time.monotonic()
-        # Authenticated worker evidence may still support reviews of retained results offline.
-        cached = self.cache.get(seed_id)
-        if cached and cached[0] > now:
-            self.cache.move_to_end(seed_id)
-            return cached[1]
-        self.cache.pop(seed_id, None)
-        if self.error:
-            raise HTTPException(503, self.error)
-        item = self.requests.get(seed_id)
-        if item is None:
-            if len(self.requests) >= 32:
-                raise HTTPException(429, "Processing machine lookup queue is full")
-            item = dict(
-                id=uuid4(),
-                lease=None,
-                worker=None,
-                post_id=seed_id,
-                index_revision=REVISION,
-                expires=now + self.lookup_timeout,
-                future=asyncio.get_running_loop().create_future(),
-                waiters=0,
-            )
-            self.requests[seed_id] = item
-        item["waiters"] += 1
-        try:
-            return await asyncio.wait_for(asyncio.shield(item["future"]), max(0, item["expires"] - now))
-        except asyncio.TimeoutError:
-            raise HTTPException(503, "Processing machine did not finish the lookup; retry when it is online") from None
-        finally:
-            item["waiters"] -= 1
-            if not item["waiters"]:
-                self.requests.pop(seed_id, None)
-                if not item["future"].done():
-                    item["future"].cancel()
-
-    def complete(self, body):
-        item = self.requests.get(body.post_id)
-        if (
-            item is None
-            or item["future"].done()
-            or item["expires"] <= time.monotonic()
-            or item["id"] != body.id
-            or item["lease"] != body.lease
-            or item["worker"] != body.worker_id
-        ):
-            raise HTTPException(409, "Lookup lease expired or was cancelled")
-        neighbors = [n.model_dump() for n in body.neighbors]
-        if (
-            (body.coverage == "not_indexed" and neighbors)
-            or any(n["post_id"] == body.post_id for n in neighbors)
-            or len({n["post_id"] for n in neighbors}) != len(neighbors)
-            or any(
-                a["rank"] >= b["rank"] or a["distance"] > b["distance"] + 0.002
-                for a, b in zip(neighbors, neighbors[1:])
-            )
-        ):
-            raise HTTPException(422, "Invalid processing machine neighbor evidence")
-        result = {"revision": REVISION, "coverage": body.coverage, "neighbors": neighbors}
-        self.cache[body.post_id] = (time.monotonic() + 3600, result)
-        self.cache.move_to_end(body.post_id)
-        while len(self.cache) > 128:
-            self.cache.popitem(last=False)
-        item["future"].set_result(result)
+        self.worker_id, self.seen = body.worker_id, now
+        self.images.capability = body.image_capability
+        return {"job": None if body.busy else self.images.poll(body)}
 
     async def close(self):
-        for item in self.requests.values():
-            item["future"].cancel()
-        self.cache.clear()
+        self.images.close()
 
 
 async def require_worker(request: Request):
@@ -173,5 +76,11 @@ async def poll(body: WorkerPoll, request: Request):
 
 
 @router.post("/results", status_code=204)
-async def complete(body: WorkerResult, request: Request):
-    request.app.state.processing_machine.complete(body)
+async def complete(body: ImageResult, request: Request):
+    request.app.state.processing_machine.images.complete(body)
+
+
+@router.get("/jobs/{job_id}/image")
+async def reference(job_id: UUID, lease: UUID, worker_id: UUID, request: Request):
+    raw, digest = await request.app.state.processing_machine.images.image(job_id, lease, worker_id)
+    return Response(raw, media_type="application/octet-stream", headers={"X-Image-SHA256": digest})

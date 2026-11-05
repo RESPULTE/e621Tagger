@@ -1,0 +1,356 @@
+{
+  "label_source": "explicit user judgments in this task",
+  "label_policy": "All remaining posts unreviewed; tags never assign a target",
+  "images": [
+    {
+      "post_id": 1920276,
+      "md5": "b7b53e8c65d5d6060f41c8b027285de5",
+      "sha256": "1671d0b0a8e37b61e6ce4c624eb201106d05d9e3a67763a50a2f92820a7aa315",
+      "bytes": 163542,
+      "width": 854,
+      "height": 1280,
+      "ext": "jpg",
+      "human_label": "negative"
+    },
+    {
+      "post_id": 3232854,
+      "md5": "2342e8c0d13c9b3cfc5557109c6971ca",
+      "sha256": "e1b5fa41acb379a1d0250a888af22c3c2670004370a3ea8f04f5b94f3b516c85",
+      "bytes": 706866,
+      "width": 850,
+      "height": 1055,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 3450750,
+      "md5": "e1f08bedcc03709b817bcde264137c89",
+      "sha256": "1f8846e0d6cb379f17f38681e6cb91c07c70786437fe7be663fc2d7e6cc2db28",
+      "bytes": 937881,
+      "width": 1000,
+      "height": 1043,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 3512266,
+      "md5": "2deaba3aeddccbe89c94e5ad7d5e663a",
+      "sha256": "424ff94701d646f77910cce4a601b88819dfeb7ace32688403e75e24cf56c08f",
+      "bytes": 328717,
+      "width": 630,
+      "height": 1000,
+      "ext": "png",
+      "human_label": "positive"
+    },
+    {
+      "post_id": 3512309,
+      "md5": "16772a6b335f6b45b324c5cc4c942ba4",
+      "sha256": "0b6a3354bff0c3d3d1ba2825aba4878b09140d0e6f33431140d2cdb1ca043ea5",
+      "bytes": 166403,
+      "width": 1686,
+      "height": 2048,
+      "ext": "jpg",
+      "human_label": "positive"
+    },
+    {
+      "post_id": 3512319,
+      "md5": "a5353fb87aedc6f82322cebb499fce59",
+      "sha256": "5fb4d1a9c485dcf704b396b1a03fe0524f951ac166c85a32198fe10b987f53c0",
+      "bytes": 150854,
+      "width": 1736,
+      "height": 2048,
+      "ext": "jpg",
+      "human_label": "positive"
+    },
+    {
+      "post_id": 4069762,
+      "md5": "5a1ae6f708677cf59d4aed0e7e45b176",
+      "sha256": "c950df6649ed0d744d83346389779e9de587dd34626f435b931d06fd23d6a835",
+      "bytes": 4797159,
+      "width": 1069,
+      "height": 3445,
+      "ext": "png",
+      "human_label": "positive"
+    },
+    {
+      "post_id": 4096700,
+      "md5": "edd6841819758168ebd468d2f79cd1ee",
+      "sha256": "246c55deed21bb7d0979ab2a63273514b3348a8e83998169badbd04482f989f4",
+      "bytes": 293063,
+      "width": 1858,
+      "height": 1868,
+      "ext": "jpg",
+      "human_label": null
+    },
+    {
+      "post_id": 4778404,
+      "md5": "c4ceae9bde16bcc0cf2b1e546bc79c5a",
+      "sha256": "428116b15bc6472ee728495a74d1e38a51b5ff54516b630d2337ec6069aa2ba4",
+      "bytes": 1816741,
+      "width": 1215,
+      "height": 1780,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 4795236,
+      "md5": "b6093d6fe74b591e999de1ad1664c9c0",
+      "sha256": "45a1057ee333b8a0cbe658e524892a24d5fd6f8c893d2ef56ce92498850a17ba",
+      "bytes": 1700177,
+      "width": 1196,
+      "height": 1026,
+      "ext": "png",
+      "human_label": "positive"
+    },
+    {
+      "post_id": 5075126,
+      "md5": "05924276b6e8cc409855814a2405dd4e",
+      "sha256": "2f6540ca2dd55e2612e0be647495fef24a0e3b396d24a07fed7b8f4bd0ba7879",
+      "bytes": 192543,
+      "width": 865,
+      "height": 1487,
+      "ext": "png",
+      "human_label": "positive"
+    },
+    {
+      "post_id": 5421276,
+      "md5": "8c444ebf129e8b45c52a27345cb7643a",
+      "sha256": "f4b18785d31862f4eadca1ffd4763261fe6c55ab7bb6c193a1789b5c43050e25",
+      "bytes": 520930,
+      "width": 700,
+      "height": 1050,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 5455452,
+      "md5": "d603be70acbb4b637bc692cedfab009d",
+      "sha256": "add3e75edff4c223dfd809c206e5a2152cf3db484adeed9404874297807f11ef",
+      "bytes": 94000,
+      "width": 828,
+      "height": 1191,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 5517513,
+      "md5": "c3c4eed4325464c567efbcb5c33b4654",
+      "sha256": "dfac1f67601b386f854e14509d5180cea57c9588407f92be9b1d44287b505412",
+      "bytes": 575385,
+      "width": 2040,
+      "height": 1030,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 5711178,
+      "md5": "5818727d82c28daa3b5978f37f7ee818",
+      "sha256": "3cd7a43f931fc08ee058b550b0001c64f90a7d6a5839292aa7a9d08f3f63367f",
+      "bytes": 486952,
+      "width": 1068,
+      "height": 1274,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 5817248,
+      "md5": "bbf6483b69702b1adeb31715354074e1",
+      "sha256": "05966a3646426a2aa8b997706d00ca48b53df8ca813ee1aa68b95351c8d2072f",
+      "bytes": 406273,
+      "width": 2000,
+      "height": 2009,
+      "ext": "jpg",
+      "human_label": null
+    },
+    {
+      "post_id": 6015196,
+      "md5": "f9b7fb1bcd03175f4ea5bdaa6ea9c190",
+      "sha256": "5d837b31b8ee6dddfa233b6a291d5be89834b9aa8c7730cf17642f3c2c0deb6f",
+      "bytes": 1561349,
+      "width": 1810,
+      "height": 1437,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 6017502,
+      "md5": "5afd8fb6e81b82617bb29604ea5e6e5d",
+      "sha256": "c825476ef14c05130e5b7a7486edd21aa199d9d0c7e6e02dbe10fd5bc690529c",
+      "bytes": 7017360,
+      "width": 2600,
+      "height": 3000,
+      "ext": "png",
+      "human_label": "positive"
+    },
+    {
+      "post_id": 6065248,
+      "md5": "4b00d43f2405fd194694d73836da5ec4",
+      "sha256": "35190da681ed421b48a2cdb6c047d8408d124a3e592568dd9efe29a6db2687ce",
+      "bytes": 1979076,
+      "width": 1500,
+      "height": 2009,
+      "ext": "jpg",
+      "human_label": null
+    },
+    {
+      "post_id": 6425469,
+      "md5": "2da84dd7461532ef480d5931922b91bc",
+      "sha256": "c13724936771f05458bab399eb6bfe9fafabb9525e9dbd5be934ba4c77406fa9",
+      "bytes": 13967751,
+      "width": 1778,
+      "height": 2372,
+      "ext": "png",
+      "human_label": "positive"
+    },
+    {
+      "post_id": 6657413,
+      "md5": "fd772efde42b35af7e28e442d6d16942",
+      "sha256": "eea7f7d7ec4092f243fed03fa61b63a62643022538bd3d4f5f0b1b2cfc30f2fb",
+      "bytes": 3856502,
+      "width": 2625,
+      "height": 2053,
+      "ext": "png",
+      "human_label": "negative"
+    },
+    {
+      "post_id": 6698219,
+      "md5": "73037f0ab39fb9a9231dd471bdcb7dbf",
+      "sha256": "77f28be59b4cb0537e6b357af44ffdd803c30adf489ffa4d85026b4209e5368d",
+      "bytes": 328614,
+      "width": 1746,
+      "height": 1138,
+      "ext": "jpg",
+      "human_label": null
+    },
+    {
+      "post_id": 6745870,
+      "md5": "8df509c0c32c25ace0a55f0f88b6dba6",
+      "sha256": "c88944dfcf179ef6fe43611ffe323c68a0b3b5d2d1957dbb653897479d38a95e",
+      "bytes": 2287448,
+      "width": 3134,
+      "height": 2070,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 6751277,
+      "md5": "0b2a01df19b1134183893cd0d7300b24",
+      "sha256": "5cc2177443d537abda5594a1031fb813d103daef34dd5a8ddddedbb94b1861f8",
+      "bytes": 1750181,
+      "width": 1683,
+      "height": 2126,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 6755226,
+      "md5": "83d66c9a8984475269c79c2fbfbbc9ed",
+      "sha256": "c47d8db8bdb7a75422eff50e67b54b6253984c786c3a066bc06a0eab508bc948",
+      "bytes": 1786322,
+      "width": 1920,
+      "height": 1920,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 6761167,
+      "md5": "9835fb118cfa1c9bf682139e286b7c00",
+      "sha256": "2c51403f606b92f390dc9509dfe609e4dff77b47b625897a7fc94aa928cff76f",
+      "bytes": 1490515,
+      "width": 1920,
+      "height": 1323,
+      "ext": "jpg",
+      "human_label": null
+    },
+    {
+      "post_id": 6762227,
+      "md5": "6911e6f8b2015465231ee19d0574cbe5",
+      "sha256": "2b84363e5cc91777a4428f9fe9bcd9d2aa19ad6aa0216d09ec6d97b156e8fbc0",
+      "bytes": 1707015,
+      "width": 1940,
+      "height": 2570,
+      "ext": "jpg",
+      "human_label": null
+    },
+    {
+      "post_id": 6763496,
+      "md5": "5330bf6bd618e9d657b23de0a04eff15",
+      "sha256": "0c5f666a2eec375b6172c25a9aa2afd6b89ca9dd4cebee08d47b5b3199a00c39",
+      "bytes": 972381,
+      "width": 800,
+      "height": 1101,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 6763637,
+      "md5": "f7f6a05b0f77dce458f983252ccbab26",
+      "sha256": "f518a2451772df131f5cc6e2c104b5d77e2234ed76034784539419f39e9d794c",
+      "bytes": 2046837,
+      "width": 1880,
+      "height": 2949,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 6767149,
+      "md5": "4a611b41c0a7757a6f248dd109736b3a",
+      "sha256": "85174f7952ffccfe36885f98a9303447657c0065d885d84a291c11924d786fe1",
+      "bytes": 1696241,
+      "width": 1080,
+      "height": 1800,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 6774371,
+      "md5": "7c2c71d715e0a54ba396886a716a138b",
+      "sha256": "7e2aca41a52cc60f017ce1703dc272959d17f100e41f92e76974e64869b3656e",
+      "bytes": 3919667,
+      "width": 1500,
+      "height": 1682,
+      "ext": "png",
+      "human_label": "negative"
+    },
+    {
+      "post_id": 6777746,
+      "md5": "a8ba78fac5b82c727d4b0f668b6c4082",
+      "sha256": "4e07ca083101bf656be4678f1557720dcb629091d18bad7f9039c68a856d867d",
+      "bytes": 72334,
+      "width": 1891,
+      "height": 1057,
+      "ext": "jpg",
+      "human_label": null
+    },
+    {
+      "post_id": 6778571,
+      "md5": "a31b7cd256c6ce701be11d5bef9b8811",
+      "sha256": "1fbdab81e62c63966403eaf06aacdb82c7960274465f8e9b00946892509fd7f2",
+      "bytes": 3071113,
+      "width": 2240,
+      "height": 1280,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 6778600,
+      "md5": "a131b8fd5928ad334bf28834fd4be79d",
+      "sha256": "bd885af9376d8128a11cda411bc30f81f47458fb66e32e3bf1340a893a15def3",
+      "bytes": 2184278,
+      "width": 2240,
+      "height": 1280,
+      "ext": "png",
+      "human_label": null
+    },
+    {
+      "post_id": 6788420,
+      "md5": "b84d776fa5ca6c7fe9036b44aa095e2b",
+      "sha256": "fbc15a599358df4e266deba98e641efcc47cfab1f2bb3497fe26b998d139eee1",
+      "bytes": 546247,
+      "width": 990,
+      "height": 1375,
+      "ext": "jpg",
+      "human_label": null
+    }
+  ]
+}

@@ -141,7 +141,6 @@ def summarize(rows):
         "prepare_ids": missing[:64],
         "conflicting_groups": len(conflicts),
         "conflict_samples": conflicts[:20],
-        "unsure_samples": [row["post_id"] for row in rows if row["state"] == "unsure"][:20],
     }
 
 

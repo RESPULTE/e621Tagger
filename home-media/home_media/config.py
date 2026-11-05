@@ -16,6 +16,8 @@ class Settings:
     ssh_user: str = "vector"
     ssh_key: str = "~/.ssh/home_media_ed25519"
     model: str = "../models/hydra-3.5.safetensors"
+    extensions: tuple[str, ...] = ()
+    max_seqlen: int = 1024
     threshold: float = 0.70
     context_threshold: float = 0.90
     focus_only: bool = False
@@ -31,6 +33,12 @@ class Settings:
             raw[name] = os.environ.get("HOME_MEDIA_" + name.upper(), raw.get(name, ""))
         raw["state"] = Path(raw.get("state", "data/state.sqlite")).expanduser()
         raw["adult_roots"] = tuple(raw.get("adult_roots", []))
+        if "extensions" in raw:
+            if not isinstance(raw["extensions"], list) or any(
+                not isinstance(value, str) or not value.strip() for value in raw["extensions"]
+            ):
+                raise ValueError("extensions must be an ordered list of explicit safetensors paths")
+            raw["extensions"] = tuple(raw["extensions"])
         if "focus_categories" in raw:
             values = raw["focus_categories"]
             if not isinstance(values, list) or any(
@@ -52,6 +60,7 @@ class Settings:
             or type(result.focus_only) is not bool
             or type(result.max_frames) is not int or result.max_frames < 1
             or type(result.video_frames) is not int or result.video_frames < 1
+            or type(result.max_seqlen) is not int or result.max_seqlen not in (256, 512, 1024)
         ):
             raise ValueError("Invalid inference limits")
         return result

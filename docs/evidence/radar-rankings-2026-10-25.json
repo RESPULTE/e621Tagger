@@ -1,0 +1,1817 @@
+{
+  "created_at_utc": "2026-10-25T13:32:07.234760+00:00",
+  "report_type": "post-retrieval human-confirmation rescore",
+  "source_report": "retrieval-report.json",
+  "source_report_sha256": "ece29cd3b4c00306fe45352c38a540fe21115c514ec8979c6f5037437224bb6d",
+  "source_judgments": "judgments.jsonl",
+  "source_judgments_sha256": "11b871eeb06569e12218b37edfcedb4fd24616d0143fdcf1bbeb44ca9fe90089",
+  "confirmed_judgments": "judgments-confirmed.jsonl",
+  "metric_function": "backend.benchmark_similarity.discovery_metrics",
+  "pipeline": {
+    "pipeline": "hydra-forward-embedding-v1",
+    "source_sha256": "289494f2945dcc8a23d2ef6e243fe3a4bb7133b413cde27b11cef238314002d7",
+    "checkpoint_sha256": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+    "architecture": "naflexvit_so400m_patch16_siglip+rr_hydra2",
+    "max_seqlen": 1024,
+    "precision": "bfloat16",
+    "torch": "2.8.0+cu128",
+    "cuda_runtime": "12.8",
+    "numpy": "2.2.6",
+    "pyvips": "3.2.0",
+    "libvips": "8.18.7",
+    "raw_output": "float32-copy-of-bfloat16-embedding-head",
+    "dimension": 2048,
+    "transform": "float32-l2-normalize-no-centering",
+    "historical_compatible": false
+  },
+  "confirmation_scope": {
+    "verified_by": "user-supplied judgments in current task",
+    "verified_at": "2026-10-25",
+    "positive_ids": [
+      4069762,
+      6017502,
+      6425469,
+      3512266,
+      3512309,
+      3512319,
+      5075126,
+      4795236
+    ],
+    "negative_ids": [
+      1920276,
+      6657413,
+      6774371
+    ],
+    "initially_confirmed_positive_ids": [
+      4069762,
+      6017502,
+      6425469
+    ],
+    "newly_confirmed_positive_ids": [
+      3512266,
+      3512309,
+      3512319,
+      5075126,
+      4795236
+    ],
+    "query_specific_positive_ids_exclude_the_query_image": true
+  },
+  "selected_corpus_limits": {
+    "held_out": false,
+    "note": "This is post-retrieval confirmation on a selected corpus. The five newly confirmed positives were drawn from the same selected retrieval candidate corpus, so these metrics are not independent held-out validation or corpus-wide estimates.",
+    "recall_scope": "Known positive recall is relative to the seven confirmed positives other than each query image.",
+    "precision_scope": "P@32 is a lower bound; unjudged results remain unknown and are not inferred from tags."
+  },
+  "aggregate": {
+    "query_count": 3,
+    "actual_precision_at_5_per_query": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "precision_at_32_lower_bound_per_query": [
+      0.21875,
+      0.21875,
+      0.21875
+    ],
+    "known_recall_at_32_per_query": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "unique_discovery_yield_at_5": 4,
+    "unique_newly_confirmed_positive_ids_at_5": [
+      3512266,
+      3512309,
+      3512319,
+      5075126
+    ],
+    "sum_of_per_query_new_positive_hits_at_5": 9,
+    "unique_discovery_yield_at_32": 5,
+    "unique_newly_confirmed_positive_ids_at_32": [
+      3512266,
+      3512309,
+      3512319,
+      4795236,
+      5075126
+    ]
+  },
+  "results": [
+    {
+      "query_post_id": 4069762,
+      "target": "radar_(thetwfz)",
+      "query": "post-4069762-original.png",
+      "post_retrieval_human_confirmation": {
+        "verified_by": "user-supplied judgments in current task",
+        "verified_at": "2026-10-25",
+        "positive_ids_excluding_query": [
+          6017502,
+          6425469,
+          3512266,
+          3512309,
+          3512319,
+          5075126,
+          4795236
+        ],
+        "negative_ids": [
+          1920276,
+          6657413,
+          6774371
+        ],
+        "already_confirmed_ids_before_this_confirmation": [
+          4069762,
+          6017502,
+          6425469
+        ],
+        "newly_confirmed_positive_ids": [
+          3512266,
+          3512309,
+          3512319,
+          5075126,
+          4795236
+        ]
+      },
+      "measurement_provenance": {
+        "source_report": "retrieval-report.json",
+        "source_report_sha256": "ece29cd3b4c00306fe45352c38a540fe21115c514ec8979c6f5037437224bb6d",
+        "query_sha256": "c950df6649ed0d744d83346389779e9de587dd34626f435b931d06fd23d6a835",
+        "index_revision": "9898f7ea924997121420bc30ac28a1ce8b192c8071dde6c64e3624fa0954eb47",
+        "embedding_ms": 613.9445000007981,
+        "search_ms": 1.4037000000826083,
+        "pipeline": {
+          "pipeline": "hydra-forward-embedding-v1",
+          "source_sha256": "289494f2945dcc8a23d2ef6e243fe3a4bb7133b413cde27b11cef238314002d7",
+          "checkpoint_sha256": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+          "architecture": "naflexvit_so400m_patch16_siglip+rr_hydra2",
+          "max_seqlen": 1024,
+          "precision": "bfloat16",
+          "torch": "2.8.0+cu128",
+          "cuda_runtime": "12.8",
+          "numpy": "2.2.6",
+          "pyvips": "3.2.0",
+          "libvips": "8.18.7",
+          "raw_output": "float32-copy-of-bfloat16-embedding-head",
+          "dimension": 2048,
+          "transform": "float32-l2-normalize-no-centering",
+          "historical_compatible": false
+        },
+        "ranking_preserved_without_rerun": true,
+        "ranking": [
+          {
+            "post_id": 6017502,
+            "md5": "5afd8fb6e81b82617bb29604ea5e6e5d",
+            "rank": 1,
+            "distance": 0.43173614144325256
+          },
+          {
+            "post_id": 3512266,
+            "md5": "2deaba3aeddccbe89c94e5ad7d5e663a",
+            "rank": 2,
+            "distance": 0.5691465735435486
+          },
+          {
+            "post_id": 3512309,
+            "md5": "16772a6b335f6b45b324c5cc4c942ba4",
+            "rank": 3,
+            "distance": 0.5994405150413513
+          },
+          {
+            "post_id": 3512319,
+            "md5": "a5353fb87aedc6f82322cebb499fce59",
+            "rank": 4,
+            "distance": 0.6270352602005005
+          },
+          {
+            "post_id": 6425469,
+            "md5": "2da84dd7461532ef480d5931922b91bc",
+            "rank": 5,
+            "distance": 0.640791118144989
+          },
+          {
+            "post_id": 5075126,
+            "md5": "05924276b6e8cc409855814a2405dd4e",
+            "rank": 6,
+            "distance": 0.732018768787384
+          },
+          {
+            "post_id": 6698219,
+            "md5": "73037f0ab39fb9a9231dd471bdcb7dbf",
+            "rank": 7,
+            "distance": 0.7571603655815125
+          },
+          {
+            "post_id": 4795236,
+            "md5": "b6093d6fe74b591e999de1ad1664c9c0",
+            "rank": 8,
+            "distance": 0.7607335448265076
+          },
+          {
+            "post_id": 5817248,
+            "md5": "bbf6483b69702b1adeb31715354074e1",
+            "rank": 9,
+            "distance": 0.7906232476234436
+          },
+          {
+            "post_id": 5711178,
+            "md5": "5818727d82c28daa3b5978f37f7ee818",
+            "rank": 10,
+            "distance": 0.7981439232826233
+          },
+          {
+            "post_id": 1920276,
+            "md5": "b7b53e8c65d5d6060f41c8b027285de5",
+            "rank": 11,
+            "distance": 0.8074275851249695
+          },
+          {
+            "post_id": 6777746,
+            "md5": "a8ba78fac5b82c727d4b0f668b6c4082",
+            "rank": 12,
+            "distance": 0.8106297254562378
+          },
+          {
+            "post_id": 5455452,
+            "md5": "d603be70acbb4b637bc692cedfab009d",
+            "rank": 13,
+            "distance": 0.8115975260734558
+          },
+          {
+            "post_id": 6015196,
+            "md5": "f9b7fb1bcd03175f4ea5bdaa6ea9c190",
+            "rank": 14,
+            "distance": 0.8290694355964661
+          },
+          {
+            "post_id": 4778404,
+            "md5": "c4ceae9bde16bcc0cf2b1e546bc79c5a",
+            "rank": 15,
+            "distance": 0.8292843103408813
+          },
+          {
+            "post_id": 4096700,
+            "md5": "edd6841819758168ebd468d2f79cd1ee",
+            "rank": 16,
+            "distance": 0.8304105997085571
+          },
+          {
+            "post_id": 6065248,
+            "md5": "4b00d43f2405fd194694d73836da5ec4",
+            "rank": 17,
+            "distance": 0.8309887647628784
+          },
+          {
+            "post_id": 5421276,
+            "md5": "8c444ebf129e8b45c52a27345cb7643a",
+            "rank": 18,
+            "distance": 0.8366203904151917
+          },
+          {
+            "post_id": 6745870,
+            "md5": "8df509c0c32c25ace0a55f0f88b6dba6",
+            "rank": 19,
+            "distance": 0.8478315472602844
+          },
+          {
+            "post_id": 6755226,
+            "md5": "83d66c9a8984475269c79c2fbfbbc9ed",
+            "rank": 20,
+            "distance": 0.8494259119033813
+          },
+          {
+            "post_id": 6774371,
+            "md5": "7c2c71d715e0a54ba396886a716a138b",
+            "rank": 21,
+            "distance": 0.8743250966072083
+          },
+          {
+            "post_id": 3450750,
+            "md5": "e1f08bedcc03709b817bcde264137c89",
+            "rank": 22,
+            "distance": 0.8832389116287231
+          },
+          {
+            "post_id": 6762227,
+            "md5": "6911e6f8b2015465231ee19d0574cbe5",
+            "rank": 23,
+            "distance": 0.9069085717201233
+          },
+          {
+            "post_id": 6788420,
+            "md5": "b84d776fa5ca6c7fe9036b44aa095e2b",
+            "rank": 24,
+            "distance": 0.9108408093452454
+          },
+          {
+            "post_id": 6767149,
+            "md5": "4a611b41c0a7757a6f248dd109736b3a",
+            "rank": 25,
+            "distance": 0.9140791296958923
+          },
+          {
+            "post_id": 6761167,
+            "md5": "9835fb118cfa1c9bf682139e286b7c00",
+            "rank": 26,
+            "distance": 0.9179540276527405
+          },
+          {
+            "post_id": 6751277,
+            "md5": "0b2a01df19b1134183893cd0d7300b24",
+            "rank": 27,
+            "distance": 0.9221715331077576
+          },
+          {
+            "post_id": 6763637,
+            "md5": "f7f6a05b0f77dce458f983252ccbab26",
+            "rank": 28,
+            "distance": 0.9682385921478271
+          },
+          {
+            "post_id": 3232854,
+            "md5": "2342e8c0d13c9b3cfc5557109c6971ca",
+            "rank": 29,
+            "distance": 0.9733142852783203
+          },
+          {
+            "post_id": 6657413,
+            "md5": "fd772efde42b35af7e28e442d6d16942",
+            "rank": 30,
+            "distance": 0.9784324765205383
+          },
+          {
+            "post_id": 6763496,
+            "md5": "5330bf6bd618e9d657b23de0a04eff15",
+            "rank": 31,
+            "distance": 0.9915321469306946
+          },
+          {
+            "post_id": 5517513,
+            "md5": "c3c4eed4325464c567efbcb5c33b4654",
+            "rank": 32,
+            "distance": 1.0028403997421265
+          }
+        ],
+        "pre_confirmation_report_metrics": {
+          "requested_k": 32,
+          "returned": 32,
+          "positive_hits": 2,
+          "negative_hits": 3,
+          "unjudged": 27,
+          "precision_at_k_lower_bound": 0.0625,
+          "precision_among_judged": 0.4,
+          "recall_of_known_positives_at_k": 1.0,
+          "new_confirmed_positives": 0,
+          "hard_negative_yield": 3,
+          "limitation": "Recall uses known positives only; unjudged results do not establish true precision"
+        }
+      },
+      "confirmed_metrics": {
+        "actual_precision_at_5": 1.0,
+        "precision_at_5_is_exact": true,
+        "positive_hits_at_5": 5,
+        "negative_hits_at_5": 0,
+        "unjudged_at_5": 0,
+        "precision_at_32_lower_bound": 0.21875,
+        "positive_hits_at_32": 7,
+        "negative_hits_at_32": 3,
+        "unjudged_at_32": 22,
+        "precision_among_judged_at_32": 0.7,
+        "known_positive_count_excluding_query": 7,
+        "known_recall_at_32": 1.0,
+        "newly_confirmed_positive_hits_at_5": 3,
+        "newly_confirmed_positive_ids_at_5": [
+          3512266,
+          3512309,
+          3512319
+        ],
+        "newly_confirmed_positive_hits_at_32": 5,
+        "newly_confirmed_positive_ids_at_32": [
+          3512266,
+          3512309,
+          3512319,
+          4795236,
+          5075126
+        ],
+        "known_positive_ranks_at_32": {
+          "6017502": 1,
+          "6425469": 5,
+          "3512266": 2,
+          "3512309": 3,
+          "3512319": 4,
+          "5075126": 6,
+          "4795236": 8
+        },
+        "hard_negative_ranks_at_32": {
+          "1920276": 11,
+          "6657413": 30,
+          "6774371": 21
+        },
+        "hard_negative_hits_at_5": 0
+      },
+      "annotated_neighbors": [
+        {
+          "post_id": 6017502,
+          "md5": "5afd8fb6e81b82617bb29604ea5e6e5d",
+          "rank": 1,
+          "distance": 0.43173614144325256,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 3512266,
+          "md5": "2deaba3aeddccbe89c94e5ad7d5e663a",
+          "rank": 2,
+          "distance": 0.5691465735435486,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 3512309,
+          "md5": "16772a6b335f6b45b324c5cc4c942ba4",
+          "rank": 3,
+          "distance": 0.5994405150413513,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 3512319,
+          "md5": "a5353fb87aedc6f82322cebb499fce59",
+          "rank": 4,
+          "distance": 0.6270352602005005,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 6425469,
+          "md5": "2da84dd7461532ef480d5931922b91bc",
+          "rank": 5,
+          "distance": 0.640791118144989,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 5075126,
+          "md5": "05924276b6e8cc409855814a2405dd4e",
+          "rank": 6,
+          "distance": 0.732018768787384,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 6698219,
+          "md5": "73037f0ab39fb9a9231dd471bdcb7dbf",
+          "rank": 7,
+          "distance": 0.7571603655815125,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 4795236,
+          "md5": "b6093d6fe74b591e999de1ad1664c9c0",
+          "rank": 8,
+          "distance": 0.7607335448265076,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 5817248,
+          "md5": "bbf6483b69702b1adeb31715354074e1",
+          "rank": 9,
+          "distance": 0.7906232476234436,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 5711178,
+          "md5": "5818727d82c28daa3b5978f37f7ee818",
+          "rank": 10,
+          "distance": 0.7981439232826233,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 1920276,
+          "md5": "b7b53e8c65d5d6060f41c8b027285de5",
+          "rank": 11,
+          "distance": 0.8074275851249695,
+          "human_label": "negative",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 6777746,
+          "md5": "a8ba78fac5b82c727d4b0f668b6c4082",
+          "rank": 12,
+          "distance": 0.8106297254562378,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 5455452,
+          "md5": "d603be70acbb4b637bc692cedfab009d",
+          "rank": 13,
+          "distance": 0.8115975260734558,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6015196,
+          "md5": "f9b7fb1bcd03175f4ea5bdaa6ea9c190",
+          "rank": 14,
+          "distance": 0.8290694355964661,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 4778404,
+          "md5": "c4ceae9bde16bcc0cf2b1e546bc79c5a",
+          "rank": 15,
+          "distance": 0.8292843103408813,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 4096700,
+          "md5": "edd6841819758168ebd468d2f79cd1ee",
+          "rank": 16,
+          "distance": 0.8304105997085571,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6065248,
+          "md5": "4b00d43f2405fd194694d73836da5ec4",
+          "rank": 17,
+          "distance": 0.8309887647628784,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 5421276,
+          "md5": "8c444ebf129e8b45c52a27345cb7643a",
+          "rank": 18,
+          "distance": 0.8366203904151917,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6745870,
+          "md5": "8df509c0c32c25ace0a55f0f88b6dba6",
+          "rank": 19,
+          "distance": 0.8478315472602844,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6755226,
+          "md5": "83d66c9a8984475269c79c2fbfbbc9ed",
+          "rank": 20,
+          "distance": 0.8494259119033813,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6774371,
+          "md5": "7c2c71d715e0a54ba396886a716a138b",
+          "rank": 21,
+          "distance": 0.8743250966072083,
+          "human_label": "negative",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 3450750,
+          "md5": "e1f08bedcc03709b817bcde264137c89",
+          "rank": 22,
+          "distance": 0.8832389116287231,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6762227,
+          "md5": "6911e6f8b2015465231ee19d0574cbe5",
+          "rank": 23,
+          "distance": 0.9069085717201233,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6788420,
+          "md5": "b84d776fa5ca6c7fe9036b44aa095e2b",
+          "rank": 24,
+          "distance": 0.9108408093452454,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6767149,
+          "md5": "4a611b41c0a7757a6f248dd109736b3a",
+          "rank": 25,
+          "distance": 0.9140791296958923,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6761167,
+          "md5": "9835fb118cfa1c9bf682139e286b7c00",
+          "rank": 26,
+          "distance": 0.9179540276527405,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6751277,
+          "md5": "0b2a01df19b1134183893cd0d7300b24",
+          "rank": 27,
+          "distance": 0.9221715331077576,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6763637,
+          "md5": "f7f6a05b0f77dce458f983252ccbab26",
+          "rank": 28,
+          "distance": 0.9682385921478271,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 3232854,
+          "md5": "2342e8c0d13c9b3cfc5557109c6971ca",
+          "rank": 29,
+          "distance": 0.9733142852783203,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6657413,
+          "md5": "fd772efde42b35af7e28e442d6d16942",
+          "rank": 30,
+          "distance": 0.9784324765205383,
+          "human_label": "negative",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 6763496,
+          "md5": "5330bf6bd618e9d657b23de0a04eff15",
+          "rank": 31,
+          "distance": 0.9915321469306946,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 5517513,
+          "md5": "c3c4eed4325464c567efbcb5c33b4654",
+          "rank": 32,
+          "distance": 1.0028403997421265,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        }
+      ],
+      "metric_function": "backend.benchmark_similarity.discovery_metrics",
+      "unknown_label_policy": "UNJUDGED; no tags or other metadata used to infer labels",
+      "metric_limitation": "Recall uses known positives only; unjudged results do not establish true precision"
+    },
+    {
+      "query_post_id": 6017502,
+      "target": "radar_(thetwfz)",
+      "query": "post-6017502-original.png",
+      "post_retrieval_human_confirmation": {
+        "verified_by": "user-supplied judgments in current task",
+        "verified_at": "2026-10-25",
+        "positive_ids_excluding_query": [
+          4069762,
+          6425469,
+          3512266,
+          3512309,
+          3512319,
+          5075126,
+          4795236
+        ],
+        "negative_ids": [
+          1920276,
+          6657413,
+          6774371
+        ],
+        "already_confirmed_ids_before_this_confirmation": [
+          4069762,
+          6017502,
+          6425469
+        ],
+        "newly_confirmed_positive_ids": [
+          3512266,
+          3512309,
+          3512319,
+          5075126,
+          4795236
+        ]
+      },
+      "measurement_provenance": {
+        "source_report": "retrieval-report.json",
+        "source_report_sha256": "ece29cd3b4c00306fe45352c38a540fe21115c514ec8979c6f5037437224bb6d",
+        "query_sha256": "c825476ef14c05130e5b7a7486edd21aa199d9d0c7e6e02dbe10fd5bc690529c",
+        "index_revision": "9898f7ea924997121420bc30ac28a1ce8b192c8071dde6c64e3624fa0954eb47",
+        "embedding_ms": 316.5268000011565,
+        "search_ms": 1.1617999989539385,
+        "pipeline": {
+          "pipeline": "hydra-forward-embedding-v1",
+          "source_sha256": "289494f2945dcc8a23d2ef6e243fe3a4bb7133b413cde27b11cef238314002d7",
+          "checkpoint_sha256": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+          "architecture": "naflexvit_so400m_patch16_siglip+rr_hydra2",
+          "max_seqlen": 1024,
+          "precision": "bfloat16",
+          "torch": "2.8.0+cu128",
+          "cuda_runtime": "12.8",
+          "numpy": "2.2.6",
+          "pyvips": "3.2.0",
+          "libvips": "8.18.7",
+          "raw_output": "float32-copy-of-bfloat16-embedding-head",
+          "dimension": 2048,
+          "transform": "float32-l2-normalize-no-centering",
+          "historical_compatible": false
+        },
+        "ranking_preserved_without_rerun": true,
+        "ranking": [
+          {
+            "post_id": 4069762,
+            "md5": "5a1ae6f708677cf59d4aed0e7e45b176",
+            "rank": 1,
+            "distance": 0.43173614144325256
+          },
+          {
+            "post_id": 3512266,
+            "md5": "2deaba3aeddccbe89c94e5ad7d5e663a",
+            "rank": 2,
+            "distance": 0.5020598769187927
+          },
+          {
+            "post_id": 3512309,
+            "md5": "16772a6b335f6b45b324c5cc4c942ba4",
+            "rank": 3,
+            "distance": 0.5449542999267578
+          },
+          {
+            "post_id": 3512319,
+            "md5": "a5353fb87aedc6f82322cebb499fce59",
+            "rank": 4,
+            "distance": 0.5475343465805054
+          },
+          {
+            "post_id": 6425469,
+            "md5": "2da84dd7461532ef480d5931922b91bc",
+            "rank": 5,
+            "distance": 0.6074120402336121
+          },
+          {
+            "post_id": 4795236,
+            "md5": "b6093d6fe74b591e999de1ad1664c9c0",
+            "rank": 6,
+            "distance": 0.679627001285553
+          },
+          {
+            "post_id": 5075126,
+            "md5": "05924276b6e8cc409855814a2405dd4e",
+            "rank": 7,
+            "distance": 0.7005619406700134
+          },
+          {
+            "post_id": 6698219,
+            "md5": "73037f0ab39fb9a9231dd471bdcb7dbf",
+            "rank": 8,
+            "distance": 0.7504026889801025
+          },
+          {
+            "post_id": 5455452,
+            "md5": "d603be70acbb4b637bc692cedfab009d",
+            "rank": 9,
+            "distance": 0.7634008526802063
+          },
+          {
+            "post_id": 5711178,
+            "md5": "5818727d82c28daa3b5978f37f7ee818",
+            "rank": 10,
+            "distance": 0.784191370010376
+          },
+          {
+            "post_id": 4778404,
+            "md5": "c4ceae9bde16bcc0cf2b1e546bc79c5a",
+            "rank": 11,
+            "distance": 0.7856780290603638
+          },
+          {
+            "post_id": 4096700,
+            "md5": "edd6841819758168ebd468d2f79cd1ee",
+            "rank": 12,
+            "distance": 0.7931196093559265
+          },
+          {
+            "post_id": 6015196,
+            "md5": "f9b7fb1bcd03175f4ea5bdaa6ea9c190",
+            "rank": 13,
+            "distance": 0.7946634292602539
+          },
+          {
+            "post_id": 5421276,
+            "md5": "8c444ebf129e8b45c52a27345cb7643a",
+            "rank": 14,
+            "distance": 0.7995638847351074
+          },
+          {
+            "post_id": 6777746,
+            "md5": "a8ba78fac5b82c727d4b0f668b6c4082",
+            "rank": 15,
+            "distance": 0.80027836561203
+          },
+          {
+            "post_id": 1920276,
+            "md5": "b7b53e8c65d5d6060f41c8b027285de5",
+            "rank": 16,
+            "distance": 0.8100137710571289
+          },
+          {
+            "post_id": 5817248,
+            "md5": "bbf6483b69702b1adeb31715354074e1",
+            "rank": 17,
+            "distance": 0.8120526671409607
+          },
+          {
+            "post_id": 6065248,
+            "md5": "4b00d43f2405fd194694d73836da5ec4",
+            "rank": 18,
+            "distance": 0.8249765634536743
+          },
+          {
+            "post_id": 6755226,
+            "md5": "83d66c9a8984475269c79c2fbfbbc9ed",
+            "rank": 19,
+            "distance": 0.8252531886100769
+          },
+          {
+            "post_id": 6745870,
+            "md5": "8df509c0c32c25ace0a55f0f88b6dba6",
+            "rank": 20,
+            "distance": 0.8300804495811462
+          },
+          {
+            "post_id": 6774371,
+            "md5": "7c2c71d715e0a54ba396886a716a138b",
+            "rank": 21,
+            "distance": 0.8593201637268066
+          },
+          {
+            "post_id": 6761167,
+            "md5": "9835fb118cfa1c9bf682139e286b7c00",
+            "rank": 22,
+            "distance": 0.8752515316009521
+          },
+          {
+            "post_id": 6788420,
+            "md5": "b84d776fa5ca6c7fe9036b44aa095e2b",
+            "rank": 23,
+            "distance": 0.8848499059677124
+          },
+          {
+            "post_id": 3450750,
+            "md5": "e1f08bedcc03709b817bcde264137c89",
+            "rank": 24,
+            "distance": 0.8853353261947632
+          },
+          {
+            "post_id": 6762227,
+            "md5": "6911e6f8b2015465231ee19d0574cbe5",
+            "rank": 25,
+            "distance": 0.8901868462562561
+          },
+          {
+            "post_id": 6767149,
+            "md5": "4a611b41c0a7757a6f248dd109736b3a",
+            "rank": 26,
+            "distance": 0.8953877091407776
+          },
+          {
+            "post_id": 6751277,
+            "md5": "0b2a01df19b1134183893cd0d7300b24",
+            "rank": 27,
+            "distance": 0.9253170490264893
+          },
+          {
+            "post_id": 3232854,
+            "md5": "2342e8c0d13c9b3cfc5557109c6971ca",
+            "rank": 28,
+            "distance": 0.9367821216583252
+          },
+          {
+            "post_id": 6763637,
+            "md5": "f7f6a05b0f77dce458f983252ccbab26",
+            "rank": 29,
+            "distance": 0.9379709362983704
+          },
+          {
+            "post_id": 5517513,
+            "md5": "c3c4eed4325464c567efbcb5c33b4654",
+            "rank": 30,
+            "distance": 0.9834097027778625
+          },
+          {
+            "post_id": 6763496,
+            "md5": "5330bf6bd618e9d657b23de0a04eff15",
+            "rank": 31,
+            "distance": 0.9983422756195068
+          },
+          {
+            "post_id": 6657413,
+            "md5": "fd772efde42b35af7e28e442d6d16942",
+            "rank": 32,
+            "distance": 0.9997693300247192
+          }
+        ],
+        "pre_confirmation_report_metrics": {
+          "requested_k": 32,
+          "returned": 32,
+          "positive_hits": 2,
+          "negative_hits": 3,
+          "unjudged": 27,
+          "precision_at_k_lower_bound": 0.0625,
+          "precision_among_judged": 0.4,
+          "recall_of_known_positives_at_k": 1.0,
+          "new_confirmed_positives": 0,
+          "hard_negative_yield": 3,
+          "limitation": "Recall uses known positives only; unjudged results do not establish true precision"
+        }
+      },
+      "confirmed_metrics": {
+        "actual_precision_at_5": 1.0,
+        "precision_at_5_is_exact": true,
+        "positive_hits_at_5": 5,
+        "negative_hits_at_5": 0,
+        "unjudged_at_5": 0,
+        "precision_at_32_lower_bound": 0.21875,
+        "positive_hits_at_32": 7,
+        "negative_hits_at_32": 3,
+        "unjudged_at_32": 22,
+        "precision_among_judged_at_32": 0.7,
+        "known_positive_count_excluding_query": 7,
+        "known_recall_at_32": 1.0,
+        "newly_confirmed_positive_hits_at_5": 3,
+        "newly_confirmed_positive_ids_at_5": [
+          3512266,
+          3512309,
+          3512319
+        ],
+        "newly_confirmed_positive_hits_at_32": 5,
+        "newly_confirmed_positive_ids_at_32": [
+          3512266,
+          3512309,
+          3512319,
+          4795236,
+          5075126
+        ],
+        "known_positive_ranks_at_32": {
+          "4069762": 1,
+          "6425469": 5,
+          "3512266": 2,
+          "3512309": 3,
+          "3512319": 4,
+          "5075126": 7,
+          "4795236": 6
+        },
+        "hard_negative_ranks_at_32": {
+          "1920276": 16,
+          "6657413": 32,
+          "6774371": 21
+        },
+        "hard_negative_hits_at_5": 0
+      },
+      "annotated_neighbors": [
+        {
+          "post_id": 4069762,
+          "md5": "5a1ae6f708677cf59d4aed0e7e45b176",
+          "rank": 1,
+          "distance": 0.43173614144325256,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 3512266,
+          "md5": "2deaba3aeddccbe89c94e5ad7d5e663a",
+          "rank": 2,
+          "distance": 0.5020598769187927,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 3512309,
+          "md5": "16772a6b335f6b45b324c5cc4c942ba4",
+          "rank": 3,
+          "distance": 0.5449542999267578,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 3512319,
+          "md5": "a5353fb87aedc6f82322cebb499fce59",
+          "rank": 4,
+          "distance": 0.5475343465805054,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 6425469,
+          "md5": "2da84dd7461532ef480d5931922b91bc",
+          "rank": 5,
+          "distance": 0.6074120402336121,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 4795236,
+          "md5": "b6093d6fe74b591e999de1ad1664c9c0",
+          "rank": 6,
+          "distance": 0.679627001285553,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 5075126,
+          "md5": "05924276b6e8cc409855814a2405dd4e",
+          "rank": 7,
+          "distance": 0.7005619406700134,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 6698219,
+          "md5": "73037f0ab39fb9a9231dd471bdcb7dbf",
+          "rank": 8,
+          "distance": 0.7504026889801025,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 5455452,
+          "md5": "d603be70acbb4b637bc692cedfab009d",
+          "rank": 9,
+          "distance": 0.7634008526802063,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 5711178,
+          "md5": "5818727d82c28daa3b5978f37f7ee818",
+          "rank": 10,
+          "distance": 0.784191370010376,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 4778404,
+          "md5": "c4ceae9bde16bcc0cf2b1e546bc79c5a",
+          "rank": 11,
+          "distance": 0.7856780290603638,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 4096700,
+          "md5": "edd6841819758168ebd468d2f79cd1ee",
+          "rank": 12,
+          "distance": 0.7931196093559265,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6015196,
+          "md5": "f9b7fb1bcd03175f4ea5bdaa6ea9c190",
+          "rank": 13,
+          "distance": 0.7946634292602539,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 5421276,
+          "md5": "8c444ebf129e8b45c52a27345cb7643a",
+          "rank": 14,
+          "distance": 0.7995638847351074,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6777746,
+          "md5": "a8ba78fac5b82c727d4b0f668b6c4082",
+          "rank": 15,
+          "distance": 0.80027836561203,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 1920276,
+          "md5": "b7b53e8c65d5d6060f41c8b027285de5",
+          "rank": 16,
+          "distance": 0.8100137710571289,
+          "human_label": "negative",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 5817248,
+          "md5": "bbf6483b69702b1adeb31715354074e1",
+          "rank": 17,
+          "distance": 0.8120526671409607,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6065248,
+          "md5": "4b00d43f2405fd194694d73836da5ec4",
+          "rank": 18,
+          "distance": 0.8249765634536743,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6755226,
+          "md5": "83d66c9a8984475269c79c2fbfbbc9ed",
+          "rank": 19,
+          "distance": 0.8252531886100769,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6745870,
+          "md5": "8df509c0c32c25ace0a55f0f88b6dba6",
+          "rank": 20,
+          "distance": 0.8300804495811462,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6774371,
+          "md5": "7c2c71d715e0a54ba396886a716a138b",
+          "rank": 21,
+          "distance": 0.8593201637268066,
+          "human_label": "negative",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 6761167,
+          "md5": "9835fb118cfa1c9bf682139e286b7c00",
+          "rank": 22,
+          "distance": 0.8752515316009521,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6788420,
+          "md5": "b84d776fa5ca6c7fe9036b44aa095e2b",
+          "rank": 23,
+          "distance": 0.8848499059677124,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 3450750,
+          "md5": "e1f08bedcc03709b817bcde264137c89",
+          "rank": 24,
+          "distance": 0.8853353261947632,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6762227,
+          "md5": "6911e6f8b2015465231ee19d0574cbe5",
+          "rank": 25,
+          "distance": 0.8901868462562561,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6767149,
+          "md5": "4a611b41c0a7757a6f248dd109736b3a",
+          "rank": 26,
+          "distance": 0.8953877091407776,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6751277,
+          "md5": "0b2a01df19b1134183893cd0d7300b24",
+          "rank": 27,
+          "distance": 0.9253170490264893,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 3232854,
+          "md5": "2342e8c0d13c9b3cfc5557109c6971ca",
+          "rank": 28,
+          "distance": 0.9367821216583252,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6763637,
+          "md5": "f7f6a05b0f77dce458f983252ccbab26",
+          "rank": 29,
+          "distance": 0.9379709362983704,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 5517513,
+          "md5": "c3c4eed4325464c567efbcb5c33b4654",
+          "rank": 30,
+          "distance": 0.9834097027778625,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6763496,
+          "md5": "5330bf6bd618e9d657b23de0a04eff15",
+          "rank": 31,
+          "distance": 0.9983422756195068,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6657413,
+          "md5": "fd772efde42b35af7e28e442d6d16942",
+          "rank": 32,
+          "distance": 0.9997693300247192,
+          "human_label": "negative",
+          "label_source": "user-confirmed IDs only"
+        }
+      ],
+      "metric_function": "backend.benchmark_similarity.discovery_metrics",
+      "unknown_label_policy": "UNJUDGED; no tags or other metadata used to infer labels",
+      "metric_limitation": "Recall uses known positives only; unjudged results do not establish true precision"
+    },
+    {
+      "query_post_id": 6425469,
+      "target": "radar_(thetwfz)",
+      "query": "post-6425469-original.png",
+      "post_retrieval_human_confirmation": {
+        "verified_by": "user-supplied judgments in current task",
+        "verified_at": "2026-10-25",
+        "positive_ids_excluding_query": [
+          4069762,
+          6017502,
+          3512266,
+          3512309,
+          3512319,
+          5075126,
+          4795236
+        ],
+        "negative_ids": [
+          1920276,
+          6657413,
+          6774371
+        ],
+        "already_confirmed_ids_before_this_confirmation": [
+          4069762,
+          6017502,
+          6425469
+        ],
+        "newly_confirmed_positive_ids": [
+          3512266,
+          3512309,
+          3512319,
+          5075126,
+          4795236
+        ]
+      },
+      "measurement_provenance": {
+        "source_report": "retrieval-report.json",
+        "source_report_sha256": "ece29cd3b4c00306fe45352c38a540fe21115c514ec8979c6f5037437224bb6d",
+        "query_sha256": "c13724936771f05458bab399eb6bfe9fafabb9525e9dbd5be934ba4c77406fa9",
+        "index_revision": "9898f7ea924997121420bc30ac28a1ce8b192c8071dde6c64e3624fa0954eb47",
+        "embedding_ms": 390.9179000002041,
+        "search_ms": 1.4019000009284355,
+        "pipeline": {
+          "pipeline": "hydra-forward-embedding-v1",
+          "source_sha256": "289494f2945dcc8a23d2ef6e243fe3a4bb7133b413cde27b11cef238314002d7",
+          "checkpoint_sha256": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+          "architecture": "naflexvit_so400m_patch16_siglip+rr_hydra2",
+          "max_seqlen": 1024,
+          "precision": "bfloat16",
+          "torch": "2.8.0+cu128",
+          "cuda_runtime": "12.8",
+          "numpy": "2.2.6",
+          "pyvips": "3.2.0",
+          "libvips": "8.18.7",
+          "raw_output": "float32-copy-of-bfloat16-embedding-head",
+          "dimension": 2048,
+          "transform": "float32-l2-normalize-no-centering",
+          "historical_compatible": false
+        },
+        "ranking_preserved_without_rerun": true,
+        "ranking": [
+          {
+            "post_id": 6017502,
+            "md5": "5afd8fb6e81b82617bb29604ea5e6e5d",
+            "rank": 1,
+            "distance": 0.6074120402336121
+          },
+          {
+            "post_id": 4069762,
+            "md5": "5a1ae6f708677cf59d4aed0e7e45b176",
+            "rank": 2,
+            "distance": 0.640791118144989
+          },
+          {
+            "post_id": 3512266,
+            "md5": "2deaba3aeddccbe89c94e5ad7d5e663a",
+            "rank": 3,
+            "distance": 0.6829993724822998
+          },
+          {
+            "post_id": 3512309,
+            "md5": "16772a6b335f6b45b324c5cc4c942ba4",
+            "rank": 4,
+            "distance": 0.7283335328102112
+          },
+          {
+            "post_id": 5075126,
+            "md5": "05924276b6e8cc409855814a2405dd4e",
+            "rank": 5,
+            "distance": 0.745215117931366
+          },
+          {
+            "post_id": 6698219,
+            "md5": "73037f0ab39fb9a9231dd471bdcb7dbf",
+            "rank": 6,
+            "distance": 0.7518813014030457
+          },
+          {
+            "post_id": 6777746,
+            "md5": "a8ba78fac5b82c727d4b0f668b6c4082",
+            "rank": 7,
+            "distance": 0.7533496022224426
+          },
+          {
+            "post_id": 3512319,
+            "md5": "a5353fb87aedc6f82322cebb499fce59",
+            "rank": 8,
+            "distance": 0.762470543384552
+          },
+          {
+            "post_id": 4795236,
+            "md5": "b6093d6fe74b591e999de1ad1664c9c0",
+            "rank": 9,
+            "distance": 0.7869200706481934
+          },
+          {
+            "post_id": 5711178,
+            "md5": "5818727d82c28daa3b5978f37f7ee818",
+            "rank": 10,
+            "distance": 0.8327958583831787
+          },
+          {
+            "post_id": 1920276,
+            "md5": "b7b53e8c65d5d6060f41c8b027285de5",
+            "rank": 11,
+            "distance": 0.8442789316177368
+          },
+          {
+            "post_id": 4778404,
+            "md5": "c4ceae9bde16bcc0cf2b1e546bc79c5a",
+            "rank": 12,
+            "distance": 0.8450583219528198
+          },
+          {
+            "post_id": 5421276,
+            "md5": "8c444ebf129e8b45c52a27345cb7643a",
+            "rank": 13,
+            "distance": 0.8521034717559814
+          },
+          {
+            "post_id": 4096700,
+            "md5": "edd6841819758168ebd468d2f79cd1ee",
+            "rank": 14,
+            "distance": 0.8531987071037292
+          },
+          {
+            "post_id": 5455452,
+            "md5": "d603be70acbb4b637bc692cedfab009d",
+            "rank": 15,
+            "distance": 0.8548182845115662
+          },
+          {
+            "post_id": 6745870,
+            "md5": "8df509c0c32c25ace0a55f0f88b6dba6",
+            "rank": 16,
+            "distance": 0.8669230937957764
+          },
+          {
+            "post_id": 5817248,
+            "md5": "bbf6483b69702b1adeb31715354074e1",
+            "rank": 17,
+            "distance": 0.8744356632232666
+          },
+          {
+            "post_id": 6755226,
+            "md5": "83d66c9a8984475269c79c2fbfbbc9ed",
+            "rank": 18,
+            "distance": 0.8767042756080627
+          },
+          {
+            "post_id": 6065248,
+            "md5": "4b00d43f2405fd194694d73836da5ec4",
+            "rank": 19,
+            "distance": 0.8958781361579895
+          },
+          {
+            "post_id": 6015196,
+            "md5": "f9b7fb1bcd03175f4ea5bdaa6ea9c190",
+            "rank": 20,
+            "distance": 0.8975480794906616
+          },
+          {
+            "post_id": 6774371,
+            "md5": "7c2c71d715e0a54ba396886a716a138b",
+            "rank": 21,
+            "distance": 0.9054021835327148
+          },
+          {
+            "post_id": 6767149,
+            "md5": "4a611b41c0a7757a6f248dd109736b3a",
+            "rank": 22,
+            "distance": 0.9111005663871765
+          },
+          {
+            "post_id": 6751277,
+            "md5": "0b2a01df19b1134183893cd0d7300b24",
+            "rank": 23,
+            "distance": 0.9310547709465027
+          },
+          {
+            "post_id": 6761167,
+            "md5": "9835fb118cfa1c9bf682139e286b7c00",
+            "rank": 24,
+            "distance": 0.939905047416687
+          },
+          {
+            "post_id": 6788420,
+            "md5": "b84d776fa5ca6c7fe9036b44aa095e2b",
+            "rank": 25,
+            "distance": 0.9496074914932251
+          },
+          {
+            "post_id": 6762227,
+            "md5": "6911e6f8b2015465231ee19d0574cbe5",
+            "rank": 26,
+            "distance": 0.9509686827659607
+          },
+          {
+            "post_id": 3232854,
+            "md5": "2342e8c0d13c9b3cfc5557109c6971ca",
+            "rank": 27,
+            "distance": 0.9862322807312012
+          },
+          {
+            "post_id": 6657413,
+            "md5": "fd772efde42b35af7e28e442d6d16942",
+            "rank": 28,
+            "distance": 0.9967785477638245
+          },
+          {
+            "post_id": 6763637,
+            "md5": "f7f6a05b0f77dce458f983252ccbab26",
+            "rank": 29,
+            "distance": 1.0011762380599976
+          },
+          {
+            "post_id": 3450750,
+            "md5": "e1f08bedcc03709b817bcde264137c89",
+            "rank": 30,
+            "distance": 1.014754056930542
+          },
+          {
+            "post_id": 5517513,
+            "md5": "c3c4eed4325464c567efbcb5c33b4654",
+            "rank": 31,
+            "distance": 1.0427396297454834
+          },
+          {
+            "post_id": 6763496,
+            "md5": "5330bf6bd618e9d657b23de0a04eff15",
+            "rank": 32,
+            "distance": 1.0476808547973633
+          }
+        ],
+        "pre_confirmation_report_metrics": {
+          "requested_k": 32,
+          "returned": 32,
+          "positive_hits": 2,
+          "negative_hits": 3,
+          "unjudged": 27,
+          "precision_at_k_lower_bound": 0.0625,
+          "precision_among_judged": 0.4,
+          "recall_of_known_positives_at_k": 1.0,
+          "new_confirmed_positives": 0,
+          "hard_negative_yield": 3,
+          "limitation": "Recall uses known positives only; unjudged results do not establish true precision"
+        }
+      },
+      "confirmed_metrics": {
+        "actual_precision_at_5": 1.0,
+        "precision_at_5_is_exact": true,
+        "positive_hits_at_5": 5,
+        "negative_hits_at_5": 0,
+        "unjudged_at_5": 0,
+        "precision_at_32_lower_bound": 0.21875,
+        "positive_hits_at_32": 7,
+        "negative_hits_at_32": 3,
+        "unjudged_at_32": 22,
+        "precision_among_judged_at_32": 0.7,
+        "known_positive_count_excluding_query": 7,
+        "known_recall_at_32": 1.0,
+        "newly_confirmed_positive_hits_at_5": 3,
+        "newly_confirmed_positive_ids_at_5": [
+          3512266,
+          3512309,
+          5075126
+        ],
+        "newly_confirmed_positive_hits_at_32": 5,
+        "newly_confirmed_positive_ids_at_32": [
+          3512266,
+          3512309,
+          3512319,
+          4795236,
+          5075126
+        ],
+        "known_positive_ranks_at_32": {
+          "4069762": 2,
+          "6017502": 1,
+          "3512266": 3,
+          "3512309": 4,
+          "3512319": 8,
+          "5075126": 5,
+          "4795236": 9
+        },
+        "hard_negative_ranks_at_32": {
+          "1920276": 11,
+          "6657413": 28,
+          "6774371": 21
+        },
+        "hard_negative_hits_at_5": 0
+      },
+      "annotated_neighbors": [
+        {
+          "post_id": 6017502,
+          "md5": "5afd8fb6e81b82617bb29604ea5e6e5d",
+          "rank": 1,
+          "distance": 0.6074120402336121,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 4069762,
+          "md5": "5a1ae6f708677cf59d4aed0e7e45b176",
+          "rank": 2,
+          "distance": 0.640791118144989,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 3512266,
+          "md5": "2deaba3aeddccbe89c94e5ad7d5e663a",
+          "rank": 3,
+          "distance": 0.6829993724822998,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 3512309,
+          "md5": "16772a6b335f6b45b324c5cc4c942ba4",
+          "rank": 4,
+          "distance": 0.7283335328102112,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 5075126,
+          "md5": "05924276b6e8cc409855814a2405dd4e",
+          "rank": 5,
+          "distance": 0.745215117931366,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 6698219,
+          "md5": "73037f0ab39fb9a9231dd471bdcb7dbf",
+          "rank": 6,
+          "distance": 0.7518813014030457,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6777746,
+          "md5": "a8ba78fac5b82c727d4b0f668b6c4082",
+          "rank": 7,
+          "distance": 0.7533496022224426,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 3512319,
+          "md5": "a5353fb87aedc6f82322cebb499fce59",
+          "rank": 8,
+          "distance": 0.762470543384552,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 4795236,
+          "md5": "b6093d6fe74b591e999de1ad1664c9c0",
+          "rank": 9,
+          "distance": 0.7869200706481934,
+          "human_label": "positive",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 5711178,
+          "md5": "5818727d82c28daa3b5978f37f7ee818",
+          "rank": 10,
+          "distance": 0.8327958583831787,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 1920276,
+          "md5": "b7b53e8c65d5d6060f41c8b027285de5",
+          "rank": 11,
+          "distance": 0.8442789316177368,
+          "human_label": "negative",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 4778404,
+          "md5": "c4ceae9bde16bcc0cf2b1e546bc79c5a",
+          "rank": 12,
+          "distance": 0.8450583219528198,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 5421276,
+          "md5": "8c444ebf129e8b45c52a27345cb7643a",
+          "rank": 13,
+          "distance": 0.8521034717559814,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 4096700,
+          "md5": "edd6841819758168ebd468d2f79cd1ee",
+          "rank": 14,
+          "distance": 0.8531987071037292,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 5455452,
+          "md5": "d603be70acbb4b637bc692cedfab009d",
+          "rank": 15,
+          "distance": 0.8548182845115662,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6745870,
+          "md5": "8df509c0c32c25ace0a55f0f88b6dba6",
+          "rank": 16,
+          "distance": 0.8669230937957764,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 5817248,
+          "md5": "bbf6483b69702b1adeb31715354074e1",
+          "rank": 17,
+          "distance": 0.8744356632232666,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6755226,
+          "md5": "83d66c9a8984475269c79c2fbfbbc9ed",
+          "rank": 18,
+          "distance": 0.8767042756080627,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6065248,
+          "md5": "4b00d43f2405fd194694d73836da5ec4",
+          "rank": 19,
+          "distance": 0.8958781361579895,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6015196,
+          "md5": "f9b7fb1bcd03175f4ea5bdaa6ea9c190",
+          "rank": 20,
+          "distance": 0.8975480794906616,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6774371,
+          "md5": "7c2c71d715e0a54ba396886a716a138b",
+          "rank": 21,
+          "distance": 0.9054021835327148,
+          "human_label": "negative",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 6767149,
+          "md5": "4a611b41c0a7757a6f248dd109736b3a",
+          "rank": 22,
+          "distance": 0.9111005663871765,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6751277,
+          "md5": "0b2a01df19b1134183893cd0d7300b24",
+          "rank": 23,
+          "distance": 0.9310547709465027,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6761167,
+          "md5": "9835fb118cfa1c9bf682139e286b7c00",
+          "rank": 24,
+          "distance": 0.939905047416687,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6788420,
+          "md5": "b84d776fa5ca6c7fe9036b44aa095e2b",
+          "rank": 25,
+          "distance": 0.9496074914932251,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6762227,
+          "md5": "6911e6f8b2015465231ee19d0574cbe5",
+          "rank": 26,
+          "distance": 0.9509686827659607,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 3232854,
+          "md5": "2342e8c0d13c9b3cfc5557109c6971ca",
+          "rank": 27,
+          "distance": 0.9862322807312012,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6657413,
+          "md5": "fd772efde42b35af7e28e442d6d16942",
+          "rank": 28,
+          "distance": 0.9967785477638245,
+          "human_label": "negative",
+          "label_source": "user-confirmed IDs only"
+        },
+        {
+          "post_id": 6763637,
+          "md5": "f7f6a05b0f77dce458f983252ccbab26",
+          "rank": 29,
+          "distance": 1.0011762380599976,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 3450750,
+          "md5": "e1f08bedcc03709b817bcde264137c89",
+          "rank": 30,
+          "distance": 1.014754056930542,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 5517513,
+          "md5": "c3c4eed4325464c567efbcb5c33b4654",
+          "rank": 31,
+          "distance": 1.0427396297454834,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        },
+        {
+          "post_id": 6763496,
+          "md5": "5330bf6bd618e9d657b23de0a04eff15",
+          "rank": 32,
+          "distance": 1.0476808547973633,
+          "human_label": "UNJUDGED",
+          "label_source": "no human judgment supplied"
+        }
+      ],
+      "metric_function": "backend.benchmark_similarity.discovery_metrics",
+      "unknown_label_policy": "UNJUDGED; no tags or other metadata used to infer labels",
+      "metric_limitation": "Recall uses known positives only; unjudged results do not establish true precision"
+    }
+  ]
+}

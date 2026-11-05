@@ -27,8 +27,9 @@ def make_settings(
     )
 
 
+@pytest.mark.parametrize("with_extension", [False, True])
 def test_hydra_loader_is_asked_for_logits_without_loading_real_model_or_cuda(
-    monkeypatch, tmp_path
+    monkeypatch, tmp_path, with_extension
 ):
     model_path = tmp_path / "tiny-model.bin"
     model_path.write_bytes(b"test model fingerprint")
@@ -72,10 +73,58 @@ def test_hydra_loader_is_asked_for_logits_without_loading_real_model_or_cuda(
     # Hydra.__init__ prepends upstream to sys.path; isolate and restore that mutation.
     monkeypatch.setattr(sys, "path", list(sys.path))
 
-    instance = worker.Hydra(str(model_path), str(upstream_path))
+    if with_extension:
+        from hydra_character_training import export
+
+        def verified(model, paths, base_sha256):
+            assert model is fake_model and paths == ["new.safetensors"]
+            assert len(base_sha256) == 64
+            model.labels.append(SimpleNamespace(label="new_character", category="character", subcategory=None))
+            return [{"label": "new_character", "threshold": 0.4, "max_seqlen": 1024, "sha256": "e" * 64}]
+
+        monkeypatch.setattr(export, "load_verified_extensions", verified)
+
+    instance = worker.Hydra(str(model_path), str(upstream_path), ["new.safetensors"] if with_extension else [])
 
     assert instance.model is fake_model
     assert loader_calls == [((str(model_path.resolve()),), {"logit": True})]
+    if with_extension:
+        assert instance.labels[-1] == ("new_character", "character")
+        assert instance.thresholds == {"new_character": 0.4}
+
+
+@pytest.mark.parametrize("score,expected", [(0.4, ["new_character"]), (0.3999999, [])])
+def test_native_extension_threshold_reaches_normal_tag_pipeline(tmp_path, score, expected):
+    class FakeStash:
+        names = None
+
+        def item(self, *_args):
+            return {"custom_fields": {}, "tags": [], "updated_at": "same"}
+
+        def ensure_tags(self, names):
+            self.names = names
+            return {name: "native-id" for name in names}
+
+        def update(self, *_args):
+            pass
+
+    stash = FakeStash()
+    prediction = {"scores": {"new_character": score}, "thresholds": {"new_character": 0.4},
+                  "model": "extended", "hash": "image", "times": [0]}
+    worker.apply_predictions(stash, "image", "id", prediction, {"new_character": "character"},
+                             make_settings(tmp_path), {"new_character"})
+    assert stash.names == expected
+
+
+def test_extension_settings_require_ordered_explicit_paths(tmp_path):
+    path = tmp_path / "config.toml"
+    base = 'stash_url="http://localhost"\nstash_key="test"\nadult_roots=["/adult"]\n'
+    path.write_text(base + 'extensions=["first.safetensors","second.safetensors"]\nmax_seqlen=512\n')
+    settings = Settings.load(str(path))
+    assert settings.extensions == ("first.safetensors", "second.safetensors") and settings.max_seqlen == 512
+    path.write_text(base + 'extensions="folder"\n')
+    with pytest.raises(ValueError, match="ordered list"):
+        Settings.load(str(path))
 
 
 @pytest.mark.parametrize("duration", [12, 95, 10_000])

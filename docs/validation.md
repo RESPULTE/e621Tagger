@@ -1,5 +1,62 @@
 # Validation — 21 October 2026
 
+## Image-only production release — 25 October 2026
+
+User-authorized deployment `image-only-20261025-888f88bee8` is live, schema v6.
+Historical readers/APIs/worker fallback were removed; only an authenticated online
+GPU worker enables image similarity. Windows backend102/one skip, Ubuntu image103,
+browser49/eight skips, lint/contracts/build/config checks passed. Live GPU upload
+(13,967,751 bytes, 32 results), post search, offline expiry/reconnect and read-only
+desktop/mobile UI passed. Raw training/history records were preserved through a
+verified clone/migration and after live queries; sessions/cooldowns changed normally.
+No production labels or saved media were created by validation. The worker remains
+online with a 35-image local corpus. Historical-scale tasks were removed from scope.
+
+See [release, backups, exact evidence and rollback](image-only-release.md).
+Older sections below describe their original release scopes and are historical.
+
+## Arbitrary-image retrieval development — 25 October 2026
+
+This is an un-deployed continuation from clean commit
+`d95ab19b33266fd8130030b3251612665b1ac4dc`, separate from the older deployment
+records below. Final local checks passed: **118 backend tests, one skip**;
+**49 browser tests, eight skips**; Ruff, OpenAPI/API type generation and frontend
+production build. Baseline was 99/one skip and 46/eight skips respectively.
+Tests use isolated databases; no production access or data migration occurred.
+
+The real RTX 4070 Laptop checkpoint reproduced six published raw vectors with
+cosine 0.999958–0.999988 and relative L2 0.004961–0.009364. Repeated encodings
+were bitwise identical in the final run. Full-corpus centering and historical
+ranking parity remain unverified; locally encoded exact-search vectors occupy a
+separate versioned space. Existing checksum-verified KNN arrays remain usable.
+
+Three user-confirmed Radar queries searched 35 verified originals. The user
+confirmed five discovered candidates positive: Precision@5 is 100% on those
+three pilot queries and known-positive Recall@32 is 100%. Unjudged candidates
+prevent a full Precision@32 claim. An isolated API workflow exported 11 human
+binary samples (eight positive, three negative), preserved the earlier six-sample
+frozen manifest, and repeated JSON/JSONL/CSV exports byte-for-byte. This selected
+pilot is not a generalization benchmark or a completed training run.
+
+The real outbound GPU workflow subsequently attached authenticated upload-query
+provenance to five explicitly confirmed positives and froze another 11-sample
+manifest, preserving both earlier exports. A fresh six-vector corpus then
+ingested post 6774371 through the real source/GPU bridge and reused it on refresh;
+its catalog reached seven vectors with one generation increment. A schema-v6
+online backup restored into a fresh local root with 11 durable-table hashes and
+three saved manifest exports unchanged. Compose configuration and reference-cap
+override forwarding passed; this does not constitute an Ubuntu image/deployment check.
+
+The existing explicit media-export queue then packaged all 11 verified originals
+from a cached-only test transport into a 36,273,835-byte ZIP. Repeated bundles were
+byte-identical and all archive/member checksums passed; frozen metadata stayed
+unchanged. This exercised actual application packaging with local fixtures, not
+fresh CDN availability or network throughput. See the guide for the bundle hash.
+
+See [implementation, numerical evidence, preparation and rollback](image-retrieval.md).
+Historical streaming/ANN, full-corpus resources, home-server hardware, physical
+devices and production rollout are not validated by this continuation.
+
 ## Find Similar processing-PC continuation — 25 October 2026
 
 The complete pinned index was downloaded and SHA-256 verified on the RTX 4070
@@ -138,3 +195,44 @@ Four induced host-copy failures published no partial host backup, preserved the 
 ## Remaining boundaries
 
 Physical iPhone image/video/final-HTTP behavior, actual VPN-client access, another-device backup replication and server reboot recovery were not exercised by the agent. Container restart, configured restart policies and daily scheduling were verified. HTTPS was deferred by the owner; its saved certificate expires on 18 October 2027 and would need renewal before later reuse beyond that date. Dataset freezing/exports are now implemented and deployed; embeddings and laptop training remain a separate follow-up.
+
+
+## 2026-11-05 — favourites and Inbox
+
+Deployed `image-query-layout-a2e4175f079d` with the native GPT-6.1 SOL medium UI work, pink icon-only compact hearts, cancel/delete controls, preview/upvote/target download cards and the expanded similarity layout. New favourites write only the original media into `/media/vector/jellyfin-data/Inbox`. A journalled offline migration moved 10 existing originals, preserved every SHA-256/inode and removed 30 verified Studio sidecars. Labels/events/datasets remained unchanged. Nextcloud furry maps that same Inbox; Stash registers its parent library root.
+
+Verification: 141 backend tests passed (14 optional/platform skips), 40 candidate Linux filesystem/migration checks passed, 64 browser checks passed (8 platform/configuration skips), including favourite flows across desktop/mobile Chromium and iPhone WebKit, frontend build and Ruff passed. Independent live geometry and API checks are recorded in [sanitized evidence](evidence/favourite-inbox-2026-11-05.json), including fixture limitations. Live favourites were not deleted during browser QA. The one-time migration only changed files named by verified ownership manifests and their corresponding saved-media records.
+
+
+## 2026-11-05 — broad native image retrieval
+
+Completed and verified all 1,305 pinned publisher shards (25,194,766,743 bytes), decoded exactly 6,122,692 ordered 2,048-dimensional raw image vectors and computed their full-corpus mean. The immutable PQ256 index scans all compressed codes and reranks 8,192 candidates against original vectors. The complete corpus centroid was independently audited during exact validation. All 16 held-out queries recovered every exact top-32 neighbor; p95 worker-thread search time was 3.9295 seconds. Six fresh native encodings each ranked their matching source first, with raw cosine 0.9999577–0.9999877. These are numerical retrieval checks, not character-recognition accuracy.
+
+Activated the validated generation through the existing Windows worker startup task, retaining the original pilot corpus and a task XML backup. Actual server/GPU searches advertised 6,122,693 images including the new reference. Source 6794904 returned identical rankings in projects 1 and 6; Load more expanded 8→16 and exhausted 56 available, nonduplicate results from the retained top-64 set. Request replay was idempotent, refresh preserved ranking for the unchanged image/index, and source 6017502 returned a different top eight with no overlap. The library remained available. Sanitized [manifest, numerical checks and live proof](evidence/broad-image-index-2026-11-05.json) record the exact identity and limits.
+
+
+## 2026-11-05 — official query filter deployment
+
+Deployed `image-query-layout-9df9d455182e` at the existing private Studio origin.
+Similarity filtering shares the discovery API path and e621 parser, preserves
+ranking, and supports clearing and additional loaded pages. Container staging
+caught and fixed a completion-state race: responses now snapshot progress and
+entries together, so hydration finishing during an e621 filter request cannot
+prematurely stop the client's polling with a partial final page.
+
+Verification: 30 Linux backend tests, eight desktop/mobile browser checks, the
+TypeScript/Vite build, Ruff, and isolated container filter/clear/load-more smoke
+passed. The Linux image's frontend assets matched the tested local build exactly.
+Live API acceptance searched source 6794904 against the connected GPU corpus,
+returned eight matches, verified official ID and rating filters, preserved ranks,
+and restored the original set when clearing. Browser checks used synthetic data;
+this live acceptance used HTTP API, not computer control.
+
+A verified online SQLite snapshot was copied outside the data volume and passed
+integrity, foreign-key and SHA-256 checks. Hashes remained unchanged for 47 labels,
+58 review events, zero datasets and 11 saved-media records. The data and library
+mounts were preserved. After health/live checks, the replaced image
+`image-query-layout-a2e4175f079d` and this task's rejected staging image were
+removed without deleting volumes or media; other historical images remain.
+Previous source/configuration and the backup are retained, so the old image can
+be rebuilt if needed. See [sanitized release evidence](evidence/similarity-filter-release-2026-11-05.json).

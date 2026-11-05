@@ -1,3 +1,4 @@
+import { StudioIcon } from "../components/StudioIcon";
 import {
   useEffect,
   useLayoutEffect,
@@ -23,7 +24,7 @@ import {
 } from "../api/client";
 import { useReviews } from "../components/Reviews";
 import { Thumbnail } from "../components/Thumbnail";
-import { FavoriteButton, SaveThumbnail } from "../components/FavoriteButton";
+import { SaveThumbnail } from "../components/FavoriteButton";
 import { QueryInput } from "../components/QueryInput";
 import {
   SimilarityFolders,
@@ -53,10 +54,12 @@ export function Project() {
   )
     ? params.get("tab")!
     : "query";
+  const similarityFilter = params.get("similar_q") ?? "";
   const similarity = useSimilarity(
     projectId,
     tab === "similarity",
     params.get("search"),
+    similarityFilter,
   );
   const query = params.get("q") ?? project.data?.query ?? "";
   const candidates = useInfiniteQuery({
@@ -87,7 +90,7 @@ export function Project() {
   });
   const items =
     tab === "similarity"
-      ? similarityCandidates(similarity.detail.data)
+      ? similarityCandidates(similarity.detail.error ? undefined : similarity.detail.data)
       : [
           ...new Map(
             (candidates.data?.pages.flatMap((p) => p.items) ?? []).map((p) => [
@@ -149,7 +152,7 @@ export function Project() {
   }, [first]);
   function openPost(post: Candidate) {
     const context = post.similarity
-      ? `?seed=${post.similarity.seed_post_id}&index=${encodeURIComponent(post.similarity.index_revision)}`
+      ? `?index=${encodeURIComponent(post.similarity.index_revision)}${post.similarity.seed_post_id ? `&seed=${post.similarity.seed_post_id}` : ""}${post.similarity.search_id ? `&similar_search=${post.similarity.search_id}` : ""}`
       : "";
     navigate(`/projects/${projectId}/posts/${post.post_id}${context}`, {
       state: {
@@ -184,11 +187,11 @@ export function Project() {
       )
         return;
       const state = (
-        { "1": "positive", "2": "negative", "3": "unsure" } as const
+        { "1": "positive", "2": "negative" } as const
       )[event.key as "1"];
       if (state) {
         event.preventDefault();
-        void reviews.edit(projectId, [focusedPost], state);
+        void reviews.edit(projectId, [focusedPost], focusedPost.state === state ? null : state);
       } else if (event.key.toLowerCase() === "z") {
         event.preventDefault();
         void reviews.undoLast(projectId, focusedPost);
@@ -229,9 +232,9 @@ export function Project() {
             {project.data?.display_name.replaceAll("_", " ") ?? "Project"}
           </h1>
           <div className="review-totals" aria-label="Review totals">
-            {(["positive", "negative", "unsure"] as const).map((state, i) => (
+            {(["positive", "negative"] as const).map((state) => (
               <span className={state} key={state}>
-                <span className="total-label">{["+", "−", "?"][i]}</span>
+                <StudioIcon name={state} /><span className="total-label">{state === "positive" ? "Positive" : "Negative"}</span>
                 <strong
                   aria-label={`${state}: ${project.data?.counts[state] ?? 0}`}
                 >
@@ -240,6 +243,7 @@ export function Project() {
               </span>
             ))}
           </div>
+          <Link className="export-button" to={`/projects/${projectId}/datasets`} aria-label="Dataset export" title="Dataset export"><StudioIcon name="export" /><span>Export</span></Link>
         </div>
         <nav className="project-tabs" role="tablist" aria-label="Project views">
           {(["query", "tagged", "similarity", "downloads"] as const).map(
@@ -284,6 +288,8 @@ export function Project() {
                     </>
                   ) : value === "tagged" ? (
                     <path d="M3 3h9l9 9-9 9-9-9V3Zm5 5h.01" />
+                  ) : value === "similarity" ? (
+                    <><circle cx="10" cy="10" r="6" /><path d="m15 15 6 6M19 3v6m-3-3h6" /></>
                   ) : (
                     <path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5" />
                   )}
@@ -317,7 +323,7 @@ export function Project() {
           id={`panel-${tab}`}
           role="tabpanel"
           aria-labelledby={`tab-${tab}`}
-          className="gallery-panel"
+          className={`gallery-panel${tab === "similarity" ? " similarity-panel" : ""}`}
         >
           {tab === "downloads" ? (
             <Downloads />
@@ -325,8 +331,20 @@ export function Project() {
             <>
               {tab === "similarity" ? (
                 <SimilarityFolders
+                  key={`${projectId}:${similarityFilter}`}
                   project={projectId}
+                  projectName={project.data?.display_name ?? "Project"}
                   state={similarity}
+                  filter={similarityFilter}
+                  setFilter={(value) => {
+                    const next = new URLSearchParams(params);
+                    if (value) next.set("similar_q", value);
+                    else next.delete("similar_q");
+                    setParams(next);
+                    setFocused(null);
+                    scroll.current?.scrollTo(0, 0);
+                    if (value === similarityFilter) void similarity.detail.refetch();
+                  }}
                   select={(id) => {
                     const next = new URLSearchParams(params);
                     next.set("search", id);
@@ -347,9 +365,6 @@ export function Project() {
               ) : (
                 <div className="tagged-actions">
                   <span>{project.data?.counts.total ?? 0} reviewed</span>
-                  <Link to={`/projects/${projectId}/datasets`}>
-                    Dataset & export
-                  </Link>
                   <span className="muted">
                     Review target: {project.data?.display_name}
                   </span>
@@ -474,14 +489,9 @@ export function Project() {
                                 </span>
                               </div>
                               <div className="quick-labels">
-                                <FavoriteButton
-                                  project={projectId}
-                                  post={post}
-                                  compact
-                                />
                                 {(
-                                  ["positive", "negative", "unsure"] as const
-                                ).map((value, i) => (
+                                  ["positive", "negative"] as const
+                                ).map((value) => (
                                   <button
                                     key={value}
                                     className={value}
@@ -492,25 +502,13 @@ export function Project() {
                                       void reviews.edit(
                                         projectId,
                                         [post],
-                                        value,
+                                        state === value ? null : value,
                                       )
                                     }
                                   >
-                                    {["+", "−", "?"][i]}
+                                    <StudioIcon name={value} />
                                   </button>
                                 ))}
-                                {tab === "tagged" && (
-                                  <button
-                                    className="clear-review"
-                                    aria-label={`Clear review for post ${post.post_id}`}
-                                    disabled={!!pending || post.conflict}
-                                    onClick={() =>
-                                      void reviews.edit(projectId, [post], null)
-                                    }
-                                  >
-                                    ×
-                                  </button>
-                                )}
                               </div>
                             </article>
                           );

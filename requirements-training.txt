@@ -1,0 +1,2 @@
+# Processing PC only; use the same CUDA environment as native Hydra inference.
+-r requirements-similarity.txt

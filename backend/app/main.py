@@ -15,15 +15,13 @@ from .db import Database
 from .downloads import Downloads
 from .downloads import router as downloads_router
 from .e621 import E621
-from .embeddings import router as embeddings_router
 from .feed import Feed
 from .jobs import Workers
 from .library import Library
 from .library import router as library_router
 from .media import Media
-from .mock import SyntheticNeighbors
+from .mock import SyntheticImageSearch
 from .mock import transport as mock_transport
-from .neighbor_index import PublishedNeighbors
 from .processing_machine import ProcessingMachine
 from .processing_machine import router as processing_machine_router
 from .similarity import Similarity
@@ -53,7 +51,8 @@ def create_app(settings=None, *, transport=None, start_workers=True):
             media.feed = feed
             source.gate = media.gate = UpstreamGate(0 if config.mock_e621 else config.upstream_interval)
             app.state.processing_machine = processing_machine = ProcessingMachine(config.similarity_worker_token)
-            index = SyntheticNeighbors() if config.mock_e621 else processing_machine
+            processing_machine.images.media = media
+            index = SyntheticImageSearch() if config.mock_e621 else processing_machine
             app.state.similarity = similarity = Similarity(index, feed)
             app.state.library = library = Library(db, source, media, config)
             app.state.transfers = transfers = Transfers(db, media, config)
@@ -65,9 +64,8 @@ def create_app(settings=None, *, transport=None, start_workers=True):
                 db,
                 source,
                 media,
-                SyntheticNeighbors() if config.mock_e621 else PublishedNeighbors(gate=source.gate),
-                library,
-                downloads,
+                library=library,
+                downloads=downloads,
             )
             if start_workers:
                 await workers.start(config.media_concurrency)
@@ -157,7 +155,6 @@ await self.registration.unregister();for(const client of await self.clients.matc
     app.include_router(public)
     app.include_router(router)
     app.include_router(datasets_router)
-    app.include_router(embeddings_router)
     app.include_router(similarity_router)
     app.include_router(processing_machine_router)
     app.include_router(library_router)

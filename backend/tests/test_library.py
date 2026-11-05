@@ -57,15 +57,13 @@ def test_save_tags_checksum_idempotency_delete_and_preserve_human_data(client):
     assert saved["status"] == "saved" and saved["wanted"] and saved["present"]
     root = client.app.state.settings.library_root
     files = sorted(root.glob("e621_999_*"))
-    assert {p.suffix for p in files} == {".png", ".json", ".txt", ".xmp"}
-    image = next(p for p in files if p.suffix == ".png")
+    assert len(files) == 1 and files[0].suffix == ".png"
+    image = files[0]
     source = mock.post(999)
     assert hashlib.md5(image.read_bytes()).hexdigest() == source["file"]["md5"]
-    metadata = json.loads(next(p for p in files if p.suffix == ".json").read_text(encoding="utf-8"))
-    assert metadata["tags"] == source["tags"] and metadata["id"] == 999
-    assert metadata["_hydra_studio"]["post_url"] == "https://e621.net/posts/999"
-    assert "studio_demo" in next(p for p in files if p.suffix == ".txt").read_text()
-    assert b"http://purl.org/dc/elements/1.1/" in next(p for p in files if p.suffix == ".xmp").read_bytes()
+    assert not list(root.glob("e621_999_*.json"))
+    assert not list(root.glob("e621_999_*.txt"))
+    assert not list(root.glob("e621_999_*.xmp"))
     assert not list((root / ".hydra-studio-tmp").iterdir())
     # The saved state is global across projects and cannot become a human label.
     second = project(client, custom=True)[0]["id"]
@@ -99,7 +97,7 @@ def test_existing_files_edited_files_and_symlinks_are_preserved(client):
     with pytest.raises(HTTPException, match="409"):
         process(client)
     assert original.read_bytes() == b"manually edited original"
-    assert len(list(root.glob("e621_999_*"))) == 4
+    assert len(list(root.glob("e621_999_*"))) == 1
 
 
 def test_superseded_add_never_publishes_and_offline_identity_never_recreates(client):
@@ -129,7 +127,8 @@ def test_partial_publication_recovers_using_inode_manifest(client, monkeypatch):
         # Simulate a crash after the first no-clobber publication, before state
         # acknowledgement. The journal retains the staging inode and hashes.
         stage = library.paths(record)
-        entry = record["files"][1]
+        entry = record["files"][0]
+        assert entry["name"].endswith(".png")
         import os
 
         os.link(stage / entry["name"], library.root / entry["name"])
@@ -142,7 +141,7 @@ def test_partial_publication_recovers_using_inode_manifest(client, monkeypatch):
     monkeypatch.setattr(library, "publish_files", real)
     process(client)
     assert client.get("/api/library/posts/999").json()["status"] == "saved"
-    assert len(list(library.root.glob("e621_999_*"))) == 4
+    assert len(list(library.root.glob("e621_999_*"))) == 1
 
 
 def test_wrong_original_checksum_size_and_scope_fail_without_publication(client):
@@ -203,9 +202,9 @@ async def test_v2_upgrade_backs_up_and_preserves_review_tables(tmp_path):
     db = Database(tmp_path)
     try:
         await db.open()
-        assert (await db.one("PRAGMA user_version"))["user_version"] == 5
+        assert (await db.one("PRAGMA user_version"))["user_version"] == 7
         assert (await db.one("SELECT count(*) AS n FROM projects"))["n"] == 1
-        backup = list((tmp_path / "backups").glob("pre-schema-v5-*.sqlite3"))
+        backup = list((tmp_path / "backups").glob("pre-schema-v7-*.sqlite3"))
         assert len(backup) == 1
         with sqlite3.connect(backup[0]) as old:
             assert old.execute("PRAGMA user_version").fetchone()[0] == 2
@@ -312,7 +311,7 @@ def test_symlink_replacement_is_preserved(client):
     with pytest.raises(HTTPException, match="409"):
         process(client)
     assert original.is_symlink() and target.read_bytes() == b"unrelated"
-    assert len(list(root.glob("e621_999_*"))) == 4
+    assert len(list(root.glob("e621_999_*"))) == 1
 
 
 def test_on_after_interrupted_removal_redownloads_missing_sources(client, monkeypatch):
@@ -335,7 +334,7 @@ def test_on_after_interrupted_removal_redownloads_missing_sources(client, monkey
     toggle(client, pid, wanted=True, version=2)
     process(client)
     assert client.get("/api/library/posts/999").json()["status"] == "saved"
-    assert len(list(library.root.glob("e621_999_*"))) == 4
+    assert len(list(library.root.glob("e621_999_*"))) == 1
 
 
 def test_empty_mock_search_does_not_render_excluded_originals(monkeypatch):

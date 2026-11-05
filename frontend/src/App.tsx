@@ -6,13 +6,10 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { Link, Route, Routes, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { api, ApiError, errorText, setCsrf } from "./api/client";
 import { ReviewProvider } from "./components/Reviews";
-import { Home } from "./pages/Home";
-import { Project } from "./pages/Project";
-import { Post } from "./pages/Post";
-import { Datasets } from "./pages/Datasets";
+import { ProjectWorkspace } from "./components/ProjectWorkspace";
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -115,9 +112,6 @@ export function App() {
         <Link to="/" className="wordmark">
           hydra<span>training studio</span>
         </Link>
-        <nav>
-          <Link to="/">Projects</Link>
-        </nav>
         {session?.mock && (
           <span
             className="demo-badge"
@@ -175,21 +169,7 @@ export function App() {
         </main>
       ) : (
         <ReviewProvider>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/projects/:id" element={<Project />} />
-            <Route path="/projects/:id/datasets" element={<Datasets />} />
-            <Route path="/projects/:id/posts/:postId" element={<Post />} />
-            <Route
-              path="*"
-              element={
-                <main className="centered">
-                  <h1>Page not found</h1>
-                  <Link to="/">Open projects</Link>
-                </main>
-              }
-            />
-          </Routes>
+          <ProjectWorkspace />
         </ReviewProvider>
       )}
       {!isGallery && <footer>Hydra · Private tagging workspace</footer>}

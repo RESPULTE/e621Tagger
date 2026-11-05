@@ -1,0 +1,110 @@
+{
+  "production_accessed": false,
+  "source": "artifacts\\radar-export\\validation-20261025T131736Z\\data",
+  "restored": "artifacts\\radar-backup-restore\\d0cc5d65ab39425494e0cc6648b02f3d\\restored",
+  "before": {
+    "schema": 6,
+    "tables": {
+      "projects": {
+        "rows": 1,
+        "sha256": "3eaefe3cf503e29e5fc2b021c9f7e5a478db102e857a4849625b526b367f90e4"
+      },
+      "posts": {
+        "rows": 11,
+        "sha256": "ac408ec9448b9b5b48eb991dd763b84dece783b10e823eb33e7690cd1e7bfe66"
+      },
+      "project_candidates": {
+        "rows": 11,
+        "sha256": "71ba3d182faf3754bcc59cdec34e1c2b3bd0fb1ef162d494f518ca266811eccb"
+      },
+      "labels": {
+        "rows": 11,
+        "sha256": "65c0f9d92fdf372bf65ed926bc6599857dfd8cabb55761e996662ffa50eb640b"
+      },
+      "label_events": {
+        "rows": 16,
+        "sha256": "dddf79e33e4d0a07adcc8c3e50ff203c3a12fa4527a818f9787df763e1b9810c"
+      },
+      "discoveries": {
+        "rows": 11,
+        "sha256": "18c2c3019ecc2528449b43f4578486420bda40ca0139bb125f8c5ad85eaf4e2d"
+      },
+      "search_runs": {
+        "rows": 11,
+        "sha256": "c49411fdd4dd71829578f4b5c2c503268b0fe987fd67f44a28536e36713f05cf"
+      },
+      "mutation_requests": {
+        "rows": 21,
+        "sha256": "a92d49e6355a277b43d4d2d967b305ab225c41519a2e2be6dd2b07ee12059257"
+      },
+      "datasets": {
+        "rows": 4,
+        "sha256": "3203c03b647a5b2ad44e3521b1dbcb719a3e26d53c1f8fc4100d8f6964c25503"
+      },
+      "similarity_provenance": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "retrieval_provenance": {
+        "rows": 5,
+        "sha256": "55717fd609798033b2299c5d260fcc072ac28bb255db84c7e88193cb1315b049"
+      }
+    }
+  },
+  "restored_exports": {
+    "e2e379db-5345-4608-b1a2-a1b788a4eb4d": "13dcf787e02789fab2fa53e4944ef86ae1e0afb01e85cc30ce87e198715340b5",
+    "e3493af9-a89f-41ae-94de-cd8eb920e529": "7ff7f35b748d145e8d960f49aedc52f2d451f473ba80b9eb77288fd7c6f6d925",
+    "d53f96e1-da97-40f3-991e-0ebf6447fa75": "da59f16ba8e4897640770bd6ddfb35769bf176deabe0381b814d1cea4c19af39"
+  },
+  "after": {
+    "schema": 6,
+    "tables": {
+      "projects": {
+        "rows": 1,
+        "sha256": "3eaefe3cf503e29e5fc2b021c9f7e5a478db102e857a4849625b526b367f90e4"
+      },
+      "posts": {
+        "rows": 11,
+        "sha256": "ac408ec9448b9b5b48eb991dd763b84dece783b10e823eb33e7690cd1e7bfe66"
+      },
+      "project_candidates": {
+        "rows": 11,
+        "sha256": "71ba3d182faf3754bcc59cdec34e1c2b3bd0fb1ef162d494f518ca266811eccb"
+      },
+      "labels": {
+        "rows": 11,
+        "sha256": "65c0f9d92fdf372bf65ed926bc6599857dfd8cabb55761e996662ffa50eb640b"
+      },
+      "label_events": {
+        "rows": 16,
+        "sha256": "dddf79e33e4d0a07adcc8c3e50ff203c3a12fa4527a818f9787df763e1b9810c"
+      },
+      "discoveries": {
+        "rows": 11,
+        "sha256": "18c2c3019ecc2528449b43f4578486420bda40ca0139bb125f8c5ad85eaf4e2d"
+      },
+      "search_runs": {
+        "rows": 11,
+        "sha256": "c49411fdd4dd71829578f4b5c2c503268b0fe987fd67f44a28536e36713f05cf"
+      },
+      "mutation_requests": {
+        "rows": 21,
+        "sha256": "a92d49e6355a277b43d4d2d967b305ab225c41519a2e2be6dd2b07ee12059257"
+      },
+      "datasets": {
+        "rows": 4,
+        "sha256": "3203c03b647a5b2ad44e3521b1dbcb719a3e26d53c1f8fc4100d8f6964c25503"
+      },
+      "similarity_provenance": {
+        "rows": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "retrieval_provenance": {
+        "rows": 5,
+        "sha256": "55717fd609798033b2299c5d260fcc072ac28bb255db84c7e88193cb1315b049"
+      }
+    }
+  },
+  "passed": true,
+  "limitation": "Windows local database restore; media files, offsite copies and production/Ubuntu restore were not exercised"
+}

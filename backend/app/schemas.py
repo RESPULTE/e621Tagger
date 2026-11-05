@@ -1,9 +1,9 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-LabelState = Literal["positive", "negative", "unsure"]
+LabelState = Literal["positive", "negative"]
 SourceKind = Literal["target", "query", "seed", "unrelated", "hard_negative", "embedding"]
 
 
@@ -43,7 +43,8 @@ class DatasetCreate(Mutation):
 
 
 class SimilarityContext(BaseModel):
-    seed_post_id: int = Field(gt=0, le=2**63 - 1)
+    seed_post_id: int | None = Field(default=None, gt=0, le=2**63 - 1)
+    search_id: UUID
     index_revision: str = Field(min_length=1, max_length=64)
 
 
@@ -140,6 +141,7 @@ class CandidatePage(BaseModel):
 
 
 class SimilarityRequest(Mutation):
+    model_config = ConfigDict(extra="forbid")
     post_id: int = Field(gt=0, le=2**63 - 1)
     limit: int = Field(default=32, ge=1, le=32)
 
@@ -153,9 +155,16 @@ class SimilarityResult(BaseModel):
 
 
 class SimilaritySearch(BaseModel):
+    source_artists: list[str] = Field(default_factory=list)
     id: str
     project_id: int
-    source_post_id: int
+    source_post_id: int | None
+    query_type: Literal["upload", "post"]
+    query_sha256: str | None = None
+    model_revision: str | None = None
+    embedding_space: str | None = None
+    metric: str | None = None
+    corpus_size: int | None = None
     requested_limit: int
     index_revision: str
     status: str
@@ -163,6 +172,10 @@ class SimilaritySearch(BaseModel):
     error: str | None = None
     checked: int
     total: int
+    duplicates_hidden: int = 0
+    has_more: bool = False
+    filter_query: str = ""
+    unfiltered_count: int = 0
     results: list[SimilarityResult]
 
 
@@ -170,6 +183,7 @@ class SimilarityList(BaseModel):
     items: list[SimilaritySearch]
     available: bool
     message: str | None = None
+    corpus_size: int | None = None
 
 
 class TagResult(BaseModel):
@@ -178,6 +192,23 @@ class TagResult(BaseModel):
     category: int
     post_count: int
     matched_alias: str | None = None
+
+
+class ProjectSummary(BaseModel):
+    id: int
+    target_kind: str
+    target_id: int
+    display_name: str
+    query: str
+    created_at: float
+    positive: int
+    negative: int
+    total: int
+
+
+class ProjectList(BaseModel):
+    items: list[ProjectSummary]
+    next_cursor: int | None
 
 
 class ProjectResult(BaseModel):
@@ -192,59 +223,6 @@ class ProjectResult(BaseModel):
     jobs: list[dict]
     duplicate_projects: list[dict] = Field(default_factory=list)
     conflicts: int = 0
-
-
-class EmbeddingStatus(BaseModel):
-    enabled: bool
-    revision: str
-    mode: str
-    message: str
-
-
-class NeighborJob(BaseModel):
-    job_id: int
-
-
-class NeighborImport(Mutation):
-    job_id: int = Field(gt=0, le=2**63 - 1)
-    post_ids: list[int] = Field(min_length=1, max_length=50)
-
-    @model_validator(mode="after")
-    def unique_positive_ids(self):
-        if any(not 0 < post <= 2**63 - 1 for post in self.post_ids) or len(set(self.post_ids)) != len(self.post_ids):
-            raise ValueError("Select unique positive post IDs")
-        return self
-
-
-class NeighborItem(BaseModel):
-    post_id: int
-    rank: int
-    distance: float
-    in_project: bool
-    state: LabelState | None
-    unavailable: bool | None
-
-
-class SuggestedTag(BaseModel):
-    name: str
-    count: int
-
-
-class NeighborEvidence(BaseModel):
-    status: str
-    job_id: int | None = None
-    error: str | None = None
-    result: dict | None = None
-    neighbors: list[NeighborItem]
-    known_metadata: int
-    suggested_tags: list[SuggestedTag]
-
-
-class NeighborImportResult(BaseModel):
-    job_id: int | None
-    exhausted: bool
-    run_id: int
-    query: str
 
 
 class SaveMutation(Mutation):

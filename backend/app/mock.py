@@ -39,7 +39,7 @@ def post(post_id, *, checksummed=True):
         "id": post_id,
         "rating": ["s", "q", "e"][post_id % 3],
         "created_at": "2026-10-01T10:00:00Z",
-        "score": {"total": post_id % 200},
+        "score": {"total": post_id % 200, "up": post_id % 200 + 5, "down": -5},
         "tags": {
             "general": ["solo", "portrait"],
             "species": ["dragon"],
@@ -108,7 +108,13 @@ def transport(request):
 
             def matches(item):
                 tags = {tag for values in item["tags"].values() for tag in values}
-                for term in params.get("tags", "").split():
+                query = params.get("tags", "")
+                # Demo's existing simple-query subset, including the wrapper used
+                # to intersect similarity IDs. Real queries use e621's parser.
+                restricted = re.fullmatch(r"\( (.*) \) (id:\d+(?:,\d+)*) order:id_desc", query)
+                if restricted:
+                    query = restricted[1] + " " + restricted[2]
+                for term in query.split():
                     if term == "order:id_desc":
                         continue
                     if term.startswith("id:"):
@@ -176,20 +182,21 @@ def transport(request):
     return httpx.Response(404)
 
 
-class SyntheticNeighbors:
+class SyntheticImageSearch:
     """Isolated demo evidence; never represent fixtures as real semantic retrieval."""
 
-    async def lookup(self, seed_id):
+    error = None
+    revision = "synthetic"
+    corpus_size = 8
+
+    async def search_image(self, query, *, raw=None, post=None):
         import hashlib
 
-        return {
-            "seed_id": seed_id,
-            "coverage": "available",
-            "revision": "synthetic",
-            "row": 0,
-            "artifact_sha256": hashlib.sha256(f"synthetic:{seed_id}".encode()).hexdigest(),
-            "neighbors": [
-                {"post_id": seed_id - n, "distance": n / 10, "rank": n + 1} for n in range(1, min(9, seed_id))
-            ],
-            "verification": "Synthetic fixtures only; no semantic retrieval validation",
-        }
+        seed = query.get("post_id")
+        return {"revision": "synthetic", "coverage": "available", "corpus_size": self.corpus_size, "query_type": query["query_type"],
+                "query_sha256": query.get("query_sha256") or hashlib.sha256(artwork(seed, False)).hexdigest(),
+                "source_post_id": seed, "source_md5": query.get("source_md5"),
+                "model_revision": "synthetic", "embedding_space": "synthetic", "metric": "unit_l2",
+                "neighbors": [{"post_id": n, "md5": post_data["file"]["md5"], "rank": rank, "distance": rank / 10}
+                              for rank, (n, post_data) in enumerate(
+                                  [(n, globals()["post"](n)) for n in range(999, 991, -1) if n != seed], 1)]}

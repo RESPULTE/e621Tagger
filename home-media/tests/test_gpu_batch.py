@@ -70,6 +70,8 @@ def make_hydra(*, fail_batches=False):
         sigmoid=lambda logits: FakeScores(logits.rows),
     )
     instance = object.__new__(Hydra)
+    instance.max_seqlen = 1024
+    instance.thresholds = {}
     instance.torch = fake_torch
     instance.model = CallableModel()
     instance.model.load_image = load_image
@@ -115,3 +117,11 @@ def test_predict_batch_splits_oom_batch_then_uses_existing_single_predict(monkey
     assert predictions == [{"single": "frame-a"}, {"single": "frame-b"}]
     assert model.forwarded == [(["frame-a", "frame-b"], 1024)]
     assert single_calls == ["frame-a", "frame-b"]
+
+
+def test_extension_probabilities_keep_native_threshold_precision():
+    hydra, _ = make_hydra()
+    hydra.thresholds = {"first": 0.12345678}
+    predictions = hydra.predict_batch(["frame-a", "frame-b"])
+    assert predictions[0]["first"] == 0.12345678
+    assert predictions[0]["second"] == 0.987654

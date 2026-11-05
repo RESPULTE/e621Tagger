@@ -15,7 +15,6 @@ type Quality = {
   missing_fingerprints: number;
   conflicting_groups: number;
   conflict_samples: number[][];
-  unsure_samples: number[];
   preview_errors: { post_id: number; error: string }[];
 };
 type Version = {
@@ -125,7 +124,7 @@ export function Datasets() {
       {q && (
         <>
           <div className="count-grid">
-            {["positive", "negative", "unsure", "unreviewed"].map((label) => (
+            {["positive", "negative"].map((label) => (
               <div key={label} className={label}>
                 <strong>{q.labels[label] ?? 0}</strong>
                 {label}
@@ -181,17 +180,6 @@ export function Datasets() {
                   ))}
                 </p>
               ))}
-              {!!q.unsure_samples.length && (
-                <p>
-                  Unsure examples:{" "}
-                  {q.unsure_samples.map((id) => (
-                    <Link key={id} to={`/projects/${projectId}/posts/${id}`}>
-                      {" "}
-                      #{id}{" "}
-                    </Link>
-                  ))}
-                </p>
-              )}
               <p>
                 {q.missing_fingerprints} eligible reviewed images still need
                 preview fingerprints.

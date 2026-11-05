@@ -1,0 +1,83 @@
+{
+  "date": "2026-11-05",
+  "release": "image-query-layout-a2e4175f079d",
+  "scope": "Similarity layout, favourite controls, download cards, original-only Inbox saves",
+  "helper": {
+    "session": "native isolated session",
+    "model": "GPT-6.1 SOL",
+    "reasoning": "medium"
+  },
+  "destination": {
+    "host": "/media/vector/jellyfin-data/Inbox",
+    "studio": "/library/Inbox",
+    "nextcloud": {
+      "account": "furry",
+      "mount": "Inbox",
+      "container_path": "/existing-adult/Inbox",
+      "all_moved_originals_readable": true
+    },
+    "stash": {
+      "configured_root": "/media/vector/jellyfin-data",
+      "all_moved_originals_have_service_read_acl": true
+    }
+  },
+  "migration": {
+    "original_media_files": 10,
+    "studio_sidecars_removed": 30,
+    "original_sha256_and_inode_preserved": true,
+    "new_saves_write_only_original_media": true,
+    "reviews_and_datasets_unchanged": true,
+    "deployment_counts": {
+      "labels": 46,
+      "label_events": 57,
+      "datasets": 0,
+      "favourites": 10
+    },
+    "nextcloud_scoped_shallow_refresh_errors": 0
+  },
+  "checks": {
+    "backend": {
+      "passed": 141,
+      "skipped": 14
+    },
+    "linux_candidate_filesystem_and_migration": {
+      "passed": 40
+    },
+    "browser_favourite_flows": {
+      "passed": 12,
+      "browsers": [
+        "desktop Chromium",
+        "mobile Chromium",
+        "iPhone WebKit"
+      ]
+    },
+    "frontend_build": "passed",
+    "ruff": "passed",
+    "live_similarity": {
+      "same_image_across_projects": true,
+      "load_more_without_repeats": true,
+      "refresh_stable_for_unchanged_index": true
+    },
+    "live_mobile_390x844": {
+      "similarity_gallery_height": 360,
+      "gallery_viewport_fraction": 0.427,
+      "action_minimum_height": 44,
+      "horizontal_overflow": false
+    },
+    "live_download_cards": {
+      "rows": 10,
+      "thumbnail_references": 10,
+      "delete_buttons": 10,
+      "completed_text_colour": "rgb(156,229,173)"
+    },
+    "browser_full_suite": {
+      "passed": 64,
+      "skipped": 8
+    }
+  },
+  "limits": [
+    "Live similarity geometry used captured query results; fresh live API search behavior was checked separately.",
+    "Older downloads without recorded source target or upvotes show unavailable values rather than guessed metadata.",
+    "Stash root and effective file ACLs were verified; no Stash library scan was triggered."
+  ]
+}

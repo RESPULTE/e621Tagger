@@ -1,6 +1,6 @@
 # Dataset versions and quality
 
-P3 adds unrelated and lookalike query provenance, project quality summaries, duplicate grouping, deterministic group splits and immutable versions. No source kind assigns a human label. Embedding imports also preserve seed ID, publisher revision/row, row artifact digest, metric and each neighbor’s rank/distance as `provenance[].embedding` in newly frozen manifests. This evidence never changes eligibility or split policy; previously frozen manifests retain their exact bytes. Query pages are transient. Only human-reviewed posts become durable dataset members; legacy unreviewed imports are preserved outside new dataset membership.
+P3 adds unrelated and lookalike query provenance, project quality summaries, duplicate grouping, deterministic group splits and immutable versions. No source kind assigns a human label. Previously saved historical imports preserve seed ID, publisher revision/row, row artifact digest, metric and each neighbor’s rank/distance as `provenance[].embedding` in newly frozen manifests. This evidence never changes eligibility or split policy; previously frozen manifests retain their exact bytes. Query pages are transient. Only human-reviewed posts become durable dataset members; legacy unreviewed imports are preserved outside new dataset membership.
 
 ## Snapshot contract
 
@@ -12,7 +12,7 @@ The canonical full manifest is UTF-8 JSON with sorted keys and compact separator
 
 ## Eligibility and grouping
 
-- Only human `positive` and `negative` reviews can have targets 1 and 0. Unsure reviews remain explicit exclusions with null targets and splits. Never-reviewed discovery results are absent from new manifests. Conflicting duplicate-project reviews remain preserved and excluded from supervision.
+- Only human `positive` and `negative` reviews can have targets 1 and 0. Legacy unsure decisions are unreviewed and absent from new manifests; their stored history and old frozen manifests remain unchanged. Never-reviewed discovery results are absent from new manifests. Conflicting duplicate-project reviews remain preserved and excluded from supervision.
 - Deleted/unavailable posts, missing original URLs, unsupported media, missing MD5 and missing preview URLs are separate availability states. Current supported supervised media extensions are JPEG, PNG and WebP. GIF/video frame sampling is undefined and those formats are excluded. Container formats such as APNG/animated WebP are not independently probed; preview-based grouping does not certify their animation behavior.
 - Exact MD5 duplicates use the smallest eligible post ID as their supervised representative. If any positive and negative reviews share an MD5, that exact group is excluded pending review. All original records/provenance remain in the full manifest.
 - A 64-bit difference hash is computed from each validated 320px preview derivative: grayscale, Lanczos resize to 9×8, row-wise adjacent-pixel comparisons. Hamming distance ≤4 is the default near-duplicate edge; connected components include transitive edges. Stored fingerprints bind to the source MD5 and preview URL and are retained without preview files.
@@ -23,7 +23,7 @@ Preview dHash is a heuristic. Crops, edits, composition changes and missing fing
 
 ## Preparation and bounds
 
-`GET /api/projects/{id}/quality` reports human-label counts, source diversity, availability, exact/known near duplicate groups, contradictory exact labels and unsure examples. Duplicate counts depend on fingerprint coverage. `POST /api/projects/{id}/quality/prepare` queues up to 64 eligible reviewed missing fingerprints through the existing durable preview queue; repeatedly preparing is safe. Failed previews show errors and retain the five-minute retry cooldown. A freeze returns 409 until every otherwise-eligible reviewed sample has a source-matched fingerprint.
+`GET /api/projects/{id}/quality` reports human-label counts, source diversity, availability, exact/known near duplicate groups, contradictory exact labels. Duplicate counts depend on fingerprint coverage. `POST /api/projects/{id}/quality/prepare` queues up to 64 eligible reviewed missing fingerprints through the existing durable preview queue; repeatedly preparing is safe. Failed previews show errors and retain the five-minute retry cooldown. A freeze returns 409 until every otherwise-eligible reviewed sample has a source-matched fingerprint.
 
 The workflow caps projects at 5,000 candidates, manifests at 16 MiB and BK-tree near-hash analysis at one million comparisons. It rejects excess work explicitly instead of freezing an incomplete subset. No full embedding index, GPU or new dependency enters the server runtime.
 
@@ -35,4 +35,6 @@ From Tagged, open Dataset & export, freeze reviewed samples, then choose Downloa
 
 Downloads shows progress, completion, errors, retry and cancellation for both purposes. A sample file is available at `/api/datasets/{uuid}/media/files/{post_id}` only after verified publication. `/media/manifest` returns 409 until every eligible sample has completed and its bytes still match; the returned manifest adds safe relative paths, byte lengths and SHA-256 without mutating the original frozen manifest. `/media/bundle` produces a deterministic ZIP containing exactly these files and `manifest.json`, checks bytes again during packaging, and removes its temporary archive after delivery. Bundles cap at 4 GiB and require temporary free space; larger exports can use the individual files and checked manifest.
 
-These are scalar reviewed-target data exports, not an executable Hydra training interface. Local Hydra inference supports separate male and lugia outputs; no trainer, loader, missing-label mask, loss or extension writer was found. `male lugia` can be a discovery query inside an explicitly named target project. It does not create a multi-tag training project or verify both component labels. A real loader/training smoke test is unavailable until the actual external trainer contract is supplied; do not imply compatibility from checkpoint vocabulary alone.
+These are scalar reviewed-target data exports. The processing-PC [native character trainer](character-training.md) consumes the checked media bundle's `manifest.json` and preserves its frozen splits. It trains one previously absent character tag, not a multi-tag target or replacements for existing heads. `male lugia` can be a discovery query inside an explicitly named target project; it does not verify both component labels. Character recognition quality requires held-out reviewed data; synthetic trainer checks establish plumbing only.
+
+See [image retrieval and binary-review compatibility](image-retrieval.md) for schema v6, uploads, local vectors, evidence and release gates.

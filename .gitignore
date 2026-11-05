@@ -1,5 +1,6 @@
 models/
 .venv
+.venv-similarity/
 venv
 __pycache__
 *.py[cod]

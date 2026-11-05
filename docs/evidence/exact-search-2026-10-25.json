@@ -1,0 +1,87 @@
+{
+  "mode": "synthetic CPU exact VectorIndex only; no Hydra inference, no artwork, no ANN",
+  "host": {
+    "os": "Windows-10-10.0.26200-SP0",
+    "python": "3.10.19",
+    "numpy": "2.2.6",
+    "processor": "AMD Ryzen 7 8845HS",
+    "logical_cpus": 16,
+    "physical_cores": 8
+  },
+  "results": [
+    {
+      "rows": 1000,
+      "write_seconds": 0.8344866000006732,
+      "first_query_after_write_ms": 35.50600000016857,
+      "first_query_after_reopen_ms": 35.149299998010974,
+      "warm_queries": 25,
+      "warm_p50_ms": 36.75929999735672,
+      "warm_p95_ms": 41.86738000134937,
+      "top32_matches_independent_numpy": true,
+      "index_revision": "115958b8e3b6435d64ffac1f620577aa0ab8826792a2291830724d79890b71cc",
+      "sqlite_plus_sidecars_bytes": 8880128,
+      "file_bytes": 8847360,
+      "rss_repeat_query_process": {
+        "current_working_set_mb": 32.1,
+        "peak_working_set_mb": 47.8,
+        "queries": 5,
+        "repeat_p50_ms": 37.63
+      }
+    },
+    {
+      "rows": 8000,
+      "write_seconds": 8.16597769999862,
+      "first_query_after_write_ms": 264.30160000018077,
+      "first_query_after_reopen_ms": 265.64499999949476,
+      "warm_queries": 25,
+      "warm_p50_ms": 222.33369999958086,
+      "warm_p95_ms": 254.60606000124238,
+      "top32_matches_independent_numpy": true,
+      "index_revision": "67cb1d9414c7067ab1a4b903a189717399a41e5fa3977316fe070b316c5d3fbc",
+      "sqlite_plus_sidecars_bytes": 70717440,
+      "file_bytes": 70684672,
+      "rss_repeat_query_process": {
+        "current_working_set_mb": 31.9,
+        "peak_working_set_mb": 53.2,
+        "queries": 5,
+        "repeat_p50_ms": 270.73
+      }
+    }
+  ],
+  "dedup_boundary": {
+    "rows": 520,
+    "duplicate_post_ids": [
+      512,
+      513
+    ],
+    "row_block_boundary_after": 512,
+    "query_exactly_duplicate_vector": true,
+    "matching_results": [
+      {
+        "post_id": 512,
+        "md5": "0e9f1e8e40bb79e800b0cc9433830cf4",
+        "rank": 1,
+        "distance": 0.0
+      }
+    ],
+    "one_representative_only": true,
+    "representative_post_id": 512,
+    "expected_representative": 512,
+    "pass": true
+  },
+  "50k_attempt": {
+    "status": "stopped_before_completion; excluded from benchmark results",
+    "rows_at_stop": 38059,
+    "sqlite_plus_sidecars_bytes_at_stop": 341609640,
+    "integrity_at_stop": "ok",
+    "reason": "Per-row transactional insertion had consumed about 78 CPU seconds by 35,141 rows; projected total approached/exceeded the requested two-minute practicality limit. Partial synthetic database is retained and must not be treated as a 50k benchmark."
+  },
+  "methodology": {
+    "vector_source": "deterministic synthetic Gaussian vectors, normalized to float32 unit length; generated incrementally, one VectorIndex.upsert transaction per row",
+    "cold_definition": "first query after close/reopen; filesystem/OS cache was not flushed, so this is not a true cold-storage measurement",
+    "warm_queries": "25 independent queries per 1k and 8k run; p50/p95 over those latencies",
+    "rss": "measured in a separate repeat-query process using Win32 GetProcessMemoryInfo; it is not the original insert process peak",
+    "exactness": "top-32 compared against independent NumPy brute-force L2 over all rows at 1k and 8k",
+    "dedup_case": "identical normalized vector and media hashes at sorted row positions 512 and 513; queried that vector and checked one lower-ID representative"
+  }
+}

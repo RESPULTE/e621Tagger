@@ -1,0 +1,169 @@
+{
+  "date": "2026-11-05",
+  "dataset": "RedRocket/Hydra-Embeddings",
+  "dataset_revision": "02bd7bd04c732dd3de011d88d642a1d21024f70d",
+  "publisher_image_count": 6122692,
+  "dimension": 2048,
+  "source_manifest_sha256": "82ee52e29957924200e3e009d8aaab7e214c792ba62994d3e97951482c588459",
+  "generation_manifest_sha256": "f996b55e38db479a4c5e980cf4a41ed634ba567ab47b467435eb757b2c008571",
+  "model_revision": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+  "native_query_space": "5de6cd51f1a756b98b8c56bceea44f643b65eaeb9265a10753c30390f4d89250",
+  "files": {
+    "post_ids.npy": {
+      "bytes": 48981664,
+      "sha256": "33b7cc320ee4a33836948089453c00bab2df87389f5da074d0ffedad261d6100"
+    },
+    "raw_vectors.npy": {
+      "bytes": 25078546560,
+      "sha256": "a98380029cf5d090a3fce4c321fdfc253670f3c793b0e0af5cd5e5275c590fba"
+    },
+    "mean.npy": {
+      "bytes": 8320,
+      "sha256": "c14c0a657991f1f755decd8cf959ceef455702a0136609a265db765a97a6b8b6"
+    },
+    "search.faiss": {
+      "bytes": 1569506390,
+      "sha256": "08dd726d734d92ae450f8bffabfd50dfbdc21ad45a7cee1f9511b98e6ab278a6"
+    }
+  },
+  "search": {
+    "kind": "PQ256x8-exhaustive-codes-with-exact-reranking",
+    "rerank": 8192,
+    "training_seed": 3407,
+    "training_samples": 131072,
+    "training_rows_sha256": "0dd9da607ee71a6fdea0040efea3c9af81975cc3dc8fef6af381fb237b821fc6",
+    "faiss": "1.15.1"
+  },
+  "validation": {
+    "passed": true,
+    "heldout_from_quantizer_training": 16,
+    "exact_full_corpus_seconds": 165.2029999999977,
+    "exact_cache_sha256": "eb5ecd8afccbac7bae218466db7736e6e3cd831e47867d38296a4b1c04851bb7",
+    "search_attempts": [
+      {
+        "rerank": 8192,
+        "recall_at_32": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "mean_recall": 1.0,
+        "minimum_recall": 1.0,
+        "query_seconds": [
+          5.35899999999674,
+          3.2660000000032596,
+          3.0309999999990396,
+          3.110000000000582,
+          3.4219999999986612,
+          3.4059999999990396,
+          2.812000000001717,
+          3.3440000000009604,
+          3.202999999997701,
+          3.110000000000582,
+          3.4530000000013388,
+          3.061999999998079,
+          3.110000000000582,
+          2.9680000000007567,
+          3.110000000000582,
+          3.2340000000003783
+        ],
+        "p95_query_seconds": 3.929500000000189
+      }
+    ],
+    "native_pairs": [
+      {
+        "post_id": 14,
+        "raw_cosine": 0.9999848008155823,
+        "raw_relative_l2": 0.00555450189858675,
+        "centered_unit_difference": 0.0077526685781776905,
+        "source_rank": 1,
+        "source_or_identical_vector_rank": 1
+      },
+      {
+        "post_id": 15,
+        "raw_cosine": 0.9999762773513794,
+        "raw_relative_l2": 0.006897503975778818,
+        "centered_unit_difference": 0.009241410531103611,
+        "source_rank": 1,
+        "source_or_identical_vector_rank": 1
+      },
+      {
+        "post_id": 17,
+        "raw_cosine": 0.9999576807022095,
+        "raw_relative_l2": 0.00936359353363514,
+        "centered_unit_difference": 0.013314341194927692,
+        "source_rank": 1,
+        "source_or_identical_vector_rank": 1
+      },
+      {
+        "post_id": 20,
+        "raw_cosine": 0.9999855160713196,
+        "raw_relative_l2": 0.005424081347882748,
+        "centered_unit_difference": 0.006625624373555183,
+        "source_rank": 1,
+        "source_or_identical_vector_rank": 1
+      },
+      {
+        "post_id": 22,
+        "raw_cosine": 0.9999809861183167,
+        "raw_relative_l2": 0.006235496606677771,
+        "centered_unit_difference": 0.007248368579894304,
+        "source_rank": 1,
+        "source_or_identical_vector_rank": 1
+      },
+      {
+        "post_id": 23,
+        "raw_cosine": 0.9999876618385315,
+        "raw_relative_l2": 0.0049607218243181705,
+        "centered_unit_difference": 0.007887153886258602,
+        "source_rank": 1,
+        "source_or_identical_vector_rank": 1
+      }
+    ],
+    "scope": "Numerical compatibility/nearest-neighbor recall, not supervised character accuracy"
+  },
+  "live": {
+    "source_post_id": 6794904,
+    "projects_checked": [
+      1,
+      6
+    ],
+    "corpus_size": 6122693,
+    "initial_count": 8,
+    "expanded_count": 16,
+    "exhausted_count": 56,
+    "same_image_project_independent": true,
+    "more_appends_without_repeats": true,
+    "more_request_replay_idempotent": true,
+    "refresh_stable_when_index_unchanged": true,
+    "library_available": true,
+    "different_image_changes_ranking": true,
+    "alternative_source_post_id": 6017502,
+    "alternative_top_post_ids": [
+      6017497,
+      6017503,
+      4918878,
+      3982750,
+      5180008,
+      4069762,
+      5413462,
+      5968435
+    ],
+    "different_image_top8_overlap": 0
+  },
+  "startup": "Validated generation configured on the existing Windows similarity task; old pilot corpus retained",
+  "scope": "Image-derived retrieval, independent of project/tags; not supervised character recognition accuracy"
+}

@@ -1,36 +1,22 @@
-# Optional discovery and laptop work
+# Optional processing laptop
 
-Home-server review and dataset exports operate independently of the processing PC. Find Similar now uses the pinned known-ID index on the RTX 4070 PC through a scoped outbound-polling worker; see [similarity setup](similarity.md). The legacy bounded **known-post-ID** published-neighbor API below remains compatible. GPU inference, training and arbitrary-image embedding retrieval remain separate work.
+Reviews, metadata browsing, collection saves and dataset exports operate without
+the processing laptop. Image similarity requires its authenticated CUDA worker;
+there is no historical-index fallback. See [image search setup](similarity.md).
 
-## Implemented: bounded published KNN access
+The server keeps model inference and vector search off the home-server CPU/RAM.
+The laptop loads the checksum-verified Hydra checkpoint and owns its local exact
+vector corpus. It polls outbound, maintains heartbeats during inference, and
+uses authenticated leased transfers for bounded reference bytes. Uploads are
+query references, not automatically reviewed examples or saved training media.
 
-`POST /api/projects/{project_id}/neighbors/{post_id}` requires an existing project candidate and a mutation UUID. A dedicated durable worker performs an optional online lookup; the regular e621 metadata worker, reviews and preview queue remain independent. `GET` on the same URL reports idle/pending/running/done/failed state, stored evidence and current project-specific human labels. Reloading/restarting does not lose completed evidence. Completed rows are reused, including explicit missing coverage; a failed job can be retried with a new mutation UUID. No laptop is contacted.
+The old published-neighbor routes, readers, NPY installer and v1 worker protocol
+were removed. Completed legacy jobs/provenance remain audit records; pending or
+running legacy neighbor jobs become cancelled at startup. Dataset snapshots and
+undo retain saved legacy provenance without invoking a lookup. No saved media,
+raw review history or frozen manifest is purged.
 
-The reader pins [revision 02bd7bd04c732dd3de011d88d642a1d21024f70d](https://huggingface.co/datasets/RedRocket/Hydra-Embeddings/commit/02bd7bd04c732dd3de011d88d642a1d21024f70d) and requires actual NPY v1 headers with 128-byte offsets: `(6122692,) <i8` post IDs, `(6122692,64) <i8` neighbor **post IDs**, and `(6122692,64) <f2` distances. These headers and actual rows were checked against the live publisher. Ascending-ID interpolation checks strictly ascending sampled 512-ID blocks and returns a row only when its ID exactly equals the seed. Global sortedness is not certified from sampled blocks: a lookup miss is explicitly unavailable coverage, not proof of absence. IDs never become array row indices.
-
-Each attempt permits at most 32 range reads, 128 KiB of **array response payload**, 4 KiB per read and 60 seconds overall, with 10-second HTTP timeouts and at most three HTTPS redirects per read to Hugging Face hosts. HTTP header/redirect traffic is additional. An ignored/wrong/truncated/oversized range, incompatible header, nonfinite distance or malformed sampled block fails explicitly; no whole-file fallback exists. Only one neighbor worker runs, with at most 16 pending/running jobs globally and four bounded attempts per job. Offline status is local capability plus the last job outcome, not a claim of continuous upstream health. Set `STUDIO_PUBLISHED_NEIGHBORS=false` to disable new attempts; saved evidence remains readable.
-
-Pinned publisher file sizes/SHA-256 values are recorded as **expected full-file identities**, not claimed independently verified hashes. Range responses use HTTPS, strict Content-Range/shape validation and exact seed identity. The row artifact SHA-256 hashes `struct.pack('<qQ', seed_id, row_index) + raw_64_int64_neighbor_ids + raw_64_float16_distances`; this preserves reproducible row identity, not a full-file authenticity proof. No images, labels, checkpoint or private assets are uploaded.
-
-`POST .../neighbors/{post_id}/import` takes a mutation UUID, completed `job_id`, and 1–50 unique selected neighbor IDs. It rejects IDs outside that row or evidence belonging to another project/seed. The ordinary paced metadata importer fetches selected posts; 404s become unavailable candidates. Candidates, provenance and job completion commit together, with a 5,000-candidate cap checked inside the commit. Imports preserve reviews. Each selection has its own run identity, so an earlier exhausted selection cannot swallow a later one. The gallery supports the `embedding` source and selected run; these fixed selections do not paginate via Add next 50.
-
-Tag suggestions are top-20 general source-tag counts occurring in at least two available local neighbor metadata records, one count per neighbor. They include the observed denominator and exclude unavailable records. They are neither model outputs nor probabilities and never assign target labels. Human positive/negative/unsure states are joined only from the current project. Frozen dataset provenance includes each imported neighbor's seed, revision, row digest, metric, rank and distance; old frozen bytes remain unchanged.
-
-Mock mode uses explicitly marked synthetic neighbor fixtures and never contacts Hugging Face. Browser fixture tests establish UI/integration behavior, not real semantic similarity. Live published rows were checked separately without downloading or judging their imagery.
-
-## Local assets and unresolved extraction parity
-
-Read-only inspection found `C:/Users/yeapz/project/e621Tagger/models/hydra-3.5.safetensors`, 1,064,526,448 bytes. Its SHA-256 is `5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca`, matching the [publisher checkpoint](https://huggingface.co/RedRocket/Hydra/blob/main/models/hydra-3.5.safetensors). The safetensors header specifies `naflexvit_so400m_patch16_siglip+rr_hydra2`, white background and `mks2013-linear` resize. The preserved local source exposes `forward_embedding`/`forward_embedding_varlen` through HydraPool and ExtremumPool (2,048 output dimensions), separately from classifier logits. No private source/weights were copied or loaded into Studio.
-
-That is a candidate extraction path, **not proven published-vector parity**. The centroid and exact generating extractor/preprocessing contract remain unpublished in the inspected card; no MessagePack record decoder/vector parity was validated. Arbitrary-image search or mixing locally extracted vectors with this index still requires those assets/contracts and a real matching-record comparison. The implemented path reads the publisher's finished neighbor results directly and therefore does not invent this compatibility.
-
-
-Primary-source verification on that date:
-
-- The [Hydra-Embeddings card](https://huggingface.co/datasets/RedRocket/Hydra-Embeddings) describes MessagePack shards named `embeds/e621_static_{post_id // 5000:05d}.hydra35_embed.msgpack`, each with records containing an integer ID and float16 vector. It lists `hydra35_embed_postids.npy` with shape `(6122692,)`, neighbor **post IDs** in `hydra35_embed_ids.npy` with shape `(6122692,64)`, and corresponding distances. Row identity comes from the post-ID array. This supports expansion from indexed IDs, not arbitrary-image KNN.
-- The card states that neighbors use L2 distance on mean-centered, unit-normalized vectors. It does not publish the centering vector or an exact reproducible feature-extraction definition. Vector dimension, precise feature layer/pooling and generating checkpoint hash are not established by the card. The sample deserialization code alone is insufficient proof of a working NumPy decoder.
-- The [model card](https://huggingface.co/RedRocket/Hydra) and linked [inference.py](https://huggingface.co/RedRocket/Hydra/blob/main/inference.py) expose tag classification. They do not establish a compatible embedding endpoint. Do not assume classifier logits or an arbitrary intermediate tensor equals the published vector representation.
-
-The memory-mapped known-ID adapter verifies local array headers and complete file checksums on the processing PC. The files stay off the server. Verify checkpoint, preprocessing, feature schema and normalization before mixing vectors generated by another path.
-
-The first classifier should consume an immutable reviewed dataset and compatible frozen features, with verified negatives and group-held-out train/validation/test partitions. Fit transforms on train only, select thresholds on validation only, and report precision/recall, AP/PR-AUC, precision@K, calibration and false positives per 100 verified negatives. Empty or one-class splits must fail explicitly. The similarity polling worker handles only transient known-ID lookups; it performs no inference or training and does not upload originals. Future GPU jobs still need immutable checksummed artifacts, scoped authentication, bounded leases/retries, progress and restart recovery. These remain acceptance criteria for GPU work.
+Training still requires a compatible external trainer/loader. Use human positive
+and negative labels, immutable datasets, group-separated splits and an independent
+evaluation set. The small Radar pilot has no test split and is not evidence of a
+trained classifier's generalization. See [measured evidence](image-retrieval.md).

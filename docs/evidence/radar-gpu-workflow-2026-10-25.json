@@ -1,0 +1,271 @@
+{
+  "production_accessed": false,
+  "real_checkpoint": true,
+  "real_gpu": true,
+  "corpus_size": 35,
+  "human_confirmation": "five posts explicitly confirmed positive by user after retrieval",
+  "old_frozen_preservation": {
+    "e3493af9-a89f-41ae-94de-cd8eb920e529": {
+      "sha256": "7ff7f35b748d145e8d960f49aedc52f2d451f473ba80b9eb77288fd7c6f6d925",
+      "bytes": 4038,
+      "unchanged_after_new_reviews_and_freeze": true
+    },
+    "e2e379db-5345-4608-b1a2-a1b788a4eb4d": {
+      "sha256": "13dcf787e02789fab2fa53e4944ef86ae1e0afb01e85cc30ce87e198715340b5",
+      "bytes": 6521,
+      "unchanged_after_new_reviews_and_freeze": true
+    }
+  },
+  "reviews": {
+    "3512266": {
+      "post_id": 3512266,
+      "state": "positive",
+      "version": 2,
+      "event_id": 12
+    },
+    "3512309": {
+      "post_id": 3512309,
+      "state": "positive",
+      "version": 2,
+      "event_id": 13
+    },
+    "3512319": {
+      "post_id": 3512319,
+      "state": "positive",
+      "version": 2,
+      "event_id": 14
+    },
+    "5075126": {
+      "post_id": 5075126,
+      "state": "positive",
+      "version": 2,
+      "event_id": 15
+    },
+    "4795236": {
+      "post_id": 4795236,
+      "state": "positive",
+      "version": 2,
+      "event_id": 16
+    }
+  },
+  "exports": {
+    "json": {
+      "bytes": 9425,
+      "sha256": "da59f16ba8e4897640770bd6ddfb35769bf176deabe0381b814d1cea4c19af39",
+      "repeated_byte_identical": true
+    },
+    "jsonl": {
+      "bytes": 9693,
+      "sha256": "1bb6d28060743af7ed6288699e2ad967f572d9cbe48d67cab6ed8ac503c09f7f",
+      "repeated_byte_identical": true
+    },
+    "csv": {
+      "bytes": 7720,
+      "sha256": "7a2d2ac774806dc3f66c28b7ba5feb9c0594898dea58a29f4b2ddf881b348c83",
+      "repeated_byte_identical": true
+    }
+  },
+  "search": {
+    "query_type": "upload",
+    "query_sha256": "c13724936771f05458bab399eb6bfe9fafabb9525e9dbd5be934ba4c77406fa9",
+    "model_revision": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+    "embedding_space": "5de6cd51f1a756b98b8c56bceea44f643b65eaeb9265a10753c30390f4d89250",
+    "metric": "unit_l2",
+    "index_revision": "9898f7ea924997121420bc30ac28a1ce8b192c8071dde6c64e3624fa0954eb47",
+    "checked": 32,
+    "total": 34,
+    "status": "done",
+    "end_to_end_ms": 25374.643600000127,
+    "returned_ids": [
+      6017502,
+      4069762,
+      3512266,
+      3512309,
+      5075126,
+      6698219,
+      6777746,
+      3512319,
+      4795236,
+      5711178,
+      1920276,
+      4778404,
+      5421276,
+      4096700,
+      5455452,
+      6745870,
+      5817248,
+      6755226,
+      6065248,
+      6015196,
+      6774371,
+      6767149,
+      6751277,
+      6761167,
+      6788420,
+      6762227,
+      3232854,
+      6657413,
+      6763637,
+      3450750,
+      5517513,
+      6763496
+    ]
+  },
+  "dataset": {
+    "id": "d53f96e1-da97-40f3-991e-0ebf6447fa75",
+    "name": "Radar real GPU retrieval evidence 2026-10-25",
+    "manifest_sha256": "da59f16ba8e4897640770bd6ddfb35769bf176deabe0381b814d1cea4c19af39",
+    "created_at": 1792935053.724669,
+    "counts": {
+      "included": 11,
+      "excluded": 0,
+      "splits": {
+        "validation": 2,
+        "train": 9
+      }
+    },
+    "warnings": [
+      "dHash uses transient preview images; crops, color changes and other near-duplicates may escape detection.",
+      "Availability is metadata at freeze time, not a guarantee that a remote URL will remain downloadable.",
+      "At least one split is empty. Collect more independent groups before training/evaluation."
+    ]
+  },
+  "authenticated_retrieval_provenance": [
+    {
+      "candidate_md5": "2deaba3aeddccbe89c94e5ad7d5e663a",
+      "candidate_post_id": 3512266,
+      "distance": 0.6829993724822998,
+      "embedding_space": "5de6cd51f1a756b98b8c56bceea44f643b65eaeb9265a10753c30390f4d89250",
+      "event_id": 12,
+      "index_revision": "9898f7ea924997121420bc30ac28a1ce8b192c8071dde6c64e3624fa0954eb47",
+      "kind": "hydra_image",
+      "metric": "unit_l2",
+      "model_revision": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+      "neighbor_rank": 3,
+      "query_sha256": "c13724936771f05458bab399eb6bfe9fafabb9525e9dbd5be934ba4c77406fa9",
+      "query_type": "upload",
+      "source_md5": null,
+      "source_post_id": null
+    },
+    {
+      "candidate_md5": "16772a6b335f6b45b324c5cc4c942ba4",
+      "candidate_post_id": 3512309,
+      "distance": 0.7283335328102112,
+      "embedding_space": "5de6cd51f1a756b98b8c56bceea44f643b65eaeb9265a10753c30390f4d89250",
+      "event_id": 13,
+      "index_revision": "9898f7ea924997121420bc30ac28a1ce8b192c8071dde6c64e3624fa0954eb47",
+      "kind": "hydra_image",
+      "metric": "unit_l2",
+      "model_revision": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+      "neighbor_rank": 4,
+      "query_sha256": "c13724936771f05458bab399eb6bfe9fafabb9525e9dbd5be934ba4c77406fa9",
+      "query_type": "upload",
+      "source_md5": null,
+      "source_post_id": null
+    },
+    {
+      "candidate_md5": "a5353fb87aedc6f82322cebb499fce59",
+      "candidate_post_id": 3512319,
+      "distance": 0.762470543384552,
+      "embedding_space": "5de6cd51f1a756b98b8c56bceea44f643b65eaeb9265a10753c30390f4d89250",
+      "event_id": 14,
+      "index_revision": "9898f7ea924997121420bc30ac28a1ce8b192c8071dde6c64e3624fa0954eb47",
+      "kind": "hydra_image",
+      "metric": "unit_l2",
+      "model_revision": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+      "neighbor_rank": 8,
+      "query_sha256": "c13724936771f05458bab399eb6bfe9fafabb9525e9dbd5be934ba4c77406fa9",
+      "query_type": "upload",
+      "source_md5": null,
+      "source_post_id": null
+    },
+    {
+      "candidate_md5": "b6093d6fe74b591e999de1ad1664c9c0",
+      "candidate_post_id": 4795236,
+      "distance": 0.7869200706481934,
+      "embedding_space": "5de6cd51f1a756b98b8c56bceea44f643b65eaeb9265a10753c30390f4d89250",
+      "event_id": 16,
+      "index_revision": "9898f7ea924997121420bc30ac28a1ce8b192c8071dde6c64e3624fa0954eb47",
+      "kind": "hydra_image",
+      "metric": "unit_l2",
+      "model_revision": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+      "neighbor_rank": 9,
+      "query_sha256": "c13724936771f05458bab399eb6bfe9fafabb9525e9dbd5be934ba4c77406fa9",
+      "query_type": "upload",
+      "source_md5": null,
+      "source_post_id": null
+    },
+    {
+      "candidate_md5": "05924276b6e8cc409855814a2405dd4e",
+      "candidate_post_id": 5075126,
+      "distance": 0.745215117931366,
+      "embedding_space": "5de6cd51f1a756b98b8c56bceea44f643b65eaeb9265a10753c30390f4d89250",
+      "event_id": 15,
+      "index_revision": "9898f7ea924997121420bc30ac28a1ce8b192c8071dde6c64e3624fa0954eb47",
+      "kind": "hydra_image",
+      "metric": "unit_l2",
+      "model_revision": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+      "neighbor_rank": 5,
+      "query_sha256": "c13724936771f05458bab399eb6bfe9fafabb9525e9dbd5be934ba4c77406fa9",
+      "query_type": "upload",
+      "source_md5": null,
+      "source_post_id": null
+    }
+  ],
+  "historical_missing_post_query": {
+    "post_id": 6774371,
+    "status": "done",
+    "query_type": "post",
+    "returned_ids": [
+      6425469,
+      6778571,
+      6778600
+    ],
+    "duplicates_hidden": 31,
+    "end_to_end_ms": 4803.180700000667
+  },
+  "metrics": {
+    "metadata": {
+      "requests": 29,
+      "throttled": 0,
+      "errors": 0,
+      "last_latency_ms": 375.0
+    },
+    "downloads": {
+      "active": 0,
+      "peak_active": 0,
+      "completed": 0,
+      "bytes": 0
+    },
+    "transient_posts": 35,
+    "media": {
+      "hits": 0,
+      "misses": 0,
+      "bytes": 0,
+      "active": 0,
+      "peak_active": 0,
+      "throttled": 0,
+      "last_download_ms": 0.0
+    },
+    "media_timings": {},
+    "queues": [
+      {
+        "type": "preview",
+        "status": "done",
+        "count": 11
+      }
+    ],
+    "cache": {
+      "files": 0,
+      "bytes": 0
+    },
+    "timings": {
+      "local_label_commit_ms": {
+        "samples": 5,
+        "latest": 875.0,
+        "p95": 1688.0
+      }
+    }
+  },
+  "passed": true
+}

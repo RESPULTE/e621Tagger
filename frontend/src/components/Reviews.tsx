@@ -1,3 +1,4 @@
+import { StudioIcon } from "./StudioIcon";
 import {
   createContext,
   useContext,
@@ -132,6 +133,7 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
           );
       });
       await Promise.all([
+        client.invalidateQueries({ queryKey: ["projects"] }),
         client.invalidateQueries({ queryKey: ["project", operation.project] }),
         client.invalidateQueries({
           queryKey: ["candidates", operation.project],
@@ -263,11 +265,9 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
 export function ReviewButtons({
   project,
   post,
-  onSaved,
 }: {
   project: number;
   post: Candidate;
-  onSaved?: () => void;
 }) {
   const reviews = useReviews();
   const pending = reviews.pending[keyFor(project, post.post_id)];
@@ -275,24 +275,19 @@ export function ReviewButtons({
   return (
     <div className="review-block">
       <div className="review-buttons">
-        {(["positive", "negative", "unsure"] as const).map((value, index) => (
+        {(["positive", "negative"] as const).map((value) => (
           <button
             key={value}
             className={`${value} ${state === value ? "chosen" : ""}`}
+            aria-label={value === "positive" ? "Positive" : "Negative"}
+            title={`${value === "positive" ? "Positive" : "Negative"} · click again to cancel`}
             aria-pressed={state === value}
             disabled={pending?.saving || !!pending?.error}
             onClick={() => {
-              void reviews.edit(project, [post], value).then((ok) => {
-                if (ok) onSaved?.();
-              });
+              void reviews.edit(project, [post], state === value ? null : value);
             }}
           >
-            <kbd>{index + 1}</kbd>{" "}
-            {value === "positive"
-              ? "Positive"
-              : value === "negative"
-                ? "Negative"
-                : "Unsure"}
+            <StudioIcon name={value} />
           </button>
         ))}
       </div>
@@ -305,15 +300,6 @@ export function ReviewButtons({
               ? "Saved"
               : "Unreviewed"}
       </span>
-      <button
-        className="quiet"
-        disabled={!post.event_id || pending?.saving || !!pending?.error}
-        onClick={() => {
-          void reviews.undo(project, post);
-        }}
-      >
-        Undo this post
-      </button>
     </div>
   );
 }

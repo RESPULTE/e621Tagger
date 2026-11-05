@@ -60,8 +60,8 @@ async def persist_post(conn, post):
 
 
 class Workers:
-    def __init__(self, db, source, media, neighbors=None, library=None, downloads=None):
-        self.db, self.source, self.media, self.neighbors = db, source, media, neighbors
+    def __init__(self, db, source, media, library=None, downloads=None):
+        self.db, self.source, self.media = db, source, media
         self.library = library
         self.downloads = downloads
         self.active_downloads = set()
@@ -70,9 +70,15 @@ class Workers:
     async def start(self, media_count):
         # No other process can own these leases because Database.open takes a process lock.
         async with self.db.transaction() as conn:
+            # Retire the removed executor without deleting completed evidence or
+            # leaving old leases permanently pending after the upgrade.
+            await conn.execute(
+                "UPDATE jobs SET status='cancelled',lease_until=NULL,error=?,updated_at=? "
+                "WHERE type='neighbors' AND status IN ('pending','running')",
+                ("Historical neighbor lookup retired; use GPU image search", time.time()),
+            )
             await conn.execute("UPDATE jobs SET status='pending',lease_until=NULL WHERE status='running'")
         self.tasks = [asyncio.create_task(self._loop("discovery"), name="discovery")]
-        self.tasks.append(asyncio.create_task(self._loop("neighbors"), name="neighbors"))
         if self.library and self.downloads:
             self.tasks += [
                 asyncio.create_task(self._loop("downloads"), name=f"download-{i}")
@@ -131,15 +137,6 @@ class Workers:
                         else:
                             await asyncio.wait_for(
                                 self.downloads.process(job, payload), timeout=self.source.settings.library_timeout
-                            )
-                    elif job_type == "neighbors":
-                        if not self.source.settings.published_neighbors:
-                            raise HTTPException(409, "Published neighbor lookup is disabled")
-                        result = await self.neighbors.lookup(payload["seed_id"])
-                        async with self.db.transaction() as conn:
-                            await conn.execute(
-                                "UPDATE jobs SET status='done',lease_until=NULL,result_json=?,error=NULL,updated_at=? WHERE id=?",
-                                (json.dumps(result), time.time(), job["id"]),
                             )
                     else:
                         await self.media.download_preview(payload["post_id"])

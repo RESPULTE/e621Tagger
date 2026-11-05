@@ -1,0 +1,62 @@
+{
+  "date": "2026-11-05",
+  "release": "image-query-layout-9df9d455182e",
+  "image_id": "sha256:09566c5a0789846341275eec6d0c7ac44f9efabb82fba24f86bec665c9ae0020",
+  "source_overlay_sha256": "9df9d455182e3f674a7ec635efb6d0ae220ab1f5e2730bc32212871f92cffbfa",
+  "scope": "Official e621 similarity query filter and current frontend controls",
+  "checks": {
+    "linux_backend_passed": 30,
+    "desktop_mobile_browser_passed": 8,
+    "frontend_build": "passed",
+    "ruff": "passed",
+    "isolated_container_filter_clear_load_more": "passed",
+    "linux_frontend_assets_equal_tested_build": true,
+    "live_api": {
+      "origin": "http://192.168.0.15:8447",
+      "health": "healthy",
+      "mock": false,
+      "source_post_id": 6794904,
+      "loaded_results": 8,
+      "official_id_filter": true,
+      "official_rating_filter": true,
+      "safe_results": 0,
+      "similarity_ranks_preserved": true,
+      "clearing_restores_results": true,
+      "matching_rating": "e",
+      "matching_rating_results": 8,
+      "corpus_size": 6122696,
+      "project_review_or_favourite_mutations": 0
+    }
+  },
+  "preservation": {
+    "business_hashes_unchanged": true,
+    "counts": {
+      "labels": 47,
+      "label_events": 58,
+      "datasets": 0,
+      "saved_media": 11
+    },
+    "external_backup": "/opt/hydra-studio/backups/pre-image-query-layout-9df9d455182e-20261105T074853Z.sqlite3",
+    "backup_sha256": "31a5c74de209a3d8ec27a69623824c2327c420872a1dd90b81bd1adc42d47d9a",
+    "sqlite_integrity": "ok",
+    "foreign_keys": "ok",
+    "volumes_removed": false
+  },
+  "cleanup": {
+    "removed_images": [
+      {
+        "tag": "hydra-training-studio:image-query-layout-a2e4175f079d",
+        "id": "sha256:7da2a3092a6fb449e6ffeb05fce6e1386d437f7cdce94de052db2dd7abda1e01"
+      },
+      {
+        "tag": "hydra-training-studio:image-query-layout-ab67fcaca582",
+        "id": "sha256:3e9cc18b91be5af810dcd0210c1eb538639db727fb962580912e0432b47dce0c"
+      }
+    ],
+    "other_historical_images_retained": true
+  },
+  "limits": [
+    "Browser checks used synthetic data; live acceptance used HTTP API, not computer control.",
+    "Transient similarity searches expire on container restart."
+  ]
+}

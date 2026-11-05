@@ -10,9 +10,8 @@ import {
 } from "../api/client";
 import { ReviewButtons, useReviews } from "../components/Reviews";
 import { TagSidebar } from "../components/TagSidebar";
-import { useFindSimilar } from "../components/Similarity";
-import { useLongPress } from "../components/useLongPress";
-import { FavoriteButton } from "../components/FavoriteButton";
+import { artistName } from "../components/artworkName";
+import { SaveMedia } from "../components/FavoriteButton";
 
 type NavigationState = {
   ids?: number[];
@@ -40,22 +39,32 @@ export function Post() {
   const [mediaError, setMediaError] = useState(false);
   const [fallback, setFallback] = useState(false);
   const [mediaReady, setMediaReady] = useState(false);
-  const [hideTags, setHideTags] = useState(
-    localStorage.getItem("studio-hide-tags") === "true",
-  );
+  const [barHidden, setBarHidden] = useState(false);
+  useEffect(() => {
+    setBarHidden(false);
+    let anchor = window.scrollY;
+    const onScroll = () => {
+      const y = Math.max(0, window.scrollY);
+      if (Math.abs(y - anchor) < 12) return;
+      setBarHidden(y > 0 && y < anchor);
+      anchor = y;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [currentId]);
   const video = useRef<HTMLVideoElement>(null);
   const ids = navigation.ids ?? [currentId];
   const index = ids.indexOf(currentId);
   const contextParams = new URLSearchParams(location.search);
   const seed = Number(contextParams.get("seed"));
   const indexRevision = contextParams.get("index");
+  const searchId = contextParams.get("similar_search");
   const context =
-    Number.isSafeInteger(seed) && seed > 0 && indexRevision
-      ? { seed_post_id: seed, index_revision: indexRevision }
+    searchId && indexRevision
+      ? { search_id: searchId, index_revision: indexRevision,
+          ...(Number.isSafeInteger(seed) && seed > 0 ? { seed_post_id: seed } : {}) }
       : navigation.similarity;
   const post = query.data ? { ...query.data, similarity: context } : undefined;
-  const similar = useFindSimilar(projectId, currentId);
-  const hold = useLongPress(() => void similar.find(), currentId);
   const isVideo = ["mp4", "webm"].includes(post?.media_ext ?? "");
   const imageTypes = ["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp"];
   const isImage = imageTypes.includes(post?.media_ext ?? "");
@@ -90,28 +99,29 @@ export function Post() {
     const handler = (event: KeyboardEvent) => {
       if (
         (event.target as HTMLElement).closest(
-          "input,textarea,select,video,[contenteditable='true']",
+          "input,textarea,select,button,a,video,[contenteditable='true']",
         ) ||
         event.ctrlKey ||
         event.metaKey ||
         event.altKey ||
+        event.repeat ||
         !post
       )
         return;
       const state = (
-        { "1": "positive", "2": "negative", "3": "unsure" } as const
+        { "1": "positive", "2": "negative" } as const
       )[event.key as "1"];
       if (state) {
         event.preventDefault();
-        void reviews.edit(projectId, [post], state).then((ok) => {
-          if (ok) move(1);
-        });
+        const pending = reviews.pending[`${projectId}:${currentId}`];
+        if (!pending?.saving && !pending?.error)
+          void reviews.edit(projectId, [post], post.state === state ? null : state);
       } else if (event.key.toLowerCase() === "z") {
         event.preventDefault();
         void reviews.undoLast(projectId, post).then((postId) => {
           if (postId && postId !== currentId) {
             // Undo history spans the project; an unrelated post must not inherit
-            // the current folder's KNN evidence on its next review.
+            // the current folder's image evidence on its next review.
             const inFolder = ids.includes(postId);
             navigate(
               `/projects/${projectId}/posts/${postId}${inFolder ? location.search : ""}`,
@@ -132,67 +142,6 @@ export function Post() {
   });
   return (
     <div className="workspace detail-layout">
-      <aside className="sidebar">
-        <Link to={gallery}>← Back to posts</Link>
-        <p className="review-target">
-          Review target
-          <br />
-          <strong>
-            {project.data?.display_name.replaceAll("_", " ") ??
-              "Loading target…"}
-          </strong>
-        </p>
-        <h2>Post #{currentId}</h2>
-        {post && (
-          <>
-            {post.conflict && (
-              <div role="alert" className="error">
-                <strong>Conflicting saved reviews</strong>
-                <p>
-                  These original decisions were preserved. This post is excluded
-                  from new datasets until explicitly resolved.
-                </p>
-                {post.conflicting_reviews?.map((review, i) => (
-                  <p key={i}>
-                    Project {String(review.project_id)}: {String(review.state)}{" "}
-                    (review {String(review.version)})
-                  </p>
-                ))}
-              </div>
-            )}
-            <p className="muted">
-              {post.width} × {post.height} · {post.media_ext?.toUpperCase()}
-              <br />
-              Score {post.score} · Rating {post.rating?.toUpperCase()}
-            </p>
-            <a
-              href={`https://e621.net/posts/${currentId}`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              View on e621 ↗
-            </a>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={hideTags}
-                onChange={(event) => {
-                  setHideTags(event.target.checked);
-                  localStorage.setItem(
-                    "studio-hide-tags",
-                    String(event.target.checked),
-                  );
-                }}
-              />
-              Hide tags
-            </label>
-            <details className="detail-tags" open>
-              <summary>Tags</summary>
-              <TagSidebar tags={post.tags} hidden={hideTags} />
-            </details>
-          </>
-        )}
-      </aside>
       <main className="main-content post-content">
         <div className="post-navigation">
           <button disabled={index <= 0} onClick={() => move(-1)}>
@@ -206,11 +155,13 @@ export function Post() {
             Next / skip →
           </button>
         </div>
-        <div className="page-heading">
-          <h1>Post #{currentId}</h1>
-          {post && (
-            <FavoriteButton allowRemoval project={projectId} post={post} />
-          )}
+        <header className="artwork-heading">
+          <div>
+            <span className="eyebrow">{project.data?.display_name.replaceAll("_", " ") ?? "Artwork"}</span>
+            <h1>{artistName(post?.tags.artist)}</h1>
+            {post && <p className="artwork-facts"><span>Score <strong>{post.score}</strong></span><span>Rating <strong>{({ s: "Safe", q: "Questionable", e: "Explicit" } as Record<string, string>)[post.rating ?? ""] ?? "Unknown"}</strong></span></p>}
+          </div>
+          <div className="media-tools">
           {isImage && (
             <button onClick={() => setActualSize((value) => !value)}>
               {actualSize ? "Fit to window" : "Actual size / zoom"}
@@ -226,7 +177,8 @@ export function Post() {
               {fallback ? "Use original video" : "Use compatible MP4"}
             </button>
           )}
-        </div>
+          </div>
+        </header>
         {query.isPending && <p role="status">Loading post…</p>}
         {query.error && (
           <p className="error" role="alert">
@@ -235,12 +187,11 @@ export function Post() {
         )}
         {post && (
           <>
-            <details className="provenance">
-              <summary>Discovered through</summary>
-              {post.sources.map((source) => (
-                <p key={source}>{source}</p>
-              ))}
-            </details>
+            {post.conflict && <div role="alert" className="error">
+              <strong>Conflicting saved reviews</strong>
+              <p>This artwork is excluded from new datasets until explicitly resolved.</p>
+              {post.conflicting_reviews?.map((review, i) => <p key={i}>Project {String(review.project_id)}: {String(review.state)} (review {String(review.version)})</p>)}
+            </div>}
             {!post.has_original || post.unavailable ? (
               <div className="empty-state">
                 The original is unavailable. You can still inspect its metadata
@@ -259,23 +210,7 @@ export function Post() {
                 .
               </div>
             ) : (
-              <div
-                className={`media-stage ${actualSize ? "actual-size" : ""} ${hold.armed ? "similarity-armed" : ""}`}
-                tabIndex={0}
-                aria-label={`Post ${currentId} media; hold to find similar`}
-                onPointerDown={hold.down}
-                onPointerMove={hold.move}
-                onPointerUp={hold.up}
-                onPointerCancel={hold.cancel}
-                onPointerLeave={hold.cancel}
-                onKeyDown={hold.key}
-                onContextMenu={(e) => e.preventDefault()}
-              >
-                {hold.armed && (
-                  <span className="similarity-hint">
-                    Release to find similar
-                  </span>
-                )}
+              <SaveMedia key={currentId} project={projectId} post={post} actualSize={actualSize}>
                 {isVideo ? (
                   <video
                     ref={video}
@@ -310,7 +245,7 @@ export function Post() {
                     Loading original {isVideo ? "video metadata" : "image"}…
                   </p>
                 )}
-              </div>
+              </SaveMedia>
             )}
             {mediaError && (
               <p className="error" role="alert">
@@ -325,21 +260,13 @@ export function Post() {
                 .
               </p>
             )}
-            {similar.notice}
-            <div className="detail-review">
-              <div>
-                <strong>
-                  Is{" "}
-                  {project.data?.display_name.replaceAll("_", " ") ??
-                    "the target"}{" "}
-                  visibly present?
-                </strong>
-              </div>
-              <ReviewButtons
-                project={projectId}
-                post={post}
-                onSaved={() => move(1)}
-              />
+            <section className="artwork-tags" aria-label="Artwork tags">
+              <h2>Tags</h2>
+              <TagSidebar tags={post.tags} hidden={false} />
+            </section>
+            <div className={`detail-review${barHidden ? " is-collapsed" : ""}`} role="group" aria-label="Review artwork" onKeyDownCapture={() => setBarHidden(false)} onFocusCapture={() => setBarHidden(false)}>
+              <span className="review-target-name">{project.data?.display_name.replaceAll("_", " ") ?? "Review artwork"}</span>
+              <ReviewButtons project={projectId} post={post} />
             </div>
           </>
         )}

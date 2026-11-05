@@ -1,0 +1,82 @@
+{
+  "corpus_images": 6,
+  "production_accessed": false,
+  "runs": [
+    {
+      "end_to_end_ms": 8265.196399999695,
+      "ids": [
+        15,
+        23,
+        22,
+        17,
+        20
+      ],
+      "revision": "0c746ff31459588a3dac176218399ebb9ab845b6b358b6df07f18a79b8d3fe37"
+    },
+    {
+      "end_to_end_ms": 3653.621199999179,
+      "ids": [
+        15,
+        23,
+        22,
+        17,
+        20
+      ],
+      "revision": "0c746ff31459588a3dac176218399ebb9ab845b6b358b6df07f18a79b8d3fe37"
+    },
+    {
+      "end_to_end_ms": 4112.047899998288,
+      "ids": [
+        15,
+        23,
+        22,
+        17,
+        20
+      ],
+      "revision": "0c746ff31459588a3dac176218399ebb9ab845b6b358b6df07f18a79b8d3fe37"
+    }
+  ],
+  "post_query": {
+    "ids": [
+      14
+    ],
+    "duplicates_hidden": 4
+  },
+  "server_metrics": {
+    "metadata": {
+      "requests": 6,
+      "throttled": 0,
+      "errors": 0,
+      "last_latency_ms": 687.0
+    },
+    "downloads": {
+      "active": 0,
+      "peak_active": 0,
+      "completed": 0,
+      "bytes": 0
+    },
+    "transient_posts": 6,
+    "media": {
+      "hits": 0,
+      "misses": 0,
+      "bytes": 0,
+      "active": 0,
+      "peak_active": 0,
+      "throttled": 0,
+      "last_download_ms": 0.0
+    },
+    "media_timings": {},
+    "queues": [],
+    "cache": {
+      "files": 0,
+      "bytes": 0
+    },
+    "timings": {}
+  },
+  "project_counts": {
+    "positive": 0,
+    "negative": 0,
+    "total": 0
+  },
+  "passed": true
+}

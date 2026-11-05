@@ -18,11 +18,11 @@ class Settings(BaseSettings):
     public_origin: str = "http://localhost:8000"
     secure_cookie: bool = True
     mock_e621: bool = False
-    published_neighbors: bool = True
     similarity_worker_token: str = Field(default="", repr=False, min_length=0)
     upstream_interval: float = Field(default=1.0, ge=0.0)
     transient_preview_bytes: int = Field(default=32 * 1024**2, ge=0, le=256 * 1024**2)
     library_root: Path | None = None
+    library_subdirectory: str = Field(default="", pattern=r"^(?:[A-Za-z0-9][A-Za-z0-9_-]{0,99})?$")
     library_max_bytes: int = Field(default=256 * 1024**2, ge=1024, le=2 * 1024**3)
     library_reserve_bytes: int = Field(default=128 * 1024**2, ge=0)
     library_timeout: int = Field(default=300, ge=10, le=1800)
@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     cache_bytes: int = Field(default=5 * 1024**3, ge=1024 * 1024)
     preview_max_bytes: int = Field(default=8 * 1024**2, ge=1024)
     preview_max_pixels: int = 20_000_000
+    reference_max_bytes: int = Field(default=8 * 1024**2, ge=1024, le=16 * 1024**2)
+    reference_max_pixels: int = Field(default=20_000_000, ge=1024, le=40_000_000)
     session_hours: int = Field(default=168, ge=1, le=720)
     cdn_hosts: str = "static1.e621.net,static2.e621.net"
 

@@ -16,17 +16,30 @@
         "frontend/src/App.tsx",
         "frontend/src/components/QueryInput.tsx",
         "frontend/src/components/FavoriteButton.tsx",
-        "frontend/src/style.css",
-        "frontend/src/pages/Downloads.tsx"
+        "frontend/src/style.css:1:100",
+        "frontend/src/style.css:1540:1800",
+        "frontend/src/pages/Downloads.tsx",
+        "frontend/src/components/Similarity.tsx",
+        "frontend/src/pages/Post.tsx",
+        "frontend/src/components/StudioIcon.tsx",
+        "frontend/src/components/ProjectDock.tsx",
+        "frontend/src/components/ProjectDock.css",
+        "frontend/src/components/ProjectWorkspace.tsx"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "5a2520878c69bb1cbf36607745fc2befc80f6bf734618c3a19cd0f371fa288fb",
-        "frontend/src/pages/Project.tsx": "25b41bdc4ad1d133968cb35ecc7ae2c2b507a0d7f996fe6d4d60a5246800ac9a",
-        "frontend/src/App.tsx": "7dbcacc03d2dfc6ab017aa5092060d0aaf00c3609eae0dee756ac996c26cdc0e",
+        ".superdesign/design-system.md": "b40bf28da06bd31f887e0fe362f14c9994721ca66e3b9ba03ab6050c5caaac73",
+        "frontend/src/pages/Project.tsx": "4bf83eccd23cc8a1ad455e6946158510671d73049eaabc30f0f5416031f4d77f",
+        "frontend/src/App.tsx": "88abe85e29702accab0eb8dec1afdcbf431e4531958af109312b8320dd64674c",
         "frontend/src/components/QueryInput.tsx": "4aaafbebd01b592886b01b35446515862b1cd62a25373c2284027d9ae8e74e9e",
-        "frontend/src/components/FavoriteButton.tsx": "6eedd558c6edc4fcd4398e3bb3d147aef0891f371e590e9ed59532b1d43d775f",
-        "frontend/src/style.css": "8ebbc09dd57fada0e9d98acb2b182795f8e10e4fca1eb8bc5b99429ca749ef4e",
-        "frontend/src/pages/Downloads.tsx": "76b11ab54995e42048eac346be5d32ffb1e0f20d7199d80fea102b469324e3a5"
+        "frontend/src/components/FavoriteButton.tsx": "0b60237da2fc7ec380ebf26d20f21de0cca63feacf934fac8195d59b8fb2e1d7",
+        "frontend/src/style.css": "885e0cd7d4782046fc3bbaf49bf7ccd395dce274c94c0b95ecc681ac15977f9c",
+        "frontend/src/pages/Downloads.tsx": "a185cf61a9ba5255ed92d63d96d6046fd4b082fa78052c5de4024610b0f97b66",
+        "frontend/src/components/Similarity.tsx": "435417a68fa9b6ab712019ea347ca925f1bcc0e4b6c8d13de85394556cbbb101",
+        "frontend/src/pages/Post.tsx": "a332a854f53a04d2ec3986b92229db7a080b5a4e2ed7388ffc87f4181fe8ff1e",
+        "frontend/src/components/StudioIcon.tsx": "ce4679d5a4527094e826ac1e6204010ec0eec4771c3ce9aafd553085e51f7dcb",
+        "frontend/src/components/ProjectDock.tsx": "ea2aa2794bd64268f6d8e3712ddc4b349e75cef2180dba2b89aef4b4aa3f372e",
+        "frontend/src/components/ProjectDock.css": "890628c390adbbf85aa6b49ada413456a09b031988402bee17636ed061f5ad4b",
+        "frontend/src/components/ProjectWorkspace.tsx": "bb174c527488ff23677bb4d0bad454d7aec5ffc1ab5e12a50f9b28bc1bde631e"
       },
       "components": [
         {
@@ -42,13 +55,13 @@
       ],
       "drafts": {
         "422583db-2b4f-4b51-8a6a-8e9f9339addd": {
-          "title": "Hydra Gallery Desktop Refined",
-          "visualDirection": "Approved v5: compact navy Query / Tagged / Downloads; human review totals; explicit collection saves",
-          "currentVersion": 5,
+          "title": "Hydra Studio - Project Navigator Update",
+          "visualDirection": "Navy/blue/gold gallery with playful fox project navigator; canvas is a visual prototype, repository implements hold timing, creation, switching and deletion.",
+          "currentVersion": 13,
           "baselineVersion": 1
         }
       },
-      "updatedAt": "2026-10-24T09:03:45.429900+00:00"
+      "updatedAt": "2026-11-05T10:39:41.118213+00:00"
     }
   }
 }

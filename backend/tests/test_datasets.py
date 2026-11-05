@@ -28,7 +28,7 @@ def test_frozen_manifest_exports_idempotency_and_later_reviews(client):
     created, _ = project(client)
     browse(client, created["id"])
     pid = created["id"]
-    for post_id, state in ((999, "positive"), (998, "negative"), (997, "unsure"), (1000, "positive")):
+    for post_id, state in ((999, "positive"), (998, "negative"), (1000, "positive")):
         review(client, pid, post_id, state)
     body = {"request_id": str(uuid4()), "name": "First frozen version"}
     path = f"/api/projects/{pid}/datasets"
@@ -52,7 +52,7 @@ def test_frozen_manifest_exports_idempotency_and_later_reviews(client):
     assert len({row["split"] for row in included}) == 1  # mock artwork shares one near-duplicate group
     assert all(row["relative_path"] is None and row["provenance"] for row in included)
     reasons = {row["post_id"]: row["excluded_reason"] for row in manifest["samples"]}
-    assert reasons[997] == "unsure" and reasons[1000] == "unsupported_media"
+    assert reasons[1000] == "unsupported_media"
     lines = client.get(export).text.splitlines()
     assert len(lines) == 3 and json.loads(lines[0])["type"] == "manifest"
     assert json.loads(lines[0])["manifest_sha256"] == frozen["manifest_sha256"]
@@ -73,7 +73,7 @@ def test_frozen_manifest_exports_idempotency_and_later_reviews(client):
         run(client, mutate())
     quality = client.get(f"/api/projects/{pid}/quality").json()
     assert quality["missing_fingerprints"] == 0
-    assert quality["labels"]["unsure"] == 1 and quality["availability"]["unsupported_media"] == 1
+    assert quality["availability"]["unsupported_media"] == 1
 
 
 def sample(post_id, *, md5=None, dhash=None, state="positive", artist=None):
@@ -130,7 +130,7 @@ def test_candidate_purpose_never_assigns_negative(client):
         assert all(p["state"] is None for p in response.json()["items"])
     assert not run(client, client.app.state.db.rows("SELECT * FROM labels"))
     assert not run(client, client.app.state.db.rows("SELECT * FROM project_candidates"))
-    review(client, pid, 999, "unsure")
+    review(client, pid, 999, "negative")
     assert "hard_negative: dragon" in client.get(f"/api/projects/{pid}/candidates/999").json()["sources"]
 
 
@@ -143,11 +143,11 @@ async def test_v1_migration_preserves_data_and_makes_online_backup(tmp_path):
     db = Database(tmp_path)
     try:
         await db.open()
-        assert (await db.one("PRAGMA user_version"))["user_version"] == 5
+        assert (await db.one("PRAGMA user_version"))["user_version"] == 7
         assert (await db.one("SELECT count(*) AS n FROM projects"))["n"] == 1
         assert (await db.one("PRAGMA integrity_check"))["integrity_check"] == "ok"
         assert await db.rows("PRAGMA foreign_key_check") == []
-        backups = list((tmp_path / "backups").glob("pre-schema-v5-*.sqlite3"))
+        backups = list((tmp_path / "backups").glob("pre-schema-v7-*.sqlite3"))
         assert len(backups) == 1
         with sqlite3.connect(backups[0]) as conn:
             assert conn.execute("PRAGMA user_version").fetchone()[0] == 1

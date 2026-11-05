@@ -1,0 +1,138 @@
+{
+  "source_report": "retrieval-report.json",
+  "confirmed_report": "retrieval-confirmed-report.json",
+  "confirmed_judgments": "judgments-confirmed.jsonl",
+  "metric_function": "backend.benchmark_similarity.discovery_metrics",
+  "query_count": 3,
+  "positive_ids": [
+    4069762,
+    6017502,
+    6425469,
+    3512266,
+    3512309,
+    3512319,
+    5075126,
+    4795236
+  ],
+  "negative_ids": [
+    1920276,
+    6657413,
+    6774371
+  ],
+  "per_query": [
+    {
+      "query_post_id": 4069762,
+      "actual_precision_at_5": 1.0,
+      "precision_at_32_lower_bound": 0.21875,
+      "known_recall_at_32": 1.0,
+      "positive_hits_at_32": 7,
+      "hard_negative_ranks_at_32": {
+        "1920276": 11,
+        "6657413": 30,
+        "6774371": 21
+      },
+      "newly_confirmed_positive_ids_at_5": [
+        3512266,
+        3512309,
+        3512319
+      ]
+    },
+    {
+      "query_post_id": 6017502,
+      "actual_precision_at_5": 1.0,
+      "precision_at_32_lower_bound": 0.21875,
+      "known_recall_at_32": 1.0,
+      "positive_hits_at_32": 7,
+      "hard_negative_ranks_at_32": {
+        "1920276": 16,
+        "6657413": 32,
+        "6774371": 21
+      },
+      "newly_confirmed_positive_ids_at_5": [
+        3512266,
+        3512309,
+        3512319
+      ]
+    },
+    {
+      "query_post_id": 6425469,
+      "actual_precision_at_5": 1.0,
+      "precision_at_32_lower_bound": 0.21875,
+      "known_recall_at_32": 1.0,
+      "positive_hits_at_32": 7,
+      "hard_negative_ranks_at_32": {
+        "1920276": 11,
+        "6657413": 28,
+        "6774371": 21
+      },
+      "newly_confirmed_positive_ids_at_5": [
+        3512266,
+        3512309,
+        5075126
+      ]
+    }
+  ],
+  "unique_discovery_yield_at_5": 4,
+  "unique_newly_confirmed_positive_ids_at_5": [
+    3512266,
+    3512309,
+    3512319,
+    5075126
+  ],
+  "sum_of_per_query_new_positive_hits_at_5": 9,
+  "limits": {
+    "held_out": false,
+    "note": "This is post-retrieval confirmation on a selected corpus. The five newly confirmed positives were drawn from the same selected retrieval candidate corpus, so these metrics are not independent held-out validation or corpus-wide estimates.",
+    "recall_scope": "Known positive recall is relative to the seven confirmed positives other than each query image.",
+    "precision_scope": "P@32 is a lower bound; unjudged results remain unknown and are not inferred from tags."
+  },
+  "unique_discovery_yield_at_32": 5,
+  "unique_newly_confirmed_positive_ids_at_32": [
+    3512266,
+    3512309,
+    3512319,
+    4795236,
+    5075126
+  ],
+  "corpus_size": 35,
+  "initial_human_positive_count": 3,
+  "confirmed_human_positive_count": 8,
+  "confirmed_human_negative_count": 3,
+  "remaining_unjudged_corpus_count": 24,
+  "query_encoding_ms": [
+    613.9445000007981,
+    316.5268000011565,
+    390.9179000002041
+  ],
+  "exact_search_ms": [
+    1.4037000000826083,
+    1.1617999989539385,
+    1.4019000009284355
+  ],
+  "actual_encoder_process_resources": {
+    "valid": true,
+    "actual_encoder_process_id": 24792,
+    "peak_process_working_set_bytes": 2986860544,
+    "peak_process_commit_bytes": 5502525440,
+    "elapsed_seconds": 21.600136299999576,
+    "method": "Win32 GetProcessMemoryInfo in the actual Python encoding process after three real Radar benchmark queries; includes model loading; no launcher or home-server claim"
+  },
+  "pipeline": {
+    "pipeline": "hydra-forward-embedding-v1",
+    "source_sha256": "289494f2945dcc8a23d2ef6e243fe3a4bb7133b413cde27b11cef238314002d7",
+    "checkpoint_sha256": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+    "architecture": "naflexvit_so400m_patch16_siglip+rr_hydra2",
+    "max_seqlen": 1024,
+    "precision": "bfloat16",
+    "torch": "2.8.0+cu128",
+    "cuda_runtime": "12.8",
+    "numpy": "2.2.6",
+    "pyvips": "3.2.0",
+    "libvips": "8.18.7",
+    "raw_output": "float32-copy-of-bfloat16-embedding-head",
+    "dimension": 2048,
+    "transform": "float32-l2-normalize-no-centering",
+    "historical_compatible": false
+  },
+  "index_revision": "9898f7ea924997121420bc30ac28a1ce8b192c8071dde6c64e3624fa0954eb47"
+}

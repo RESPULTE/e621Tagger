@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { HoldIndicator } from "./HoldIndicator";
+import { StudioIcon } from "./StudioIcon";
+import { useEffect, useRef, useState, type HTMLAttributes, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorText, mutationId, type Candidate } from "../api/client";
 import { useFindSimilar } from "./Similarity";
@@ -40,14 +42,26 @@ export function useCollectionSave(project: number, post: Candidate) {
     );
   }, [client, post.favorite, post.post_id]);
   const saved = query.data ?? post.favorite;
-  async function change(wanted = true): Promise<boolean> {
-    const pending = requests.get(post.post_id);
-    if (pending) return pending;
+  const lastIntent = useRef<boolean | undefined>(undefined);
+  async function change(wanted?: boolean): Promise<boolean> {
+    // Serialize taps across mounted views; a second toggle must not be swallowed
+    // while the first HTTP acknowledgement is still pending.
+    while (requests.has(post.post_id)) {
+      if (!(await requests.get(post.post_id))) return false;
+    }
     const run = (async () => {
       setBusy(true);
       setError("");
       try {
         const current = client.getQueryData<Saved>(key) ?? saved;
+        wanted ??= !current.wanted;
+        lastIntent.current = wanted;
+        if (wanted) {
+          const available = await client.fetchQuery({ queryKey: ["library-capability"],
+            queryFn: () => api<Capability>("/library/status"), staleTime: 30000 });
+          if (!available.available || !post.has_original || post.unavailable)
+            throw new Error(available.message ?? "Collection storage is unavailable");
+        }
         const result = await api<Saved>(
           `/projects/${project}/library/${post.post_id}`,
           {
@@ -69,15 +83,16 @@ export function useCollectionSave(project: number, post: Candidate) {
         return false;
       } finally {
         setBusy(false);
-        requests.delete(post.post_id);
       }
     })();
     requests.set(post.post_id, run);
-    return run;
+    try { return await run; }
+    finally { if (requests.get(post.post_id) === run) requests.delete(post.post_id); }
   }
   return {
     saved,
     change,
+    retry: () => change(lastIntent.current ?? saved.wanted),
     busy,
     error: error || saved.error || "",
     waiting: active.has(saved.status),
@@ -87,254 +102,123 @@ export function useCollectionSave(project: number, post: Candidate) {
   };
 }
 
-export function FavoriteButton({
-  project,
-  post,
-  compact = false,
-  allowRemoval = false,
-}: {
-  project: number;
-  post: Candidate;
-  compact?: boolean;
-  allowRemoval?: boolean;
-}) {
-  const save = useCollectionSave(project, post);
-  const text =
-    save.saved.status === "saved"
-      ? "Saved to Smut"
-      : save.waiting
-        ? "Queued / saving…"
-        : save.saved.status === "cancelled"
-          ? "Save cancelled"
-          : "Save to Smut";
-  return (
-    <div className={`favorite-control ${compact ? "compact" : ""}`}>
-      <button
-        className={`favorite-button ${save.saved.wanted ? "hearted" : ""}`}
-        aria-label={`Save post ${post.post_id} to Smut folder`}
-        aria-pressed={save.saved.present}
-        title={save.error || `${text}. ${save.message}`}
-        disabled={save.busy || !save.enabled}
-        onClick={(e) => {
-          e.stopPropagation();
-          void save.change();
-        }}
-      >
-        <span aria-hidden="true">{save.saved.wanted ? "♥" : "♡"}</span>
-        {compact ? (
-          save.waiting ? (
-            <span aria-label="Save operation pending">…</span>
-          ) : null
-        ) : (
-          <span>{text}</span>
-        )}
-      </button>
-      {save.error && (
-        <span className="favorite-error" role="alert" title={save.error}>
-          {compact ? "!" : save.error}
-        </span>
-      )}
-      {!compact && (
-        <span role="status">
-          {save.saved.status === "saved"
-            ? "Original and e621 tags saved."
-            : save.waiting
-              ? "Download queued; original is not yet saved."
-              : ""}
-        </span>
-      )}
-      {allowRemoval && save.saved.present && (
-        <button
-          className="quiet"
-          disabled={save.busy || save.waiting}
-          onClick={() => void save.change(false)}
-        >
-          Remove collection files
-        </button>
-      )}
-    </div>
-  );
-}
-
-export function SaveThumbnail({
-  project,
-  post,
-  onOpen,
-  children,
-}: {
-  project: number;
-  post: Candidate;
-  onOpen: () => void;
-  children: React.ReactNode;
-}) {
+/** Shared tap/hold arbitration for thumbnails and original image/video media. */
+function useMediaInteractions(project: number, post: Candidate, onOpen?: () => void) {
   const save = useCollectionSave(project, post);
   const similar = useFindSimilar(project, post.post_id);
-  const hold = useLongPress(() => {
-    cancel();
-    down.current = null;
-    void similar.find();
-  }, post.post_id);
-  const [heart, setHeart] = useState(false);
-  const [notice, setNotice] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const element = useRef<HTMLButtonElement>(null);
-  const pulse = useRef<ReturnType<typeof setTimeout> | null>(null);
   const last = useRef<{ at: number; x: number; y: number } | null>(null);
-  const down = useRef<{
-    at: number;
-    x: number;
-    y: number;
-    moved: boolean;
-  } | null>(null);
+  const surface = useRef<HTMLElement | null>(null);
+  const down = useRef<{ at: number; x: number; y: number; pointer: number; element: HTMLElement } | null>(null);
   function cancel() {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
     last.current = null;
+    down.current = null;
   }
+  const hold = useLongPress(() => { cancel(); void similar.find(); }, post.post_id);
   useEffect(() => {
-    const stop = () => {
-      cancel();
-      down.current = null;
-    };
     const outside = (event: PointerEvent) => {
-      if (
-        event.target instanceof Node &&
-        !element.current?.contains(event.target)
-      )
-        stop();
+      if (!event.isPrimary || (surface.current && !surface.current.contains(event.target as Node))) cancel();
     };
-    // Pointer movement/cancellation and wheel/touch scrolling cancel gestures.
-    // A focus-induced scroll after a stationary tap must still allow opening.
-    window.addEventListener("wheel", stop, { capture: true, passive: true });
-    window.addEventListener("touchmove", stop, {
-      capture: true,
-      passive: true,
-    });
+    for (const event of ["wheel", "touchmove"]) window.addEventListener(event, cancel, { capture: true, passive: true });
     window.addEventListener("pointerdown", outside, true);
+    window.addEventListener("blur", cancel);
     return () => {
-      stop();
-      if (pulse.current) clearTimeout(pulse.current);
-      window.removeEventListener("wheel", stop, true);
-      window.removeEventListener("touchmove", stop, true);
+      cancel();
+      for (const event of ["wheel", "touchmove"]) window.removeEventListener(event, cancel, true);
       window.removeEventListener("pointerdown", outside, true);
+      window.removeEventListener("blur", cancel);
     };
-  }, []);
-  return (
-    <>
-      <button
-        ref={element}
-        className={`thumbnail-link ${hold.armed ? "similarity-armed" : ""}`}
-        title="Hold then release to find similar; Shift+S"
-        onKeyDown={hold.key}
-        onContextMenu={(e) => e.preventDefault()}
-        onPointerLeave={() => {
-          hold.cancel();
-          // Touch generates pointerleave after pointerup. Keep that completed
-          // tap available for the second tap; cancel only an unfinished press.
-          if (down.current) {
-            cancel();
-            down.current = null;
-          }
-        }}
-        aria-label={`Open post ${post.post_id}`}
-        onPointerDown={(e) => {
-          hold.down(e);
-          if (!e.isPrimary || e.button !== 0) return;
-          if (timer.current) clearTimeout(timer.current);
-          timer.current = null;
-          down.current = {
-            at: performance.now(),
-            x: e.clientX,
-            y: e.clientY,
-            moved: false,
-          };
-        }}
-        onPointerMove={(e) => {
-          hold.move(e);
-          const d = down.current;
-          if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 10) {
-            d.moved = true;
-            cancel();
-          }
-        }}
-        onPointerCancel={() => {
-          hold.cancel();
-          cancel();
-          down.current = null;
-        }}
-        onPointerUp={(e) => {
-          if (hold.up(e)) return;
-          const d = down.current;
-          down.current = null;
-          if (!d || d.moved || performance.now() - d.at > 500) {
-            cancel();
-            return;
-          }
-          const previous = last.current;
-          if (
-            previous &&
-            performance.now() - previous.at < 300 &&
-            Math.hypot(e.clientX - previous.x, e.clientY - previous.y) < 24
-          ) {
-            cancel();
-            if (!save.enabled) {
-              setNotice(save.message);
-              return;
-            }
-            void save.change().then((ok) => {
-              setNotice(
-                ok
-                  ? save.saved.status === "saved"
-                    ? "Already saved to Smut."
-                    : "Save queued; check Downloads for completion."
-                  : "Save request failed.",
-              );
-              if (ok) {
-                setHeart(true);
-                if (pulse.current) clearTimeout(pulse.current);
-                pulse.current = setTimeout(() => setHeart(false), 700);
-              }
-            });
-          } else {
-            cancel();
-            last.current = {
-              at: performance.now(),
-              x: e.clientX,
-              y: e.clientY,
-            };
-            timer.current = setTimeout(() => {
-              cancel();
-              onOpen();
-            }, 300);
-          }
-        }}
-        onClick={(e) => {
-          if (hold.consumed.current && e.detail !== 0) {
-            hold.consumed.current = false;
-            e.preventDefault();
-            return;
-          }
-          if (e.detail === 0) {
-            cancel();
-            onOpen();
-          }
-        }}
-        onDoubleClick={(e) => e.preventDefault()}
-      >
-        {children}
-        {hold.armed && (
-          <span className="similarity-hint">Release to find similar</span>
-        )}
-        {heart && (
-          <span className="save-heart" aria-hidden="true">
-            ♥
-          </span>
-        )}
-      </button>
-      {similar.notice}
-      <span className="sr-only" role="status">
-        {notice || save.error}
-      </span>
-    </>
-  );
+  }, [post.post_id, project]);
+  const handlers: HTMLAttributes<HTMLElement> = {
+    title: "Double tap to toggle favourite · F on focused media · hold two seconds for similar · Shift+S",
+    onDragStart: (event) => event.preventDefault(),
+    onContextMenu: (event) => event.preventDefault(),
+    onKeyDown: (event) => {
+      hold.key(event);
+      if (!event.repeat && event.key.toLowerCase() === "f" && !event.ctrlKey && !event.metaKey && !event.altKey &&
+          !(event.target as Element).closest("input,textarea,select,video,[contenteditable]")) {
+        event.preventDefault(); event.stopPropagation(); cancel(); void save.change();
+      }
+    },
+    onPointerDown: (event) => {
+      surface.current = event.currentTarget;
+      hold.down(event);
+      if (!event.isPrimary || event.button !== 0) { cancel(); return; }
+      const video = (event.target as Element).closest("video");
+      // Keep seeking, volume and other native video controls independent of gestures.
+      if (video && event.clientY > video.getBoundingClientRect().bottom - 56) { cancel(); return; }
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      down.current = { at: performance.now(), x: event.clientX, y: event.clientY, pointer: event.pointerId, element: event.currentTarget };
+    },
+    onPointerMove: (event) => {
+      hold.move(event);
+      const d = down.current;
+      if (d && Math.hypot(event.clientX - d.x, event.clientY - d.y) > 10) cancel();
+    },
+    onPointerLeave: () => {
+      hold.cancel();
+      // Touch emits leave after up: preserve that completed first tap.
+      if (down.current) cancel();
+    },
+    onPointerCancel: () => { hold.cancel(); cancel(); },
+    onPointerUp: (event) => {
+      if (hold.up(event)) { cancel(); return; }
+      const d = down.current;
+      down.current = null;
+      const hit = document.elementFromPoint(event.clientX, event.clientY);
+      if (!d || d.pointer !== event.pointerId || !hit || !d.element.contains(hit) || performance.now() - d.at > 500) { cancel(); return; }
+      const previous = last.current;
+      if (previous && performance.now() - previous.at < 300 && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) < 24) {
+        cancel(); event.preventDefault(); void save.change();
+      } else {
+        last.current = { at: performance.now(), x: event.clientX, y: event.clientY };
+        timer.current = setTimeout(() => { cancel(); onOpen?.(); }, 300);
+      }
+    },
+    onClick: (event) => {
+      if (hold.consumed.current && event.detail !== 0) { event.preventDefault(); return; }
+      if (event.detail === 0) { cancel(); onOpen?.(); }
+    },
+    onDoubleClick: (event) => event.preventDefault(),
+  };
+  const status = save.busy ? "Updating favourite…" : save.waiting
+    ? save.saved.wanted ? "Favourite queued; original is not yet saved." : "Removing saved files and partial downloads…"
+    : save.saved.status === "saved" ? "Original saved."
+    : save.saved.wanted ? "Favourite selected; download not complete." : "Not favourited.";
+  return { handlers, hold, overlays: <>
+    <HoldIndicator holding={hold.holding} armed={hold.armed} />
+    {save.saved.wanted && <span className={`favorite-paw${save.waiting ? " is-pending" : ""}`} role="img" aria-label={save.waiting ? "Favourited; saving" : "Favourited"}><StudioIcon name="paw" /></span>}
+  </>, notice: <>
+    {similar.notice}
+    <span className="sr-only" role="status">{status}</span>
+    {save.error && <span className="favorite-error" role="alert">{save.error} <button onClick={() => void save.retry()}>Retry favourite change</button></span>}
+  </> };
+}
+
+export function SaveThumbnail({ project, post, onOpen, children }: {
+  project: number; post: Candidate; onOpen: () => void; children: ReactNode;
+}) {
+  const media = useMediaInteractions(project, post, onOpen);
+  return <>
+    <button {...media.handlers} className={`thumbnail-link ${media.hold.armed ? "similarity-armed" : ""}`} aria-label={`Open post ${post.post_id}`}>
+      {children}{media.overlays}
+    </button>
+    {media.notice}
+  </>;
+}
+
+export function SaveMedia({ project, post, actualSize, children }: {
+  project: number; post: Candidate; actualSize: boolean; children: ReactNode;
+}) {
+  const media = useMediaInteractions(project, post);
+  return <>
+    <div {...media.handlers} className={`media-stage ${actualSize ? "actual-size" : ""} ${media.hold.armed ? "similarity-armed" : ""}`}
+      role="group" tabIndex={0} aria-label={`Post ${post.post_id} media; hold to find similar`}>
+      {children}{media.overlays}
+    </div>
+    {media.notice}
+  </>;
 }

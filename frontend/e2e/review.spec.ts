@@ -1,3 +1,4 @@
+import { createReviewProject } from "./project-fixture";
 import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
@@ -43,7 +44,7 @@ async function login(page: Page) {
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
   }
   await expect(
-    page.getByRole("heading", { name: "Projects", level: 1 }),
+    page.getByRole("button", { name: "Projects", exact: true }),
   ).toBeVisible();
   const session = await page.request.get("/api/auth/session");
   expect(session.ok()).toBe(true);
@@ -56,18 +57,7 @@ async function login(page: Page) {
 async function createProject(page: Page) {
   // Each workflow gets a distinct explicit target; canonical reuse itself is
   // tested in storage-review.spec.ts instead of relying on duplicate projects.
-  await page.getByRole("button", { name: "Custom tag", exact: true }).click();
-  await page
-    .getByLabel("Target tag", { exact: true })
-    .fill(
-      `browser_target_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
-    );
-  await page
-    .getByRole("combobox", { name: "Discovery query", exact: true })
-    .fill("dragon");
-  await page
-    .getByRole("button", { name: "Create project", exact: true })
-    .click();
+  await createReviewProject(page, "browser_target");
   await expect(
     page.getByRole("button", { name: "Open post 1000", exact: true }),
   ).toBeVisible();
@@ -97,11 +87,8 @@ test("search → import → original → labels → undo → gallery", async ({
     .locator(".detail-review")
     .getByRole("button", { name: "Positive", exact: false })
     .click();
-  // Acknowledged save advances to the next item. Previous returns to the reviewed post.
-  await expect(
-    page.getByRole("heading", { name: "Post #998", level: 1 }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Previous", exact: false }).click();
+  // Reviews stay on the artwork so repeating the same action can cancel it.
+  await expect(page).toHaveURL(/posts\/999/);
   await expect(
     page
       .locator(".detail-review")
@@ -115,7 +102,7 @@ test("search → import → original → labels → undo → gallery", async ({
   ).toHaveAttribute("aria-pressed", "true");
   await page
     .locator(".detail-review")
-    .getByRole("button", { name: "Undo", exact: false })
+    .getByRole("button", { name: "Positive", exact: true })
     .click();
   await expect(page.getByText("Unreviewed", { exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Thumbnail gallery" }).click();
@@ -222,7 +209,7 @@ test("video supports playback, seeking, and compatible MP4", async ({
   await expect(page.locator("video")).toHaveCount(0);
 });
 
-test("keyboard undo restores the last review after auto-advance", async ({
+test("keyboard review toggles in place and undo restores the last review", async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -235,7 +222,7 @@ test("keyboard undo restores the last review after auto-advance", async ({
     .getByRole("button", { name: "Open post 999", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Post #999", level: 1 }),
+    page.getByLabel("Post 999 media; hold to find similar", { exact: true }),
   ).toBeVisible();
   await expect(
     page
@@ -243,9 +230,8 @@ test("keyboard undo restores the last review after auto-advance", async ({
       .getByRole("button", { name: "Positive", exact: false }),
   ).toBeEnabled();
   await page.keyboard.press("1");
-  await expect(
-    page.getByRole("heading", { name: "Post #998", level: 1 }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Positive", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page).toHaveURL(/posts\/999/);
   await expect(
     page
       .locator(".detail-review")
@@ -253,7 +239,7 @@ test("keyboard undo restores the last review after auto-advance", async ({
   ).toBeEnabled();
   await page.keyboard.press("z");
   await expect(
-    page.getByRole("heading", { name: "Post #999", level: 1 }),
+    page.getByLabel("Post 999 media; hold to find similar", { exact: true }),
   ).toBeVisible();
   await expect(
     page.locator(".detail-review").getByText("Unreviewed", { exact: true }),
@@ -276,11 +262,21 @@ test("unsupported video codec retains MP4 fallback and review controls", async (
   await page
     .getByRole("button", { name: "Open post 1000", exact: true })
     .click();
-  await expect(page.locator("video")).toBeVisible();
+  const video = page.locator("video");
+  await expect(video).toBeVisible();
   // Original decoding may succeed or fail independently of the MP4 codec.
   const compatible = page.getByRole("button", { name: "Use compatible MP4" });
-  if (await compatible.isVisible()) await compatible.click();
-  await expect(page.locator("video")).toHaveAttribute(
+  const currentSource = (await video.getAttribute("src")) ?? "";
+  if (!/video_mp4(?:\?|$)/.test(currentSource)) {
+    try {
+      await compatible.click({ timeout: 1000 });
+    } catch (error) {
+      // The source can switch automatically after the initial source check.
+      const latestSource = (await video.getAttribute("src")) ?? "";
+      if (!/video_mp4(?:\?|$)/.test(latestSource)) throw error;
+    }
+  }
+  await expect(video).toHaveAttribute(
     "src",
     /video_mp4(?:\?|$)/,
   );
@@ -290,7 +286,7 @@ test("unsupported video codec retains MP4 fallback and review controls", async (
   await expect(
     page
       .locator(".detail-review")
-      .getByRole("button", { name: "Unsure", exact: false }),
+      .getByRole("button", { name: "Negative", exact: false }),
   ).toBeEnabled();
   await expect(
     page.getByRole("link", { name: "Open the e621 post" }),
@@ -339,7 +335,7 @@ test("private access reconnects without a password", async ({ page }) => {
   expect(logout.ok()).toBe(true);
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Projects", level: 1 }),
+    page.getByRole("button", { name: "Projects", exact: true }),
   ).toBeVisible();
   const after = await (await page.request.get("/api/auth/session")).json();
   expect(after.csrf_token).not.toBe(before.csrf_token);
@@ -367,7 +363,7 @@ test("dataset quality freezes a downloadable version and preserves it after revi
     }),
   ).toHaveClass(/negative/);
   await page.getByRole("tab", { name: "Tagged", exact: true }).click();
-  await page.getByRole("link", { name: "Dataset & export" }).click();
+  await page.getByRole("link", { name: "Dataset export" }).click();
   await expect(page.getByRole("heading", { name: "Datasets" })).toBeVisible();
   const prepare = page.getByRole("button", {
     name: "Prepare next 64 previews",
@@ -405,15 +401,15 @@ test("dataset quality freezes a downloadable version and preserves it after revi
     .getByRole("link", { name: "Candidate gallery", exact: false })
     .click();
   await page
-    .getByRole("button", { name: "Mark post 999 unsure", exact: true })
+    .getByRole("button", { name: "Mark post 999 negative", exact: true })
     .click();
   await expect(
     page.locator(".post-card").filter({
       has: page.getByRole("button", { name: "Open post 999", exact: true }),
     }),
-  ).toHaveClass(/unsure/);
+  ).toHaveClass(/negative/);
   expect(await (await page.request.get(href!)).text()).toBe(before);
-  await page.getByRole("link", { name: "Dataset & export" }).click();
+  await page.getByRole("link", { name: "Dataset export" }).click();
   expect(
     await page
       .locator("body")
@@ -421,7 +417,7 @@ test("dataset quality freezes a downloadable version and preserves it after revi
   ).toBe(true);
 });
 
-test("bounded neighbor discovery preserves human labels and exposes source tag counts", async ({
+test("image discovery preserves human labels with uncluttered search controls", async ({
   page,
 }, testInfo) => {
   await login(page);
@@ -437,7 +433,7 @@ test("bounded neighbor discovery preserves human labels and exposes source tag c
     .getByRole("button", { name: "Open post 999", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Post #999", exact: true, level: 1 }),
+    page.getByLabel("Post 999 media; hold to find similar", { exact: true }),
   ).toBeVisible();
   const media = page.getByLabel("Post 999 media; hold to find similar", {
     exact: true,
@@ -459,27 +455,11 @@ test("bounded neighbor discovery preserves human labels and exposes source tag c
       has: page.getByRole("button", { name: "Open post 998", exact: true }),
     }),
   ).toHaveClass(/positive/);
-  await page
-    .getByText("Source tags and neighbor tag counts", { exact: true })
-    .click();
-  await expect(
-    page.getByText(/neighbors have available local metadata/),
-  ).toBeVisible();
-  const suggestions = page
-    .getByLabel("Embedding assistance", { exact: true })
-    .getByRole("list");
-  await expect(suggestions).toBeVisible();
-  await page.getByLabel("Hide tags", { exact: true }).check();
-  await expect(suggestions).toHaveCount(0);
+  await expect(page.getByText("Search details", { exact: false })).toHaveCount(0);
+  await expect(page.getByLabel("Hide tags", { exact: true })).toHaveCount(0);
+  await expect(page.locator(".selected-image")).toContainText("studio demo");
   await page.reload();
-  await page
-    .getByText("Source tags and neighbor tag counts", { exact: true })
-    .click();
-  await expect(
-    page.getByText("Tag suggestions are hidden for review.", { exact: true }),
-  ).toBeVisible();
-  await page.getByLabel("Hide tags", { exact: true }).uncheck();
-  await expect(suggestions).toBeVisible();
+  await expect(page.locator(".post-card").filter({ has: page.getByRole("button", { name: "Open post 998", exact: true }) })).toHaveClass(/positive/);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth,
@@ -533,39 +513,14 @@ test("query autocomplete preserves tokens, aliases and prefixes", async ({
   ).toHaveCount(0);
 });
 
-test("collection save is idempotent and removal is separately named", async ({
-  page,
-}) => {
+test("keyboard favourite toggles removal in the full media view", async ({ page }) => {
   await login(page);
   await createProject(page);
-  await page
-    .getByRole("button", { name: "Save post 997 to Smut folder", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Open post 997", exact: true })
-    .click();
-  await expect(
-    page.getByText("Original and e621 tags saved.", { exact: true }),
-  ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Save post 997 to Smut folder", exact: true })
-    .click();
-  await expect(
-    page.getByRole("button", {
-      name: "Save post 997 to Smut folder",
-      exact: true,
-    }),
-  ).toHaveAttribute("aria-pressed", "true");
-  await page
-    .getByRole("button", { name: "Remove collection files", exact: true })
-    .click();
-  await expect(
-    page.getByRole("button", {
-      name: "Save post 997 to Smut folder",
-      exact: true,
-    }),
-  ).toHaveAttribute("aria-pressed", "false");
-  await expect(
-    page.locator(".detail-review").getByText("Unreviewed", { exact: true }),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "Open post 997", exact: true }).press("f");
+  await page.getByRole("button", { name: "Open post 997", exact: true }).click();
+  await expect(page.getByText("Original saved.", { exact: true })).toBeVisible();
+  await expect(page.locator(".media-stage .favorite-paw")).toBeVisible();
+  await page.locator(".media-stage").press("f");
+  await expect(page.locator(".media-stage .favorite-paw")).toHaveCount(0);
+  await expect(page.locator(".detail-review").getByText("Unreviewed", { exact: true })).toBeVisible();
 });

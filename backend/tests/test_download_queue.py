@@ -32,7 +32,17 @@ class SlowStream(httpx.AsyncByteStream):
             yield self.data[offset : offset + 16384]
 
 
-def slow_originals(client, monkeypatch):
+class StalledStream(httpx.AsyncByteStream):
+    def __init__(self, data):
+        self.data = data
+
+    async def __aiter__(self):
+        yield self.data[:65536]
+        await asyncio.sleep(10)  # A bounded stand-in for a stalled CDN socket.
+        yield self.data[65536:]
+
+
+def slow_originals(client, monkeypatch, *, stall_post=None):
     out = io.BytesIO()
     Image.frombytes("RGB", (256, 256), random.Random(42).randbytes(256 * 256 * 3)).save(out, format="PNG")
     raw = out.getvalue()
@@ -56,7 +66,8 @@ def slow_originals(client, monkeypatch):
     async def respond(request):
         starts.append(time.monotonic())
         return httpx.Response(
-            200, headers={"Content-Type": "image/png", "Content-Length": str(len(raw))}, stream=SlowStream(raw)
+            200, headers={"Content-Type": "image/png", "Content-Length": str(len(raw))},
+            stream=StalledStream(raw) if request.url.path.endswith(f"/{stall_post}.png") else SlowStream(raw),
         )
 
     client.app.state.media.client = httpx.AsyncClient(transport=httpx.MockTransport(respond))
@@ -98,7 +109,7 @@ def test_real_workers_overlap_but_keep_interactive_capacity(client, monkeypatch)
         metrics = client.app.state.transfers.metrics
         assert metrics["peak_active"] == 2 and metrics["bytes"] == 3 * len(raw)
         assert client.app.state.media.metrics["peak_active"] <= 4
-        assert len(list(client.app.state.library.root.glob("e621_*"))) == 12
+        assert len(list(client.app.state.library.root.glob("e621_*"))) == 3
         assert not list((client.app.state.library.root / ".hydra-studio-tmp").iterdir())
         assert not list(db.root.glob("cache/*"))
         assert not run(client, db.rows("SELECT * FROM labels"))
@@ -137,7 +148,7 @@ def test_cancel_mid_transfer_then_retry_never_publishes_partial(client, monkeypa
                 break
             time.sleep(0.02)
         assert client.get("/api/library/posts/999").json()["status"] == "saved"
-        assert len(list(client.app.state.library.root.glob("e621_*"))) == 4
+        assert len(list(client.app.state.library.root.glob("e621_*"))) == 1
     finally:
         run(client, workers.close())
         run(client, client.app.state.media.client.aclose())
@@ -152,7 +163,7 @@ def test_restart_recovers_journalled_partial_and_preserves_foreign_file(settings
         ]
         pid = create(client)
         client.get(f"/api/projects/{pid}/query")
-        label(client, pid, 999, "unsure")
+        label(client, pid, 999, "negative")
         save(client, pid)
         db = app.state.db
         job = run(client, db.one("SELECT * FROM jobs WHERE type='library'"))
@@ -183,7 +194,7 @@ def test_restart_recovers_journalled_partial_and_preserves_foreign_file(settings
         assert client.get("/api/library/posts/999").json()["status"] == "saved"
         assert not partial.exists() and not stage.exists()
         assert foreign.read_bytes() == b"manual data"
-        assert client.get(f"/api/projects/{pid}/candidates/999").json()["state"] == "unsure"
+        assert client.get(f"/api/projects/{pid}/candidates/999").json()["state"] == "negative"
         assert client.get(f"/api/projects/{pid}/candidates").json()["total"] == 1
 
 
@@ -198,6 +209,8 @@ def test_export_publication_recovers_after_link_before_ack(client, monkeypatch):
     client.post(f"/api/datasets/{did}/media", json={"request_id": str(uuid4())})
     downloads, db = client.app.state.downloads, client.app.state.db
     job = run(client, db.one("SELECT * FROM jobs WHERE type='dataset_media'"))
+    assert client.post(f"/api/downloads/{job['id']}/delete", json={"request_id": str(uuid4())}).status_code == 422
+    assert run(client, db.one("SELECT status FROM jobs WHERE id=?", (job["id"],)))["status"] == "pending"
     real = downloads.publish
 
     def interrupted(partial, destination, record):
@@ -263,10 +276,10 @@ async def test_migration_preserves_conflicting_duplicate_reviews_and_events(tmp_
             project, rows = await snapshot(conn, 2)
         assert project["id"] == 1 and len(rows) == 1 and not eligible(rows[0])
         with pytest.raises(HTTPException, match="409"):
-            await edit_labels(db, 1, uuid4(), [{"post_id": 999, "state": "unsure", "expected_version": 1}])
+            await edit_labels(db, 1, uuid4(), [{"post_id": 999, "state": "negative", "expected_version": 1}])
         assert {r["state"] for r in await db.rows("SELECT * FROM labels")} == {"positive", "negative"}
         assert not await db.rows("PRAGMA foreign_key_check")
-        assert len(list((tmp_path / "backups").glob("pre-schema-v5-*"))) == 1
+        assert len(list((tmp_path / "backups").glob("pre-schema-v7-*"))) == 1
     finally:
         await db.close()
 
@@ -326,29 +339,30 @@ def test_save_pins_current_view_without_rewriting_review_snapshot(client, monkey
     assert run(client, db.one("SELECT * FROM posts WHERE post_id=999")) == before
 
 
-def test_restart_cleans_owned_original_and_sidecars_before_publication_journal(client, monkeypatch):
+def test_restart_cleans_owned_original_partial_before_publication_journal(client, monkeypatch):
     pid = create(client)
     client.get(f"/api/projects/{pid}/query")
     save(client, pid)
     library, db = client.app.state.library, client.app.state.db
     job = run(client, db.one("SELECT * FROM jobs WHERE type='library'"))
-    write, clean = library.write_staged_file, library.clean_staging
+    download, clean = library.download, library.clean_staging
 
     async def interrupted(*args):
-        await write(*args)
+        await download(*args)
         raise RuntimeError("simulated hard interruption before publication reservation")
 
     async def no_cleanup(*_):
         pass
 
-    monkeypatch.setattr(library, "write_staged_file", interrupted)
+    monkeypatch.setattr(library, "download", interrupted)
     monkeypatch.setattr(library, "clean_staging", no_cleanup)
     with pytest.raises(RuntimeError):
         run(client, library.process(job, json.loads(job["payload_json"])))
     stages = list((library.root / ".hydra-studio-tmp").iterdir())
-    assert len(stages) == 1 and len(list(stages[0].iterdir())) == 2
+    staged = list(stages[0].iterdir())
+    assert len(stages) == 1 and len(staged) == 1 and staged[0].name.endswith(".part")
     assert run(client, db.one("SELECT record_json FROM saved_media WHERE post_id=999"))["record_json"] is None
-    monkeypatch.setattr(library, "write_staged_file", write)
+    monkeypatch.setattr(library, "download", download)
     monkeypatch.setattr(library, "clean_staging", clean)
     run(client, library.recover_staging())
     assert not list((library.root / ".hydra-studio-tmp").iterdir())
@@ -363,28 +377,28 @@ def test_recovery_preserves_replaced_staging_file_and_its_ownership_journal(clie
     save(client, pid)
     library, db = client.app.state.library, client.app.state.db
     job = run(client, db.one("SELECT * FROM jobs WHERE type='library'"))
-    write, clean = library.write_staged_file, library.clean_staging
+    download, clean = library.download, library.clean_staging
 
     async def interrupted(*args):
-        await write(*args)
+        await download(*args)
         raise RuntimeError("crash")
 
     async def no_cleanup(*_):
         pass
 
-    monkeypatch.setattr(library, "write_staged_file", interrupted)
+    monkeypatch.setattr(library, "download", interrupted)
     monkeypatch.setattr(library, "clean_staging", no_cleanup)
     with pytest.raises(RuntimeError):
         run(client, library.process(job, json.loads(job["payload_json"])))
     stage = next((library.root / ".hydra-studio-tmp").iterdir())
-    sidecar = next(stage.glob("*.json"))
+    original = next(stage.glob("*.part"))
     replacement = stage / "replacement"
-    replacement.write_bytes(b"manually replaced metadata")
-    os.replace(replacement, sidecar)
+    replacement.write_bytes(b"manually replaced original")
+    os.replace(replacement, original)
     monkeypatch.setattr(library, "clean_staging", clean)
     run(client, client.app.state.downloads.recover_partials(library))
-    assert sidecar.read_bytes() == b"manually replaced metadata"
-    assert len(list(stage.iterdir())) == 2
+    assert original.read_bytes() == b"manually replaced original"
+    assert len(list(stage.iterdir())) == 1
     assert run(client, db.one("SELECT status FROM jobs WHERE id=?", (job["id"],)))["status"] == "failed"
     assert run(client, db.one("SELECT * FROM download_partials WHERE job_id=?", (job["id"],)))
     assert run(client, db.one("SELECT * FROM library_staging WHERE job_id=?", (job["id"],)))

@@ -1,0 +1,158 @@
+{
+  "release": "image-only-20261025-888f88bee8",
+  "origin": "http://192.168.0.15:8447",
+  "source_identity": "888f88bee82edda41371436480c87ee150f81133437d5fd66da0789df33cdb85",
+  "source_bundle_sha256": "3f2f85cf86628194093dcdc1423b4fe976d760c2bfcfe7cdab476ea71412c11c",
+  "image_id": "sha256:566f805a3b780d83305a195bd27c27bf2731a75e93244c3e9fae7f3c8b2fbdea",
+  "schema": 6,
+  "scope": "GPU image search only; historical retrieval and its scale/ANN/extra server benchmarking tasks removed from scope",
+  "tests": {
+    "windows_backend_passed": 102,
+    "windows_backend_skipped": 1,
+    "ubuntu_image_backend_passed": 103,
+    "browser_passed": 49,
+    "browser_skipped": 8,
+    "other": [
+      "Ruff",
+      "OpenAPI export/API generation",
+      "TypeScript/Vite build",
+      "Compose configuration",
+      "nginx configuration",
+      "whitespace checks"
+    ]
+  },
+  "validation_scope": {
+    "browser_matrix": "local disposable mock server; desktop Chromium, mobile Chromium, iPhone WebKit",
+    "ubuntu_backend": "isolated image with read-only test/config mounts, no production volume",
+    "live_ui": "fresh read-only Chromium desktop1440/mobile390, no search/review/save submissions",
+    "staging": "loopback-only isolated HTTP checks; exact frontend JS/CSS hashes matched local browser build",
+    "source_review": "independent read-only Luna source/cutover review; main integration ownership"
+  },
+  "migration": {
+    "all_existing_tables_unchanged": true,
+    "automatic_pre_v6_backup_verified": true,
+    "preserved_counts": {
+      "projects": 5,
+      "posts": 534,
+      "project_candidates": 757,
+      "labels": 9,
+      "label_events": 18,
+      "datasets": 0
+    }
+  },
+  "post_live_audit": {
+    "business_table_hashes_unchanged": true,
+    "expected_ephemeral_changes": [
+      "runtime_state cooldowns",
+      "sessions from authorized authentication"
+    ],
+    "post_verified_backup": "/opt/hydra-studio/validation/image-only-20261025-888f88bee8/activation/post-verified.sqlite3",
+    "backup_sha256": "b77578ac70e06be53321eacc928db19990d44e6d4c57faedc31b551a3dabbf48"
+  },
+  "production_smoke": {
+    "production_accessed": true,
+    "mutations_performed": "authenticated transient searches only",
+    "created_projects": false,
+    "created_labels": false,
+    "created_saved_media": false,
+    "existing_project_id": 2,
+    "worker_online": true,
+    "upload": {
+      "bytes": 13967751,
+      "query_type": "upload",
+      "query_sha256": "c13724936771f05458bab399eb6bfe9fafabb9525e9dbd5be934ba4c77406fa9",
+      "model_revision": "5e9337c21019c51f2bb5b33d053ea3e2c0412e5ca972b5ea3c4c21e6987452ca",
+      "embedding_space": "5de6cd51f1a756b98b8c56bceea44f643b65eaeb9265a10753c30390f4d89250",
+      "index_revision": "9898f7ea924997121420bc30ac28a1ce8b192c8071dde6c64e3624fa0954eb47",
+      "status": "done",
+      "ranked_ids": [
+        6017502,
+        4069762,
+        3512266,
+        3512309,
+        5075126,
+        6698219,
+        6777746,
+        3512319,
+        4795236,
+        5711178,
+        1920276,
+        4778404,
+        5421276,
+        4096700,
+        5455452,
+        6745870,
+        5817248,
+        6755226,
+        6065248,
+        6015196,
+        6774371,
+        6767149,
+        6751277,
+        6761167,
+        6788420,
+        6762227,
+        3232854,
+        6657413,
+        6763637,
+        3450750,
+        5517513,
+        6763496
+      ],
+      "candidate_md5_verified": true
+    },
+    "post_search": {
+      "post_id": 6774371,
+      "status": "done",
+      "returned_ids": [
+        6425469,
+        6778571,
+        6778600
+      ],
+      "duplicates_hidden": 31
+    },
+    "offline_message": "Image search unavailable: RTX 4070 laptop offline",
+    "offline_new_post_status": 503,
+    "offline_upload_status": 503,
+    "offline_refresh_status": 503,
+    "retained_results_readable_offline": true,
+    "project_counts_before": {
+      "positive": 0,
+      "negative": 1,
+      "total": 1
+    },
+    "project_counts_after": {
+      "positive": 0,
+      "negative": 1,
+      "total": 1
+    },
+    "passed": true
+  },
+  "final_public_status": {
+    "healthy": true,
+    "gpu_worker_reconnected": true,
+    "general_70KiB_body_rejected": 413,
+    "legacy_api_status": 404
+  },
+  "worker": {
+    "running_after_reconnect": true,
+    "initial_local_corpus_count": 35,
+    "launch_script": "deploy/run-similarity-worker.ps1",
+    "automatic_login_start": false
+  },
+  "runtime": {
+    "torch_absent": true,
+    "retired_runtime_files_absent": true,
+    "checkpoint_absent": true
+  },
+  "rollback": {
+    "old_release": "releases/find-similar-pc-final2-20261025",
+    "old_image": "hydra-training-studio:find-similar-pc-final2-20261025",
+    "old_volume": "hydra-studio_similarity-pc-20261025",
+    "active_volume": "hydra-studio_image-only-20261025-888f88bee8",
+    "configuration_backup": "/opt/hydra-studio/validation/image-only-20261025-888f88bee8/activation",
+    "warning": "Keep upgraded volume and reconcile any post-release decisions/media before reverting to the older database"
+  },
+  "production_training_decisions_created_by_validation": false,
+  "temporary_stage_containers_stopped_and_removed": true
+}

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 
 from . import auth, schemas
 from .jobs import enqueue
+from .projects import require_active_project, require_project
 from .reviews import fingerprint, receipt, review_request, save_receipt, undo_label
 
 router = APIRouter(prefix="/api", dependencies=[Depends(auth.require_session)])
@@ -81,17 +82,6 @@ async def autocomplete(
     return await request.app.state.source.autocomplete(q.lower())
 
 
-async def require_project(db, project_id):
-    project = await db.one("SELECT * FROM projects WHERE id=?", (project_id,))
-    if not project:
-        raise HTTPException(404, "Project not found")
-    identity = await db.one(
-        "SELECT project_id FROM canonical_projects WHERE target_kind=? AND target_id=?",
-        (project["target_kind"], project["target_id"]),
-    )
-    return await db.one("SELECT * FROM projects WHERE id=?", (identity["project_id"],)) if identity else project
-
-
 def clean_query(query):
     query = query.strip()
     if any(part.startswith("order:") for part in query.split()):
@@ -126,6 +116,7 @@ async def create_project(body: schemas.ProjectCreate, request: Request):
     async with db.transaction() as conn:
         existing = await receipt(conn, body.request_id, signature)
         if existing is not None:
+            await require_active_project(conn, existing["id"])
             return existing
     name = body.name.strip().lower()
     canonical = await request.app.state.source.canonical_tag(name) if body.target_kind == "e621" else None
@@ -137,6 +128,7 @@ async def create_project(body: schemas.ProjectCreate, request: Request):
     async with db.transaction() as conn:
         existing = await receipt(conn, body.request_id, signature)
         if existing is not None:
+            await require_active_project(conn, existing["id"])
             return existing
         if canonical:
             target_id, name = canonical["tag_id"], canonical["canonical_name"]
@@ -172,16 +164,41 @@ async def create_project(body: schemas.ProjectCreate, request: Request):
         return result
 
 
-@router.get("/projects")
+@router.get("/projects", response_model=schemas.ProjectList)
 async def list_projects(
     request: Request, cursor: int | None = Query(default=None, gt=0), limit: int = Query(default=50, ge=1, le=100)
 ):
     rows = await request.app.state.db.rows(
-        "SELECT p.*, (SELECT count(*) FROM canonical_candidates c JOIN labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id WHERE c.project_id=p.id) AS total "
-        "FROM projects p JOIN canonical_projects k ON k.project_id=p.id WHERE (? IS NULL OR p.id<?) ORDER BY p.id DESC LIMIT ?",
+        "SELECT p.*, coalesce(counts.positive,0) AS positive, coalesce(counts.negative,0) AS negative, "
+        "coalesce(counts.total,0) AS total "
+        "FROM projects p JOIN canonical_projects k ON k.project_id=p.id LEFT JOIN "
+        "(SELECT c.project_id,sum(l.state='positive') AS positive,sum(l.state='negative') AS negative,count(*) AS total "
+        "FROM canonical_candidates c JOIN active_labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id "
+        "GROUP BY c.project_id) counts ON counts.project_id=p.id "
+        "WHERE (? IS NULL OR p.id<?) ORDER BY p.id DESC LIMIT ?",
         (cursor, cursor, limit + 1),
     )
     return {"items": rows[:limit], "next_cursor": rows[limit - 1]["id"] if len(rows) > limit else None}
+
+
+@router.delete("/projects/{project_id}")
+async def delete_project(project_id: int, request: Request):
+    db = request.app.state.db
+    async with db.transaction() as conn:
+        project = await (await conn.execute("SELECT * FROM projects WHERE id=?", (project_id,))).fetchone()
+        if not project:
+            raise HTTPException(404, "Project not found")
+        if await (await conn.execute("SELECT 1 FROM deleted_projects WHERE project_id=?", (project_id,))).fetchone():
+            return {"ok": True}
+        # Keep immutable exports and their evidence; retire the entire legacy family.
+        # A future project with this tag gets a fresh identity and no inherited labels.
+        await conn.execute(
+            "INSERT OR IGNORE INTO deleted_projects SELECT id,? FROM projects WHERE target_kind=? AND target_id=?",
+            (time.time(), project["target_kind"], project["target_id"]),
+        )
+        await conn.execute("DELETE FROM canonical_projects WHERE target_kind=? AND target_id=?",
+                           (project["target_kind"], project["target_id"]))
+    return {"ok": True}
 
 
 @router.get("/projects/{project_id}", response_model=schemas.ProjectResult)
@@ -190,14 +207,14 @@ async def project_detail(project_id: int, request: Request):
     project = await require_project(db, project_id)
     project_id = project["id"]
     rows = await db.rows(
-        "SELECT l.state,count(*) AS n FROM canonical_candidates c JOIN labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id WHERE c.project_id=? GROUP BY l.state",
+        "SELECT l.state,count(*) AS n FROM canonical_candidates c JOIN active_labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id WHERE c.project_id=? GROUP BY l.state",
         (project_id,),
     )
-    counts = {"positive": 0, "negative": 0, "unsure": 0}
+    counts = {"positive": 0, "negative": 0}
     counts.update({row["state"]: row["n"] for row in rows})
     counts["total"] = sum(counts.values())
     duplicates = await db.rows(
-        "SELECT p.id,p.display_name,(SELECT count(*) FROM labels l WHERE l.project_id=p.id) AS reviews FROM projects p JOIN project_family f ON f.member_id=p.id WHERE f.project_id=? AND p.id!=?",
+        "SELECT p.id,p.display_name,(SELECT count(*) FROM active_labels l WHERE l.project_id=p.id) AS reviews FROM projects p JOIN project_family f ON f.member_id=p.id WHERE f.project_id=? AND p.id!=?",
         (project_id, project_id),
     )
     conflicts = await db.one("SELECT count(*) AS n FROM project_conflicts WHERE project_id=?", (project_id,))
@@ -278,7 +295,7 @@ def decode_candidate(row):
 
 CANDIDATE_SELECT = """SELECT p.*,c.review_version,l.state,
  (SELECT json_group_array(json_object('project_id',x.project_id,'state',x.state,'version',pc.review_version))
- FROM labels x JOIN project_family pf ON pf.member_id=x.project_id JOIN project_candidates pc ON pc.project_id=x.project_id AND pc.post_id=x.post_id
+ FROM active_labels x JOIN project_family pf ON pf.member_id=x.project_id JOIN project_candidates pc ON pc.project_id=x.project_id AND pc.post_id=x.post_id
  WHERE pf.project_id=c.project_id AND x.post_id=c.post_id) AS conflicting_reviews,
  EXISTS(SELECT 1 FROM project_conflicts f WHERE f.project_id=c.project_id AND f.post_id=c.post_id) AS conflict,
  m.version AS save_version,m.wanted AS save_wanted,m.present AS save_present,
@@ -286,7 +303,7 @@ CANDIDATE_SELECT = """SELECT p.*,c.review_version,l.state,
  (SELECT max(id) FROM label_events e WHERE e.project_id=c.owner_project_id AND e.post_id=c.post_id) AS event_id,
  (SELECT json_group_array(DISTINCT s.source_kind || ': ' || s.query) FROM discoveries d JOIN search_runs s ON s.id=d.search_run_id
  WHERE d.project_id=c.owner_project_id AND d.post_id=c.post_id) AS sources
- FROM canonical_candidates c JOIN posts p USING(post_id) LEFT JOIN labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id
+ FROM canonical_candidates c JOIN posts p USING(post_id) LEFT JOIN active_labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id
  LEFT JOIN saved_media m ON m.post_id=p.post_id"""
 
 
@@ -305,7 +322,7 @@ async def candidates(
     run_id: int | None = Query(default=None, gt=0),
 ):
     project_id = (await require_project(request.app.state.db, project_id))["id"]
-    if state not in {"all", "unreviewed", "reviewed", "positive", "negative", "unsure"}:
+    if state not in {"all", "unreviewed", "reviewed", "positive", "negative"}:
         raise HTTPException(422, "Invalid label filter")
     if rating is not None and rating not in {"s", "q", "e"}:
         raise HTTPException(422, "Invalid rating")
@@ -351,7 +368,7 @@ async def candidates(
         args.append(source)
     clause = " AND ".join(where)
     total = await request.app.state.db.one(
-        "SELECT count(*) AS n FROM canonical_candidates c JOIN posts p USING(post_id) LEFT JOIN labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id WHERE "
+        "SELECT count(*) AS n FROM canonical_candidates c JOIN posts p USING(post_id) LEFT JOIN active_labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id WHERE "
         + clause,
         args,
     )
@@ -379,7 +396,8 @@ async def candidate_detail(project_id: int, post_id: int, request: Request):
 async def label(project_id: int, post_id: int, body: schemas.LabelMutation, request: Request):
     project_id = (await require_project(request.app.state.db, project_id))["id"]
     items = [{**body.model_dump(exclude_none=True, exclude={"request_id"}), "post_id": post_id, "state": body.state}]
-    return (await review_request(request.app.state, project_id, body.request_id, items))[0]
+    owner = auth.token_hash(request.cookies.get(request.app.state.settings.session_cookie_name, ""))
+    return (await review_request(request.app.state, project_id, body.request_id, items, owner=owner))[0]
 
 
 @router.post("/projects/{project_id}/labels/batch", response_model=list[schemas.LabelResult])
@@ -390,6 +408,7 @@ async def batch(project_id: int, body: schemas.BatchLabels, request: Request):
         project_id,
         body.request_id,
         [{**item.model_dump(exclude_none=True), "state": item.state} for item in body.items],
+        owner=auth.token_hash(request.cookies.get(request.app.state.settings.session_cookie_name, "")),
     )
 
 

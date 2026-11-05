@@ -91,7 +91,7 @@ def read_provenance(item: dict) -> dict:
 
 
 class Hydra:
-    def __init__(self, model: str, upstream: str):
+    def __init__(self, model: str, upstream: str, extensions=(), max_seqlen=1024):
         import torch
 
         if not torch.cuda.is_available():
@@ -105,17 +105,34 @@ class Hydra:
         sys.path.insert(0, str(Path(upstream).resolve()))
         from hydra import image
         from hydra.model import load_model
+        from hydra_character_training.export import load_verified_extensions, prediction_identity
+        from hydra_character_training.features import source_digest
 
         self.image = image
         # Ask Hydra for logits explicitly; its default head already applies sigmoid.
         self.model = load_model(str(self.path), logit=True).to(device="cuda", dtype=torch.bfloat16)
+        # Validate and append before constructing the vocabulary or threshold mappings.
+        self.extensions = load_verified_extensions(self.model, extensions, self.version)
+        if any(item["max_seqlen"] != max_seqlen for item in self.extensions):
+            raise ValueError("Extension preprocessing sequence length differs from worker max_seqlen")
+        self.thresholds = {item["label"]: item["threshold"] for item in self.extensions}
+        self.max_seqlen = max_seqlen
+        self.version = prediction_identity(self.version, self.extensions, {
+            "pipeline": "home-media-native-bf16-logits-v2", "max_seqlen": max_seqlen,
+            "oom_sequences": [n for n in (1024, 512, 256) if n <= max_seqlen],
+            "hydra_source_sha256": source_digest(Path(upstream) / "hydra"),
+            "worker_source_sha256": hashlib.sha256(
+                Path(__file__).read_bytes().replace(b"\r\n", b"\n")
+            ).hexdigest(),
+            "torch": getattr(torch, "__version__", "unknown"),
+        })
         self.model.eval().requires_grad_(False)
         self.labels = [(label.label, label.category) for label in self.model.labels]
         LOG.info("Hydra loaded on %s", torch.cuda.get_device_name())
 
     def predict(self, source: str) -> dict:
         torch = self.torch
-        for sequence in (1024, 512, 256):
+        for sequence in (n for n in (1024, 512, 256) if n <= self.max_seqlen):
             try:
                 tensor = self.model.load_image(source, max_seqlen=sequence)
                 h, w = tensor.shape[0] // 16, tensor.shape[1] // 16
@@ -124,7 +141,10 @@ class Hydra:
                 sizes = torch.tensor([[h, w]], dtype=torch.int32, device="cuda")
                 with torch.inference_mode():
                     scores = torch.sigmoid(self.model(patches, sizes)[0].float()).cpu().tolist()
-                return {label: round(score, 6) for (label, _), score in zip(self.labels, scores)}
+                return {
+                    label: score if label in self.thresholds else round(score, 6)
+                    for (label, _), score in zip(self.labels, scores, strict=True)
+                }
             except torch.cuda.OutOfMemoryError:
                 # Release live tensors before clearing the allocator and retrying.
                 tensor = patches = sizes = None
@@ -153,9 +173,9 @@ class Hydra:
         torch = self.torch
         images = patches = sizes = logits = scores = None
         try:
-            images = [self.model.load_image(source, max_seqlen=1024) for source in sources]
+            images = [self.model.load_image(source, max_seqlen=self.max_seqlen) for source in sources]
             patches, sizes = self.image.stack(
-                images, 16, 1024, device="cpu"
+                images, 16, self.max_seqlen, device="cpu"
             )
             patches = self.model.from_srgb(patches)
             with torch.inference_mode():
@@ -163,7 +183,8 @@ class Hydra:
                 scores = torch.sigmoid(logits.float()).cpu().tolist()
             return [
                 {
-                    label: round(score, 6)
+                    # Preserve exact probabilities for calibrated extension boundaries.
+                    label: score if label in self.thresholds else round(score, 6)
                     for (label, _), score in zip(self.labels, row, strict=True)
                 }
                 for row in scores
@@ -346,7 +367,9 @@ def apply_predictions(
         name
         for name, score in prediction["scores"].items()
         if (name in focus_labels or not settings.focus_only)
-        and score >= (settings.threshold if name in focus_labels else settings.context_threshold)
+        and score >= prediction.get("thresholds", {}).get(
+            name, settings.threshold if name in focus_labels else settings.context_threshold
+        )
         and categories.get(name) not in EXCLUDED_CATEGORIES
         and not re.fullmatch(r"\d{4}", name)
     ]
@@ -519,6 +542,7 @@ def predict_prepared(settings, model, state, prepared, entity_kind, stop_check=N
             "scores": scores,
             "score_format": "probability-v1",
             "complete": True,
+            "thresholds": getattr(model, "thresholds", {}),
         }
         if entity_kind == "scene" and samples:
             with Image.open(samples[0][1]) as image:
@@ -596,7 +620,17 @@ def run(
             RunControl(settings.state.parent) as control, media_workspace(settings.state) as temporary_root:
         control.check()
         events.checkpoint("model_load", force=True)
-        model = Hydra(settings.model, upstream)
+        if settings.extensions or settings.max_seqlen != 1024:
+            model = Hydra(settings.model, upstream, settings.extensions, settings.max_seqlen)
+        else:
+            model = Hydra(settings.model, upstream)
+        from hydra_character_training.export import prediction_identity
+
+        model.version = prediction_identity(model.version, [], {
+            "threshold": settings.threshold, "context_threshold": settings.context_threshold,
+            "focus_only": settings.focus_only, "focus_categories": settings.focus_categories,
+            "excluded_categories": sorted(EXCLUDED_CATEGORIES), "score_format": "probability-v1",
+        })
         events.checkpoint("model_ready", force=True)
         control.check()
         categories = dict(model.labels)

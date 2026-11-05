@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.responses import Response
 
 from . import auth, schemas
+from .projects import require_active_project, require_project
 from .quality import MAX_CANDIDATES, eligible, manifest_samples, summarize
 from .reviews import fingerprint, receipt, save_receipt
 
@@ -25,12 +26,13 @@ SNAPSHOT = """SELECT p.*,c.review_version,l.state,l.reviewed_at,
  (SELECT json_group_array(json_object('run_id',s.id,'kind',s.source_kind,'query',s.query,'discovered_at',d.discovered_at))
  FROM discoveries d JOIN search_runs s ON s.id=d.search_run_id
  WHERE d.project_id=c.owner_project_id AND d.post_id=c.post_id) AS provenance_json,f.dhash
- FROM canonical_candidates c JOIN posts p USING(post_id) JOIN labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id
+ FROM canonical_candidates c JOIN posts p USING(post_id) JOIN active_labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id
  LEFT JOIN image_fingerprints f ON f.post_id=p.post_id AND f.md5 IS p.md5 AND f.preview_url IS p.preview_url
  WHERE c.project_id=? ORDER BY c.post_id LIMIT ?"""
 
 
 async def snapshot(conn, project_id):
+    await require_active_project(conn, project_id)
     project = await (
         await conn.execute(
             "SELECT p.* FROM projects p JOIN canonical_projects k ON k.project_id=p.id JOIN projects requested ON requested.target_kind=k.target_kind AND requested.target_id=k.target_id WHERE requested.id=?",
@@ -64,6 +66,14 @@ async def snapshot(conn, project_id):
         )
     ).fetchall()
     selected_evidence = {row["event_id"]: dict(row) for row in selected_rows}
+    image_rows = await (
+        await conn.execute(
+            "SELECT * FROM retrieval_provenance WHERE event_id IN ("
+            "SELECT max(e.id) FROM label_events e JOIN project_family f ON f.member_id=e.project_id "
+            "WHERE f.project_id=? GROUP BY e.project_id,e.post_id)", (project_id,),
+        )
+    ).fetchall()
+    image_evidence = {row["event_id"]: dict(row) for row in image_rows}
     for sample in samples:
         provenance = json.loads(sample["provenance_json"])
         for source in provenance:
@@ -83,6 +93,9 @@ async def snapshot(conn, project_id):
                     **dict(selected),
                 }
             )
+        if sample["event_id"] in image_evidence:
+            provenance.append({"kind": "hydra_image", "candidate_post_id": sample["post_id"],
+                               **image_evidence[sample["event_id"]]})
         sample["provenance_json"] = json.dumps(provenance)
     return dict(project), samples
 
@@ -98,7 +111,7 @@ async def quality(project_id: int, request: Request):
     summary = await asyncio.to_thread(summarize, rows)
     summary["preview_errors"] = await request.app.state.db.rows(
         "SELECT c.post_id,j.error FROM project_candidates c JOIN jobs j ON j.job_key='preview:' || c.post_id "
-        "JOIN labels l USING(project_id,post_id) WHERE c.project_id=? AND j.status='failed' "
+        "JOIN active_labels l USING(project_id,post_id) WHERE c.project_id=? AND j.status='failed' "
         "AND l.state IN ('positive','negative') ORDER BY j.updated_at DESC LIMIT 20",
         (project_id,),
     )
@@ -119,6 +132,7 @@ async def freeze(project_id: int, body: schemas.DatasetCreate, request: Request)
     db = request.app.state.db
     signature = fingerprint(["dataset", project_id], body.model_dump(mode="json"))
     async with db.transaction() as conn:
+        await require_active_project(conn, project_id)
         existing = await receipt(conn, body.request_id, signature)
         if existing is not None:
             return existing
@@ -178,6 +192,7 @@ async def freeze(project_id: int, body: schemas.DatasetCreate, request: Request)
     }
     async with db.transaction() as conn:
         # Concurrent retries may finish analysis together; publish only one version.
+        await require_active_project(conn, project["id"])
         existing = await receipt(conn, body.request_id, signature)
         if existing is not None:
             return existing
@@ -192,8 +207,7 @@ async def freeze(project_id: int, body: schemas.DatasetCreate, request: Request)
 @router.get("/projects/{project_id}/datasets")
 async def versions(project_id: int, request: Request):
     db = request.app.state.db
-    if not await db.one("SELECT id FROM projects WHERE id=?", (project_id,)):
-        raise HTTPException(404, "Project not found")
+    await require_project(db, project_id)
     return await db.rows(
         "SELECT id,name,created_at,manifest_sha256,json_extract(manifest_json,'$.counts.included') AS included "
         "FROM datasets WHERE project_id IN (SELECT member_id FROM project_family WHERE project_id=(SELECT project_id FROM project_family WHERE member_id=?)) ORDER BY created_at DESC LIMIT 100",

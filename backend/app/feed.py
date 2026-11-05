@@ -135,12 +135,22 @@ class Feed:
                 )
         return decode_candidate({**saved, **post_row(post)})
 
-    async def page(self, project_id, query, cursor=None, limit=50, kind="query"):
+    async def search_posts(self, query, *, cursor=None, limit=50, post_ids=None):
+        """Use e621's query parser for both discovery and restricted image results."""
         from .api import clean_query
 
         query = clean_query(query)
         if not query:
             raise HTTPException(422, "Enter an e621 discovery query")
+        if post_ids is not None:
+            if not post_ids:
+                return []
+            # Separate groups preserve user id: constraints and OR expressions.
+            # e621 supports at most 320 IDs per list; image searches retain <=64.
+            if len(post_ids) > 320:
+                raise HTTPException(422, "Too many posts for a restricted search")
+            query = f"( {query} ) id:" + ",".join(map(str, post_ids))
+            limit = len(post_ids)
         params = {"tags": query + " order:id_desc", "limit": limit}
         if cursor:
             params["page"] = f"b{cursor}"
@@ -150,6 +160,15 @@ class Feed:
             raise HTTPException(502, "Invalid upstream page")
         if cursor and any(p["id"] >= cursor for p in posts):
             raise HTTPException(502, "Upstream pagination did not advance")
+        if post_ids is not None and any(p["id"] not in post_ids for p in posts):
+            raise HTTPException(502, "Upstream returned posts outside the image search")
+        return posts
+
+    async def page(self, project_id, query, cursor=None, limit=50, kind="query"):
+        from .api import clean_query
+
+        query = clean_query(query)
+        posts = await self.search_posts(query, cursor=cursor, limit=limit)
         for post in posts:
             prior = self.context(project_id, post["id"])
             if prior and prior[2] == "embedding" and query.startswith("id:"):

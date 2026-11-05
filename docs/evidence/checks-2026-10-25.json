@@ -1,0 +1,54 @@
+{
+  "baseline_commit": "d95ab19b33266fd8130030b3251612665b1ac4dc",
+  "baseline_backend": {
+    "passed": 99,
+    "skipped": 1,
+    "seconds": 225.43
+  },
+  "baseline_browser": {
+    "passed": 46,
+    "skipped": 8
+  },
+  "final_backend": {
+    "command": "python -m pytest -q",
+    "passed": 118,
+    "skipped": 1,
+    "seconds": 250.34,
+    "warning": "Starlette httpx TestClient deprecation"
+  },
+  "final_browser": {
+    "command": "npm run test:e2e",
+    "passed": 49,
+    "skipped": 8,
+    "minutes_rounded": 3.9,
+    "projects": [
+      "desktop Chromium",
+      "mobile Chromium",
+      "iPhone-sized WebKit"
+    ],
+    "physical_devices": false
+  },
+  "other_passed": [
+    "python -m ruff check backend",
+    "python -m backend.export_schema",
+    "npm ci",
+    "npm run generate:api",
+    "npm run build",
+    "git diff --check",
+    "docker compose --env-file deploy/.env.example -f deploy/docker-compose.yml config --quiet"
+  ],
+  "processing_environment_dependency_check": "uv pip check --python artifacts/inference-env/Scripts/python.exe: 33 installed packages compatible",
+  "compose_reference_overrides_verified": {
+    "STUDIO_REFERENCE_MAX_BYTES": 16777216,
+    "STUDIO_REFERENCE_MAX_PIXELS": 40000000
+  },
+  "production_accessed": false,
+  "production_deployed": false,
+  "review": "Independent read-only Luna static review found no remaining blocker; main owns final integration",
+  "limits": [
+    "no ANN or million-vector index validation",
+    "no fully judged Precision@32",
+    "no Ubuntu home-server resource measurement",
+    "no training run"
+  ]
+}

@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
+import { createReviewProject } from "./project-fixture";
 
 async function open(page: Page) {
   await page.goto("/");
@@ -10,13 +11,12 @@ async function open(page: Page) {
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
   }
   await expect(
-    page.getByRole("heading", { name: "Projects", exact: true, level: 1 }),
+    page.getByRole("button", { name: "Projects", exact: true }),
   ).toBeVisible();
   expect(
     (await (await page.request.get("/api/auth/session")).json()).mock,
   ).toBe(true);
-  await page.getByLabel("Tag name").fill("dragon");
-  await page.getByLabel("Tag name").press("Enter");
+  await createReviewProject(page, "storage");
   await expect(
     page.getByRole("button", { name: "Open post 999", exact: true }),
   ).toBeVisible();
@@ -57,7 +57,7 @@ test("fresh Query, persistent reviews, compact tabs and infinite loading", async
     page.getByRole("button", { name: "Open post 1000", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("link", { name: "Dataset & export", exact: true }),
+    page.getByRole("link", { name: "Dataset export", exact: true }),
   ).toBeVisible();
   let queries = 0;
   page.on("request", (r) => {
@@ -81,14 +81,14 @@ test("fresh Query, persistent reviews, compact tabs and infinite loading", async
     fullPage: true,
   });
   await page.getByRole("tab", { name: "Downloads", exact: true }).click();
-  await expect(page.getByText(/active · Collection originals/)).toBeVisible();
+  await expect(page.getByText(/active · Saved originals/)).toBeVisible();
   await page.screenshot({
     path: test.info().outputPath("downloads.png"),
     fullPage: true,
   });
 });
 
-test("double pointer tap is an idempotent save; single click and keyboard open", async ({
+test("double pointer tap toggles favourite; single click and keyboard open", async ({
   page,
   isMobile,
 }) => {
@@ -98,22 +98,31 @@ test("double pointer tap is an idempotent save; single click and keyboard open",
     name: "Open post 998",
     exact: true,
   });
+  if ((await (await page.request.get("/api/library/posts/998")).json()).wanted) {
+    await thumb.press("f");
+    await expect.poll(async () => (await (await page.request.get("/api/library/posts/998")).json()).status).toBe("idle");
+  }
   if (isMobile) {
     await doubleTouch(page, thumb);
   } else await thumb.dblclick({ delay: 75 });
   await expect(page).toHaveURL(url);
-  await expect(thumb.locator(".save-heart")).toBeVisible();
+  await expect(thumb.locator(".favorite-paw")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Mark post 998 negative", exact: true }),
   ).toHaveAttribute("aria-pressed", "false");
-  if (isMobile) {
-    await doubleTouch(page, thumb);
-  } else await thumb.dblclick({ delay: 75 });
+  await expect.poll(async () => (await (await page.request.get("/api/library/posts/998")).json()).status).toBe("saved");
+  if (isMobile) await doubleTouch(page, thumb);
+  else await thumb.dblclick({ delay: 75 });
+  await expect(thumb.locator(".favorite-paw")).toHaveCount(0);
+  await expect.poll(async () => (await (await page.request.get("/api/library/posts/998")).json()).present).toBe(false);
+  if (isMobile) await doubleTouch(page, thumb);
+  else await thumb.dblclick({ delay: 75 });
+  await expect(thumb.locator(".favorite-paw")).toBeVisible();
   await page.getByRole("tab", { name: "Downloads", exact: true }).click();
   await expect(
-    page.getByText("Collection", { exact: true }).first(),
+    page.getByText("Post #998", { exact: true }).first(),
   ).toBeVisible();
-  await expect(page.getByText("Completed · verified").first()).toBeVisible();
+  await expect(page.getByText("Completed").first()).toBeVisible();
   await page.getByRole("tab", { name: "Query", exact: true }).click();
   const openThumb = page.getByRole("button", {
     name: "Open post 999",
@@ -121,7 +130,7 @@ test("double pointer tap is an idempotent save; single click and keyboard open",
   });
   await openThumb.click();
   await expect(page).toHaveURL(/posts\/999$/);
-  await page.getByRole("link", { name: "Back to posts" }).click();
+  await page.getByRole("link", { name: "Thumbnail gallery" }).click();
   const keyboard = page.getByRole("button", {
     name: "Open post 997",
     exact: true,
@@ -164,12 +173,7 @@ test("dragging does not save or open; reduced motion and keyboard tab navigation
   });
   await page.waitForTimeout(400);
   await expect(page).toHaveURL(url);
-  await expect(
-    page.getByRole("button", {
-      name: "Save post 996 to Smut folder",
-      exact: true,
-    }),
-  ).toHaveAttribute("aria-pressed", "false");
+  await expect(thumb.locator(".favorite-paw")).toHaveCount(0);
   await page.getByRole("tab", { name: "Query", exact: true }).focus();
   await page.keyboard.press("ArrowRight");
   await expect(

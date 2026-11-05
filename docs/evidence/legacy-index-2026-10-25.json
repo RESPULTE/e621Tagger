@@ -1,0 +1,111 @@
+{
+  "array_dtypes": {
+    "dists": "<f2",
+    "ids": "<i8",
+    "postids": "<i8"
+  },
+  "array_shapes": {
+    "dists": [
+      6122692,
+      64
+    ],
+    "ids": [
+      6122692,
+      64
+    ],
+    "postids": [
+      6122692
+    ]
+  },
+  "checked_at_utc": "2026-10-25T13:16:04.819384+00:00",
+  "coverage": {
+    "1920276": {
+      "contains_self": false,
+      "coverage": "available",
+      "distance_max": 0.833984375,
+      "distance_min": 0.005580902099609375,
+      "first_lookup_seconds": 0.00028139999994891696,
+      "neighbor_count": 63,
+      "neighbor_ids_unique": true,
+      "rank_max": 64,
+      "rank_min": 2,
+      "repeat_consistent": true,
+      "warm_max_seconds": 0.0009449000026506837,
+      "warm_mean_seconds": 0.00026805600049556233,
+      "warm_median_seconds": 0.00023150000197347254,
+      "warm_repetitions": 25
+    },
+    "4069762": {
+      "contains_self": false,
+      "coverage": "available",
+      "distance_max": 0.7724609375,
+      "distance_min": 0.38720703125,
+      "first_lookup_seconds": 0.00024530000155209564,
+      "neighbor_count": 63,
+      "neighbor_ids_unique": true,
+      "rank_max": 64,
+      "rank_min": 2,
+      "repeat_consistent": true,
+      "warm_max_seconds": 0.0002640000020619482,
+      "warm_mean_seconds": 0.0002123719998053275,
+      "warm_median_seconds": 0.00022629999875789508,
+      "warm_repetitions": 25
+    },
+    "6017502": {
+      "contains_self": false,
+      "coverage": "available",
+      "distance_max": 0.71044921875,
+      "distance_min": 0.1947021484375,
+      "first_lookup_seconds": 0.0001799000019673258,
+      "neighbor_count": 63,
+      "neighbor_ids_unique": true,
+      "rank_max": 64,
+      "rank_min": 2,
+      "repeat_consistent": true,
+      "warm_max_seconds": 0.0005727999996452127,
+      "warm_mean_seconds": 0.0002484520000871271,
+      "warm_median_seconds": 0.0002571000004536472,
+      "warm_repetitions": 25
+    },
+    "6425469": {
+      "contains_self": false,
+      "coverage": "available",
+      "distance_max": 0.8388671875,
+      "distance_min": 0.54345703125,
+      "first_lookup_seconds": 0.0009841999999480322,
+      "neighbor_count": 63,
+      "neighbor_ids_unique": true,
+      "rank_max": 64,
+      "rank_min": 2,
+      "repeat_consistent": true,
+      "warm_max_seconds": 0.00021809999816468917,
+      "warm_mean_seconds": 0.0001667920003819745,
+      "warm_median_seconds": 0.00015720000010333024,
+      "warm_repetitions": 25
+    },
+    "6657413": {
+      "coverage": "not_indexed",
+      "first_lookup_seconds": 4.19999923906289e-06
+    },
+    "6774371": {
+      "coverage": "not_indexed",
+      "first_lookup_seconds": 1.1399999493733048e-05
+    }
+  },
+  "first_source_id": 14,
+  "last_source_id": 6524999,
+  "marker_present": true,
+  "open_elapsed_seconds": 4.105481200000213,
+  "open_success": true,
+  "revision": "02bd7bd04c732dd3de011d88d642a1d21024f70d",
+  "row_count": 6122692,
+  "scope": "Exact known-post-ID lookup validation only; no arbitrary historical search or embedding parity claim.",
+  "source_ids": [
+    6425469,
+    6017502,
+    4069762,
+    1920276,
+    6774371,
+    6657413
+  ]
+}

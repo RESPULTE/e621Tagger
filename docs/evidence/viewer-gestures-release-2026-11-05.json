@@ -1,0 +1,60 @@
+{
+  "date": "2026-11-05",
+  "scope": "Immersive viewer, e621 blue UI, artist-based similarity titles, double-tap favourite toggle and thumbnail binary review controls",
+  "release": "image-query-layout-e5e6ed00c516",
+  "healthy": true,
+  "image_id": "sha256:952ff1ca99a6b05087fdd056c34421470b4acff404d86531bc49ed78b4071800",
+  "external_backup": "/opt/hydra-studio/backups/pre-image-query-layout-e5e6ed00c516-20261105T095929Z.sqlite3",
+  "backup_sha256": "b825cb0a70e45bd8b5739d69b3534729dd9c27192b36b873d97db300d63fb627",
+  "backup_integrity": "ok",
+  "business_hashes_unchanged": true,
+  "counts": {
+    "labels": 80,
+    "label_events": 91,
+    "datasets": 0,
+    "saved_media": 39
+  },
+  "removed_images": [
+    {
+      "tag": "hydra-training-studio:image-query-layout-9df9d455182e",
+      "id": "sha256:09566c5a0789846341275eec6d0c7ac44f9efabb82fba24f86bec665c9ae0020"
+    },
+    {
+      "tag": "hydra-training-studio:image-query-layout-3f8939ec8263",
+      "id": "sha256:6eafe7e0e1a77632e13fffba1a688798c6664fec5c74f13a83e52dddda78185a"
+    }
+  ],
+  "volumes_removed": false,
+  "checks": {
+    "frontend_build": "passed",
+    "desktop_browser": {
+      "passed": 29,
+      "skipped": 2
+    },
+    "mobile_chromium_and_iphone_webkit": "16 applicable cases passed; storage fixtures isolated after shared-project failure and all 6 rerun cases passed",
+    "storage_backend": {
+      "passed": 21,
+      "skipped": 1,
+      "skip_reason": "Windows symlink privilege unavailable"
+    },
+    "similarity_backend": {
+      "passed": 16
+    },
+    "isolated_linux_stage": "passed",
+    "live": {
+      "health": "healthy",
+      "mock": false,
+      "frontend_assets_match": [
+        "/assets/index-X1ei5Qpw.js",
+        "/assets/index-B1nfVU57.css"
+      ],
+      "library_available": true,
+      "production_review_or_favourite_writes": 0
+    }
+  },
+  "limitations": [
+    "Browser tests used synthetic media and emulated mobile browsers, not physical iPhones.",
+    "Live validation checked health, served assets and read-only API state; no production review or favourite mutations.",
+    "Unfavourite cleanup is asynchronous and removes only verified application-owned files."
+  ]
+}
