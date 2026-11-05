@@ -134,6 +134,8 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
       });
       await Promise.all([
         client.invalidateQueries({ queryKey: ["projects"] }),
+        client.invalidateQueries({ queryKey: ["media-samples", operation.project] }),
+        client.invalidateQueries({ queryKey: ["feed", operation.project] }),
         client.invalidateQueries({ queryKey: ["project", operation.project] }),
         client.invalidateQueries({
           queryKey: ["candidates", operation.project],

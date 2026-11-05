@@ -251,3 +251,16 @@ def test_native_gpu_training_export_and_full_model_roundtrip(tmp_path):
         from pathlib import Path
 
         Path(evidence).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+
+
+def test_manifest_accepts_distinct_samples_from_one_post_and_rejects_group_leak(tmp_path):
+    manifest = make_export(tmp_path)
+    first, second = manifest["samples"][:2]
+    first["sample_id"] = str(uuid4())
+    second.update(post_id=first["post_id"], sample_id=str(uuid4()), group=first["group"])
+    (tmp_path / "manifest.json").write_text(canonical(manifest), encoding="utf-8")
+    assert len(read_dataset(tmp_path, "__hydra_training_smoke__").samples) == 6
+    second["group"] = manifest["samples"][-1]["group"]
+    (tmp_path / "manifest.json").write_text(canonical(manifest), encoding="utf-8")
+    with pytest.raises(ValueError, match="Source post crosses groups"):
+        read_dataset(tmp_path, "__hydra_training_smoke__")

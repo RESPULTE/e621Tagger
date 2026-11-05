@@ -172,9 +172,8 @@ async def list_projects(
         "SELECT p.*, coalesce(counts.positive,0) AS positive, coalesce(counts.negative,0) AS negative, "
         "coalesce(counts.total,0) AS total "
         "FROM projects p JOIN canonical_projects k ON k.project_id=p.id LEFT JOIN "
-        "(SELECT c.project_id,sum(l.state='positive') AS positive,sum(l.state='negative') AS negative,count(*) AS total "
-        "FROM canonical_candidates c JOIN active_labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id "
-        "GROUP BY c.project_id) counts ON counts.project_id=p.id "
+        "(SELECT project_id,sum(state='positive') AS positive,sum(state='negative') AS negative,count(*) AS total "
+        "FROM reviewed_media GROUP BY project_id) counts ON counts.project_id=p.id "
         "WHERE (? IS NULL OR p.id<?) ORDER BY p.id DESC LIMIT ?",
         (cursor, cursor, limit + 1),
     )
@@ -207,12 +206,12 @@ async def project_detail(project_id: int, request: Request):
     project = await require_project(db, project_id)
     project_id = project["id"]
     rows = await db.rows(
-        "SELECT l.state,count(*) AS n FROM canonical_candidates c JOIN active_labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id WHERE c.project_id=? GROUP BY l.state",
+        "SELECT state,count(*) AS n FROM reviewed_media WHERE project_id=? GROUP BY state",
         (project_id,),
     )
     counts = {"positive": 0, "negative": 0}
-    counts.update({row["state"]: row["n"] for row in rows})
-    counts["total"] = sum(counts.values())
+    counts.update({row["state"]: row["n"] for row in rows if row["state"] is not None})
+    counts["total"] = sum(row["n"] for row in rows)
     duplicates = await db.rows(
         "SELECT p.id,p.display_name,(SELECT count(*) FROM active_labels l WHERE l.project_id=p.id) AS reviews FROM projects p JOIN project_family f ON f.member_id=p.id WHERE f.project_id=? AND p.id!=?",
         (project_id, project_id),
@@ -277,6 +276,9 @@ def decode_candidate(row):
         "has_preview": bool(row["preview_url"]),
         "has_original": bool(row["file_url"]),
         "has_video_fallback": bool(row["video_url"]),
+        "sample_summary": {"positive": row.get("sample_positive", 0) or 0,
+                           "negative": row.get("sample_negative", 0) or 0,
+                           "total": row.get("sample_total", 0) or 0},
         "state": row["state"],
         "version": row["review_version"],
         "event_id": row["event_id"],
@@ -294,6 +296,9 @@ def decode_candidate(row):
 
 
 CANDIDATE_SELECT = """SELECT p.*,c.review_version,l.state,
+ (SELECT count(*) FROM media_samples ms WHERE ms.project_id=c.project_id AND ms.post_id=p.post_id AND ms.source_md5=p.md5 AND ms.state='positive') AS sample_positive,
+ (SELECT count(*) FROM media_samples ms WHERE ms.project_id=c.project_id AND ms.post_id=p.post_id AND ms.source_md5=p.md5 AND ms.state='negative') AS sample_negative,
+ (SELECT count(*) FROM media_samples ms WHERE ms.project_id=c.project_id AND ms.post_id=p.post_id AND ms.source_md5=p.md5) AS sample_total,
  (SELECT json_group_array(json_object('project_id',x.project_id,'state',x.state,'version',pc.review_version))
  FROM active_labels x JOIN project_family pf ON pf.member_id=x.project_id JOIN project_candidates pc ON pc.project_id=x.project_id AND pc.post_id=x.post_id
  WHERE pf.project_id=c.project_id AND x.post_id=c.post_id) AS conflicting_reviews,
@@ -312,6 +317,7 @@ async def candidates(
     project_id: int,
     request: Request,
     state: str = "all",
+    favorite: bool | None = None,
     cursor: int | None = Query(default=None, gt=0),
     limit: int = Query(default=50, ge=1, le=100),
     rating: str | None = None,
@@ -326,7 +332,8 @@ async def candidates(
         raise HTTPException(422, "Invalid label filter")
     if rating is not None and rating not in {"s", "q", "e"}:
         raise HTTPException(422, "Invalid rating")
-    where, args = ["c.project_id=?", "l.state IS NOT NULL"], [project_id]
+    sampled_review = "EXISTS(SELECT 1 FROM media_samples ms WHERE ms.project_id=c.project_id AND ms.post_id=p.post_id AND ms.source_md5=p.md5 AND ms.state IS NOT NULL)"
+    where, args = ["c.project_id=?", f"(l.state IS NOT NULL OR {sampled_review})"], [project_id]
     if run_id is not None:
         run = await request.app.state.db.one(
             "SELECT id FROM search_runs WHERE id=? AND project_id=?", (run_id, project_id)
@@ -341,10 +348,14 @@ async def candidates(
     if state == "unreviewed":
         where.append("l.state IS NULL")
     elif state == "reviewed":
-        where.append("l.state IS NOT NULL")
+        where.append(f"(l.state IS NOT NULL OR {sampled_review})")
     elif state != "all":
-        where.append("l.state=?")
-        args.append(state)
+        where.append("(l.state=? OR EXISTS(SELECT 1 FROM media_samples ms WHERE ms.project_id=c.project_id AND ms.post_id=p.post_id AND ms.source_md5=p.md5 AND ms.state=?))")
+        args.extend([state, state])
+    if favorite is not None:
+        # Match favourite intent, including queued saves and pending removals.
+        where.append("COALESCE((SELECT wanted FROM saved_media WHERE post_id=c.post_id),0)=?")
+        args.append(int(favorite))
     for column, value, op in (
         ("p.rating", rating, "="),
         ("p.score", min_score, ">="),

@@ -1,37 +1,6 @@
 import { createReviewProject } from "./project-fixture";
 import { test, expect, type Page } from "@playwright/test";
-import { readFile } from "node:fs/promises";
-
-async function decodesBundledVideo(page: Page) {
-  // Probe a known local clip outside Studio: never skip on an app playback failure.
-  const bytes = await readFile(
-    new URL("../../backend/app/assets/demo.mp4", import.meta.url),
-  );
-  await page.goto("about:blank");
-  return page.evaluate(
-    async (source) => {
-      const player = document.createElement("video");
-      player.muted = true;
-      player.src = source;
-      document.body.appendChild(player);
-      return new Promise<boolean>((resolve) => {
-        const finish = (ok: boolean) => {
-          clearTimeout(timer);
-          player.onloadedmetadata = null;
-          player.onerror = null;
-          player.removeAttribute("src");
-          player.load();
-          player.remove();
-          resolve(ok);
-        };
-        const timer = setTimeout(() => finish(false), 5000);
-        player.onloadedmetadata = () => finish(true);
-        player.onerror = () => finish(false);
-      });
-    },
-    `data:video/mp4;base64,${bytes.toString("base64")}`,
-  );
-}
+import { decodesBundledVideo } from "./video-fixture";
 
 async function login(page: Page) {
   await page.goto("/");
@@ -81,8 +50,7 @@ test("search → import → original → labels → undo → gallery", async ({
       original.evaluate((image: HTMLImageElement) => image.naturalWidth),
     )
     .toBe(1200);
-  await page.getByRole("button", { name: "Actual size / zoom" }).click();
-  await expect(page.locator(".media-stage")).toHaveClass(/actual-size/);
+  await expect(page.getByRole("button", { name: "Actual size / zoom" })).toHaveCount(0);
   await page
     .locator(".detail-review")
     .getByRole("button", { name: "Positive", exact: false })
@@ -104,7 +72,7 @@ test("search → import → original → labels → undo → gallery", async ({
     .locator(".detail-review")
     .getByRole("button", { name: "Positive", exact: true })
     .click();
-  await expect(page.getByText("Unreviewed", { exact: true })).toBeVisible();
+  await expect(page.locator(".detail-review .save-state")).toHaveText("Unreviewed");
   await page.getByRole("link", { name: "Thumbnail gallery" }).click();
   await expect(
     page.getByRole("button", { name: "Open post 1000", exact: true }),
@@ -173,7 +141,7 @@ test("quick labels and failed saves remain reviewable", async ({ page }) => {
   await expect(page.locator(".save-errors")).toHaveCount(0);
 });
 
-test("video supports playback, seeking, and compatible MP4", async ({
+test("video supports playback and seeking", async ({
   page,
 }, testInfo) => {
   if (testInfo.project.name.includes("webkit")) {
@@ -190,8 +158,7 @@ test("video supports playback, seeking, and compatible MP4", async ({
   const video = page.locator("video");
   await expect(video).toBeVisible();
   await expect(video).toHaveAttribute("controls", "");
-  await page.getByRole("button", { name: "Use compatible MP4" }).click();
-  await expect(video).toHaveAttribute("src", /video_mp4(?:\?|$)/);
+  await expect(page.getByRole("button", { name: "Use compatible MP4" })).toHaveCount(0);
   await expect
     .poll(() => video.evaluate((player: HTMLVideoElement) => player.readyState))
     .toBeGreaterThanOrEqual(1);
@@ -241,56 +208,19 @@ test("keyboard review toggles in place and undo restores the last review", async
   await expect(
     page.getByLabel("Post 999 media; hold to find similar", { exact: true }),
   ).toBeVisible();
-  await expect(
-    page.locator(".detail-review").getByText("Unreviewed", { exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".detail-review .save-state")).toHaveText("Unreviewed");
 });
 
-test("unsupported video codec retains MP4 fallback and review controls", async ({
-  page,
-}, testInfo) => {
-  test.skip(
-    !testInfo.project.name.includes("webkit"),
-    "Host WebKit unsupported codec path",
-  );
-  test.skip(
-    await decodesBundledVideo(page),
-    "This host can decode H264; playback scenario covers it.",
-  );
+test("failed original video automatically uses the compatible fallback", async ({ page }) => {
   await login(page);
   await createProject(page);
-  await page
-    .getByRole("button", { name: "Open post 1000", exact: true })
-    .click();
+  await page.route("**/api/media/1000/original**", route => route.abort());
+  await page.getByRole("button", { name: "Open post 1000", exact: true }).click();
   const video = page.locator("video");
   await expect(video).toBeVisible();
-  // Original decoding may succeed or fail independently of the MP4 codec.
-  const compatible = page.getByRole("button", { name: "Use compatible MP4" });
-  const currentSource = (await video.getAttribute("src")) ?? "";
-  if (!/video_mp4(?:\?|$)/.test(currentSource)) {
-    try {
-      await compatible.click({ timeout: 1000 });
-    } catch (error) {
-      // The source can switch automatically after the initial source check.
-      const latestSource = (await video.getAttribute("src")) ?? "";
-      if (!/video_mp4(?:\?|$)/.test(latestSource)) throw error;
-    }
-  }
-  await expect(video).toHaveAttribute(
-    "src",
-    /video_mp4(?:\?|$)/,
-  );
-  await expect(page.getByRole("alert")).toContainText(
-    "browser does not support its codec",
-  );
-  await expect(
-    page
-      .locator(".detail-review")
-      .getByRole("button", { name: "Negative", exact: false }),
-  ).toBeEnabled();
-  await expect(
-    page.getByRole("link", { name: "Open the e621 post" }),
-  ).toBeVisible();
+  await expect(video).toHaveAttribute("src", /video_mp4(?:\?|$)/);
+  await expect(page.getByRole("button", { name: "Use compatible MP4" })).toHaveCount(0);
+  await expect(page.locator(".detail-review").getByRole("button", { name: "Negative", exact: true })).toBeEnabled();
 });
 
 test("private access reconnects without a password", async ({ page }) => {
@@ -522,5 +452,5 @@ test("keyboard favourite toggles removal in the full media view", async ({ page 
   await expect(page.locator(".media-stage .favorite-paw")).toBeVisible();
   await page.locator(".media-stage").press("f");
   await expect(page.locator(".media-stage .favorite-paw")).toHaveCount(0);
-  await expect(page.locator(".detail-review").getByText("Unreviewed", { exact: true })).toBeVisible();
+  await expect(page.locator(".detail-review .save-state")).toHaveText("Unreviewed");
 });

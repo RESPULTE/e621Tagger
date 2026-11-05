@@ -62,6 +62,52 @@
         }
       },
       "updatedAt": "2026-11-05T10:39:41.118213+00:00"
+    },
+    "/projects/:id?tab=tagged": {
+      "targetKind": "existing-ui",
+      "projectId": "4192ccd7-421e-442d-af29-c46ea06ac596",
+      "activeDraftId": "1645dd99-e27b-4fac-9919-843a579f0684",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "frontend/src/pages/Project.tsx",
+        "frontend/src/App.tsx",
+        "frontend/src/components/QueryInput.tsx",
+        "frontend/src/components/FavoriteButton.tsx",
+        "frontend/src/style.css:1:100",
+        "frontend/src/style.css:1540:1800",
+        "frontend/src/pages/Downloads.tsx",
+        "frontend/src/components/Similarity.tsx",
+        "frontend/src/pages/Post.tsx",
+        "frontend/src/components/StudioIcon.tsx",
+        "frontend/src/components/ProjectDock.tsx",
+        "frontend/src/components/ProjectDock.css",
+        "frontend/src/components/ProjectWorkspace.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "b40bf28da06bd31f887e0fe362f14c9994721ca66e3b9ba03ab6050c5caaac73",
+        "frontend/src/pages/Project.tsx": "a0a9ec0198d2949b703c17d6f620632f900c5540afad19f7ccc090d642299923",
+        "frontend/src/App.tsx": "88abe85e29702accab0eb8dec1afdcbf431e4531958af109312b8320dd64674c",
+        "frontend/src/components/QueryInput.tsx": "4aaafbebd01b592886b01b35446515862b1cd62a25373c2284027d9ae8e74e9e",
+        "frontend/src/components/FavoriteButton.tsx": "a1cd8288d6ea88ea0de1d1e143677c8597efa846a1a51118699ac68c4ac3a151",
+        "frontend/src/style.css": "76ef347d26fd5d9d4f6ea89d5c2b36a87844d258ffb2a0584831fbabb7d02699",
+        "frontend/src/pages/Downloads.tsx": "a185cf61a9ba5255ed92d63d96d6046fd4b082fa78052c5de4024610b0f97b66",
+        "frontend/src/components/Similarity.tsx": "435417a68fa9b6ab712019ea347ca925f1bcc0e4b6c8d13de85394556cbbb101",
+        "frontend/src/pages/Post.tsx": "a332a854f53a04d2ec3986b92229db7a080b5a4e2ed7388ffc87f4181fe8ff1e",
+        "frontend/src/components/StudioIcon.tsx": "a5712c38c30d5d4caa0fe537b964c3534ca23500f1819e6d93cfe6e87c146aa8",
+        "frontend/src/components/ProjectDock.tsx": "ea2aa2794bd64268f6d8e3712ddc4b349e75cef2180dba2b89aef4b4aa3f372e",
+        "frontend/src/components/ProjectDock.css": "890628c390adbbf85aa6b49ada413456a09b031988402bee17636ed061f5ad4b",
+        "frontend/src/components/ProjectWorkspace.tsx": "bb174c527488ff23677bb4d0bad454d7aec5ffc1ab5e12a50f9b28bc1bde631e"
+      },
+      "components": [],
+      "drafts": {
+        "1645dd99-e27b-4fac-9919-843a579f0684": {
+          "title": "Tagged gallery - independent icon filters",
+          "visualDirection": "Current implemented navy gallery: neutral card edges, outlined selected label controls, bottom-right media pills, independent cycling label/favourite icon filters with union for all. Static canvas export from isolated demo; repository provides interactions.",
+          "currentVersion": 1
+        }
+      },
+      "updatedAt": "2026-11-05T12:18:26.826920+00:00"
     }
   }
 }

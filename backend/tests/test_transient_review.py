@@ -137,3 +137,40 @@ def test_explicit_export_and_collection_use_same_transfers_and_checked_bytes(cli
     assert client.app.state.transfers.metrics["completed"] == 3
     assert client.app.state.transfers.metrics["peak_active"] <= 2
     assert client.get(f"/api/projects/{pid}/candidates").json()["total"] == 2
+
+
+def test_tagged_label_and_favourite_filters_compose_before_pagination(client):
+    pid = create(client)
+    entries = [(999, "positive", True), (998, "negative", True),
+               (997, "positive", False), (996, "negative", False),
+               (995, "positive", None), (994, "negative", None)]
+    for post, state, wanted in entries:
+        label(client, pid, post, state)
+        if wanted is not None:
+            async def set_intent():
+                async with client.app.state.db.transaction() as conn:
+                    await conn.execute(
+                        "INSERT INTO saved_media(post_id,version,wanted,present,status,updated_at) VALUES(?,1,?,0,'queued',0)",
+                        (post, int(wanted)),
+                    )
+            run(client, set_intent())
+    for state in ("reviewed", "positive", "negative"):
+        for favorite in (None, True, False):
+            expected = [post for post, label_state, wanted in entries
+                        if (state == "reviewed" or state == label_state)
+                        and (favorite is None or bool(wanted) == favorite)]
+            params = {"state": state, "limit": 1}
+            if favorite is not None:
+                params["favorite"] = str(favorite).lower()
+            seen = []
+            while True:
+                response = client.get(f"/api/projects/{pid}/candidates", params=params)
+                assert response.status_code == 200, response.text
+                page = response.json()
+                assert page["total"] == len(expected)
+                seen.extend(item["post_id"] for item in page["items"])
+                if not page["next_cursor"]:
+                    break
+                params["cursor"] = page["next_cursor"]
+            assert seen == expected
+    assert client.get(f"/api/projects/{pid}/candidates?favorite=invalid").status_code == 422

@@ -154,6 +154,37 @@ CREATE VIEW project_family AS SELECT p.id AS member_id,k.project_id AS project_i
 """
 
 
+SCHEMA_V8 = """
+CREATE TABLE media_samples(
+ id TEXT PRIMARY KEY, project_id INTEGER NOT NULL REFERENCES projects(id),
+ post_id INTEGER NOT NULL REFERENCES posts(post_id), source_md5 TEXT NOT NULL,
+ kind TEXT NOT NULL CHECK(kind IN ('thumbnail','frame')), timestamp_ms INTEGER NOT NULL,
+ image_path TEXT NOT NULL, image_md5 TEXT NOT NULL, dhash TEXT NOT NULL,
+ width INTEGER NOT NULL,height INTEGER NOT NULL,
+ state TEXT CHECK(state IN ('positive','negative')),favorite INTEGER NOT NULL DEFAULT 0,
+ version INTEGER NOT NULL DEFAULT 0,created_at REAL NOT NULL,updated_at REAL NOT NULL,
+ UNIQUE(project_id,post_id,source_md5,kind,timestamp_ms));
+CREATE INDEX media_samples_post ON media_samples(project_id,post_id,source_md5);
+CREATE TABLE media_sample_events(
+ id INTEGER PRIMARY KEY,sample_id TEXT NOT NULL REFERENCES media_samples(id),
+ version INTEGER NOT NULL,state TEXT,favorite INTEGER NOT NULL,created_at REAL NOT NULL,
+ UNIQUE(sample_id,version));
+CREATE TABLE sample_library(sample_id TEXT PRIMARY KEY REFERENCES media_samples(id),record_json TEXT NOT NULL);
+CREATE VIEW reviewed_media AS
+ SELECT c.project_id,c.post_id,
+ CASE WHEN coalesce(s.reviewed,0)>0 THEN
+  CASE WHEN s.positive>s.negative THEN 'positive' WHEN s.negative>s.positive THEN 'negative' ELSE NULL END
+ ELSE l.state END AS state
+ FROM canonical_candidates c JOIN posts p USING(post_id)
+ LEFT JOIN active_labels l ON l.project_id=c.owner_project_id AND l.post_id=c.post_id
+ LEFT JOIN (SELECT ms.project_id,ms.post_id,ms.source_md5,count(ms.state) AS reviewed,
+  sum(ms.state='positive') AS positive,sum(ms.state='negative') AS negative
+  FROM media_samples ms GROUP BY ms.project_id,ms.post_id,ms.source_md5) s
+ ON s.project_id=c.project_id AND s.post_id=c.post_id AND s.source_md5=p.md5
+ WHERE l.state IS NOT NULL OR coalesce(s.reviewed,0)>0;
+"""
+
+
 class Database:
     def __init__(self, root: Path):
         self.root = root.resolve()
@@ -190,19 +221,19 @@ class Database:
         await self.connection.execute("PRAGMA busy_timeout=5000")
         current = await self.connection.execute("PRAGMA user_version")
         version = (await current.fetchone())[0]
-        if version > 7:
+        if version > 8:
             raise RuntimeError("Database schema is newer than this application")
         if version == 0:
             await self.connection.executescript(
                 "BEGIN IMMEDIATE;" + SCHEMA + SCHEMA_V2 + SCHEMA_V3 + SCHEMA_V4 + SCHEMA_V5 + SCHEMA_V6
-                + SCHEMA_V7 + "PRAGMA user_version=7; COMMIT;"
+                + SCHEMA_V7 + SCHEMA_V8 + "PRAGMA user_version=8; COMMIT;"
             )
-        elif version in {1, 2, 3, 4, 5, 6}:
+        elif version in {1, 2, 3, 4, 5, 6, 7}:
             from backend.backup import backup
 
             # The process lock is already held. Use SQLite online backup, never a
             # raw DB-file copy that could omit WAL commits. Failure aborts startup.
-            destination = self.root / "backups" / f"pre-schema-v7-{time.time_ns()}.sqlite3"
+            destination = self.root / "backups" / f"pre-schema-v8-{time.time_ns()}.sqlite3"
             await asyncio.to_thread(backup, self.root, destination)
             try:
                 await self.connection.executescript(
@@ -212,8 +243,9 @@ class Database:
                     + (SCHEMA_V4 if version < 4 else "")
                     + (SCHEMA_V5 if version < 5 else "")
                     + (SCHEMA_V6 if version < 6 else "")
-                    + SCHEMA_V7
-                    + "PRAGMA user_version=7; COMMIT;"
+                    + (SCHEMA_V7 if version < 7 else "")
+                    + SCHEMA_V8
+                    + "PRAGMA user_version=8; COMMIT;"
                 )
             except BaseException:
                 await self.connection.rollback()
@@ -238,6 +270,10 @@ class Database:
     async def one(self, sql: str, args=()):
         rows = await self.rows(sql, args)
         return rows[0] if rows else None
+
+    async def resolve_dataset_sample(self, sample_id, post_id, source_md5, sample_md5):
+        from .media_sampling import resolve_dataset_sample
+        return await resolve_dataset_sample(self, sample_id, post_id, source_md5, sample_md5)
 
     async def close(self):
         if self.connection:

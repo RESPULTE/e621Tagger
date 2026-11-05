@@ -32,9 +32,23 @@ def artwork(post_id: int, preview=False):
     return out.getvalue()
 
 
+@lru_cache(maxsize=1)
+def animation():
+    frames = []
+    for x in (18, 45, 72, 99):
+        image = Image.new("RGB", (160, 120), "#102747")
+        draw = ImageDraw.Draw(image)
+        draw.ellipse((x, 35, x + 38, 73), fill="#e8c446")
+        frames.append(image)
+    output = io.BytesIO()
+    frames[0].save(output, "GIF", save_all=True, append_images=frames[1:], duration=[200, 300, 200, 300], loop=0)
+    return output.getvalue()
+
+
 def post(post_id, *, checksummed=True):
     root = "https://static1.e621.net"
     video = post_id % 10 == 0
+    gif = post_id == 1005
     return {
         "id": post_id,
         "rating": ["s", "q", "e"][post_id % 3],
@@ -49,15 +63,15 @@ def post(post_id, *, checksummed=True):
         "file": {
             "md5": (
                 hashlib.md5(
-                    (Path(__file__).parent / "assets" / "demo.webm").read_bytes() if video else artwork(post_id)
+                    animation() if gif else (Path(__file__).parent / "assets" / "demo.webm").read_bytes() if video else artwork(post_id)
                 ).hexdigest()
                 if checksummed
                 else None
             ),
-            "ext": "webm" if video else "png",
+            "ext": "gif" if gif else "webm" if video else "png",
             "width": 160 if video else 1200,
             "height": 120 if video else 900,
-            "url": f"{root}/demo.webm" if video else f"{root}/original/{post_id}.png",
+            "url": f"{root}/demo.gif" if gif else f"{root}/demo.webm" if video else f"{root}/original/{post_id}.png",
         },
         "preview": {"url": f"{root}/preview/{post_id}.png"},
         "sample": {
@@ -158,6 +172,9 @@ def transport(request):
         match = re.fullmatch(r"/posts/(\d+)\.json", path)
         if match:
             return httpx.Response(200, json={"post": post(int(match[1]))})
+    if path == "/demo.gif":
+        body = animation()
+        return httpx.Response(200, stream=httpx.ByteStream(body), headers={"Content-Type": "image/gif", "Content-Length": str(len(body))})
     match = re.fullmatch(r"/(preview|original)/(\d+)\.png", path)
     if match or path in {"/demo.mp4", "/demo.webm"}:
         body = (

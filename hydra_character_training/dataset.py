@@ -88,13 +88,19 @@ def read_dataset(path, label):
     rows = manifest["samples"]
     if not isinstance(rows, list) or not 1 <= len(rows) <= 5000:
         raise ValueError("Expected 1–5000 supervised media samples")
-    samples, ids, paths, hashes, md5s, groups = [], set(), set(), set(), set(), {}
+    samples, ids, paths, hashes, md5s, groups, post_groups = [], set(), set(), set(), set(), {}, {}
     root = path.parent.resolve()
     for row in rows:
         post_id, target, split = row["post_id"], row["target"], row["split"]
-        if type(post_id) is not int or post_id < 1 or post_id in ids:
-            raise ValueError("Invalid or repeated post ID")
-        ids.add(post_id)
+        sample_id = row.get("sample_id")
+        if type(post_id) is not int or post_id < 1:
+            raise ValueError("Invalid post ID")
+        if sample_id is not None and (not isinstance(sample_id, str) or not sample_id):
+            raise ValueError("Invalid sample ID")
+        identity = sample_id if sample_id is not None else f"post:{post_id}"
+        if identity in ids:
+            raise ValueError("Repeated sample ID")
+        ids.add(identity)
         if type(target) is not int or target not in (0, 1) or row["label"] != ("positive" if target else "negative"):
             raise ValueError(f"Expected a human binary label: {post_id}")
         if row.get("excluded_reason") is not None or row["availability"] != "available":
@@ -104,6 +110,8 @@ def read_dataset(path, label):
         group = row["group"]
         if not isinstance(group, str) or not re.fullmatch(r"post:[1-9][0-9]*", group):
             raise ValueError("Missing frozen duplicate/artist group")
+        if post_groups.setdefault(post_id, group) != group:
+            raise ValueError(f"Source post crosses groups: {post_id}")
         bucket = int(hashlib.sha256(f"{policy['split_seed']}:{group}".encode()).hexdigest()[:8], 16) % 100
         expected = "train" if bucket < 80 else "validation" if bucket < 90 else "test"
         if split != expected or groups.setdefault(group, split) != split:

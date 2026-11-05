@@ -25,6 +25,18 @@ from .reviews import fingerprint, receipt, save_receipt
 router = APIRouter(prefix="/api", dependencies=[Depends(auth.require_session)])
 
 
+def sample_key(dataset_id, sample):
+    sample_id = sample.get("sample_id")
+    return (f"dataset:{dataset_id}:sample:{hashlib.sha256(sample_id.encode()).hexdigest()}"
+            if sample_id else f"dataset:{dataset_id}:{sample['post_id']}")
+
+
+def export_name(sample):
+    suffix = ("_" + hashlib.sha256(sample["sample_id"].encode()).hexdigest()[:32]
+              if sample.get("sample_id") else "")
+    return f"{sample['post_id']}_{sample['md5']}{suffix}.{sample['media_ext']}"
+
+
 class Downloads:
     def __init__(self, db, source, transfers):
         self.db, self.source, self.transfers = db, source, transfers
@@ -86,7 +98,9 @@ class Downloads:
         if not row:
             raise HTTPException(404, "Frozen dataset unavailable")
         manifest = json.loads(row["manifest_json"])
-        sample = next((s for s in manifest["samples"] if s["post_id"] == post_id and s["target"] is not None), None)
+        sample_id = payload.get("sample_id")
+        sample = next((s for s in manifest["samples"] if s["post_id"] == post_id
+                       and s.get("sample_id") == sample_id and s["target"] is not None), None)
         if (
             not sample
             or not re.fullmatch("[a-f0-9]{32}", sample["md5"] or "")
@@ -94,7 +108,7 @@ class Downloads:
         ):
             raise HTTPException(422, "Sample is not eligible for this frozen export")
         root = await disk(self.folder, dataset_id)
-        name = f"{post_id}_{sample['md5']}.{sample['media_ext']}"
+        name = export_name(sample)
         destination, partial = root / name, root / f".job-{job['id']}.part"
         record = json.loads(job["result_json"]) if job.get("result_json") else None
         if record:
@@ -106,20 +120,24 @@ class Downloads:
             file = post.get("file") or {}
             if post.get("flags", {}).get("deleted") or not file.get("url"):
                 raise HTTPException(404, "Original is unavailable; frozen review was preserved")
-            if post.get("id") != post_id or file.get("md5") != sample["md5"] or file.get("ext") != sample["media_ext"]:
+            if (post.get("id") != post_id or file.get("md5") != sample.get("source_md5", sample["md5"])
+                    or (not sample_id and file.get("ext") != sample["media_ext"])):
                 raise HTTPException(409, "Source identity changed since dataset freeze")
             if destination.exists() or destination.is_symlink() or partial.exists() or partial.is_symlink():
                 raise HTTPException(409, "Export path already exists without a publication journal")
             try:
-                verified = await self.transfers.save(
-                    partial,
-                    sample["media_url"],
-                    sample["md5"],
-                    file.get("size"),
-                    root,
-                    job_id=job["id"],
-                    current=lambda: self.current(job["id"]),
-                )
+                if sample_id:
+                    source_path = await self.db.resolve_dataset_sample(
+                        sample_id, post_id, sample["source_md5"], sample["md5"]
+                    )
+                    if not source_path:
+                        raise HTTPException(409, "Saved sample is unavailable or changed since freeze")
+                    verified = await self.copy_sample(Path(source_path), partial, root, job["id"], sample["md5"])
+                else:
+                    verified = await self.transfers.save(
+                        partial, sample["media_url"], sample["md5"], file.get("size"), root,
+                        job_id=job["id"], current=lambda: self.current(job["id"]),
+                    )
                 record = {
                     **verified,
                     "relative_path": name,
@@ -143,6 +161,32 @@ class Downloads:
                 (time.time(), job["id"]),
             )
             await conn.execute("DELETE FROM download_partials WHERE job_id=?", (job["id"],))
+
+    async def copy_sample(self, source, partial, root, job_id, expected_md5):
+        maximum = self.transfers.settings.library_max_bytes
+        if not regular(source) or not 0 < source.stat().st_size <= maximum:
+            raise HTTPException(409, "Saved sample is unavailable or too large")
+        if (await disk(shutil.disk_usage, root)).free < source.stat().st_size + self.transfers.settings.library_reserve_bytes:
+            raise HTTPException(507, "Download storage has insufficient free space")
+        md5, sha, count = hashlib.md5(), hashlib.sha256(), 0
+        with partial.open("xb") as output:
+            stat = os.fstat(output.fileno())
+            async with self.db.transaction() as conn:
+                await conn.execute("INSERT OR REPLACE INTO download_partials VALUES(?,?,?,?)",
+                                   (job_id, str(partial.absolute()), stat.st_ino, stat.st_dev))
+            with source.open("rb") as input_file:
+                while block := await disk(input_file.read, 65536):
+                    count += len(block)
+                    if count > maximum or not await self.current(job_id):
+                        raise HTTPException(409, "Sample copy exceeded its limit or was cancelled")
+                    md5.update(block)
+                    sha.update(block)
+                    await disk(output.write, block)
+            await disk(output.flush)
+            await disk(os.fsync, output.fileno())
+        if not count or md5.hexdigest() != expected_md5:
+            raise HTTPException(409, "Saved sample changed since freeze")
+        return {"bytes": count, "sha256": sha.hexdigest(), "md5": expected_md5}
 
     async def clean_partial(self, job_id, path):
         row = await self.db.one("SELECT * FROM download_partials WHERE job_id=?", (job_id,))
@@ -196,7 +240,7 @@ async def queue_export(dataset_id: UUID, body: schemas.Mutation, request: Reques
                 )
             ).fetchone()
         )[0]
-        keys = [(s, f"dataset:{dataset_id}:{s['post_id']}") for s in samples]
+        keys = [(s, sample_key(dataset_id, s)) for s in samples]
         missing = []
         ids = []
         for sample, key in keys:
@@ -213,7 +257,8 @@ async def queue_export(dataset_id: UUID, body: schemas.Mutation, request: Reques
                     conn,
                     "dataset_media",
                     key,
-                    {"dataset_id": str(dataset_id), "post_id": sample["post_id"], "project_id": row["project_id"]},
+                    {"dataset_id": str(dataset_id), "post_id": sample["post_id"], "project_id": row["project_id"],
+                     **({"sample_id": sample["sample_id"]} if sample.get("sample_id") else {})},
                 )
             )
         result = {"job_ids": ids, "dataset_id": str(dataset_id)}
@@ -385,7 +430,7 @@ async def media_manifest(dataset_id: UUID, request: Request):
     verified = []
     for sample in samples:
         job = await db.one(
-            "SELECT * FROM jobs WHERE job_key=? AND status='done'", (f"dataset:{dataset_id}:{sample['post_id']}",)
+            "SELECT * FROM jobs WHERE job_key=? AND status='done'", (sample_key(dataset_id, sample),)
         )
         if not job:
             raise HTTPException(409, "Media export is incomplete; check Downloads")
@@ -427,6 +472,22 @@ async def exported_file(dataset_id: UUID, post_id: int, request: Request):
     return FileResponse(path, filename=path.name, headers={"Cache-Control": "private, no-store"})
 
 
+@router.get("/datasets/{dataset_id}/media/samples/{sample_id}")
+async def exported_sample_file(dataset_id: UUID, sample_id: UUID, request: Request):
+    key = sample_key(dataset_id, {"sample_id": str(sample_id)})
+    job = await request.app.state.db.one(
+        "SELECT result_json FROM jobs WHERE job_key=? AND status='done'", (key,)
+    )
+    if not job:
+        raise HTTPException(404, "Verified export file not found")
+    record = json.loads(job["result_json"])
+    root = await disk(request.app.state.downloads.folder, str(dataset_id))
+    path = root / record["relative_path"]
+    if not regular(path) or path.stat().st_size != record["bytes"] or await disk(digest, path) != record["sha256"]:
+        raise HTTPException(409, "Export media changed")
+    return FileResponse(path, filename=path.name, headers={"Cache-Control": "private, no-store"})
+
+
 @router.get("/datasets/{dataset_id}/media/bundle")
 async def media_bundle(dataset_id: UUID, request: Request):
     # Packaging is an explicit export, after the shared queue has checked every
@@ -447,7 +508,7 @@ async def media_bundle(dataset_id: UUID, request: Request):
             with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED, allowZip64=True) as bundle:
                 for sample in manifest["samples"]:
                     name = sample["relative_path"]
-                    if not re.fullmatch(r"[1-9][0-9]*_[a-f0-9]{32}\.(jpg|jpeg|png|webp)", name):
+                    if not re.fullmatch(r"[1-9][0-9]*_[a-f0-9]{32}(?:_[a-f0-9]{32})?\.(jpg|jpeg|png|webp)", name):
                         raise HTTPException(409, "Invalid export path")
                     path = root / name
                     if not regular(path):

@@ -117,10 +117,18 @@ async def transition(
             "ORDER BY version DESC LIMIT 1)",
             (cursor.lastrowid, project_id, post_id, undo_of),
         )
+    # The ordinary review of animated content labels its thumbnail. Sample edits
+    # use this same transition, so gallery and focused-thumbnail decisions agree.
+    await conn.execute(
+        "UPDATE media_samples SET state=?,version=version+1,updated_at=? WHERE post_id=? "
+        "AND project_id IN (SELECT project_id FROM project_family WHERE member_id=?) "
+        "AND kind='thumbnail' AND source_md5=?",
+        (state, now, post_id, project_id, row["md5"]),
+    )
     return {"post_id": post_id, "state": state, "version": version, "event_id": cursor.lastrowid}
 
 
-async def edit_labels(db, project_id, request_id, items, *, posts=(), evidence=None):
+async def edit_labels(db, project_id, request_id, items, *, posts=(), evidence=None, thumbnails=None):
     signature = fingerprint(["labels", project_id], items)
     async with db.transaction() as conn:
         await require_active_project(conn, project_id)
@@ -159,6 +167,10 @@ async def edit_labels(db, project_id, request_id, items, *, posts=(), evidence=N
             await conn.execute(
                 "INSERT OR IGNORE INTO discoveries VALUES(?,?,?,?)", (project_id, post["id"], run["id"], time.time())
             )
+        if thumbnails:
+            from .media_sampling import insert_sample
+            for post_id, (source_md5, image) in thumbnails.items():
+                await insert_sample(conn, project_id, post_id, source_md5, "thumbnail", -1, image)
         for item in items:
             if item["state"] is not None:
                 await attach_legacy_discovery_provenance(conn, project_id, item["post_id"])
@@ -210,7 +222,37 @@ async def review_request(state, project_id, request_id, items, *, owner=None):
                 raise HTTPException(409, "Indexed candidate image changed; refresh and re-index it before review")
             evidence[item["post_id"]] = {**row, **neighbor}
     posts = await state.feed.review_posts(project_id, [i["post_id"] for i in items if i["state"] is not None])
-    return await edit_labels(state.db, project_id, request_id, items, posts=posts, evidence=evidence)
+    import asyncio
+
+    from .feed import post_row
+    from .media_sampling import ANIMATED_EXTENSIONS, store_image, uses_thumbnail_review
+    thumbnails = {}
+    thumbnail_posts = {post["id"]: post for post, _, _ in posts}
+    # Existing reviewed candidates are intentionally absent from review_posts.
+    # Materialize their missing animation thumbnail on the next explicit review.
+    for item in items:
+        if item["state"] is None or item["post_id"] in thumbnail_posts:
+            continue
+        stored = await state.db.one(
+            "SELECT p.md5,p.media_ext FROM canonical_candidates c JOIN posts p USING(post_id) "
+            "WHERE c.project_id=? AND c.post_id=? AND NOT EXISTS(SELECT 1 FROM media_samples ms "
+            "WHERE ms.project_id=c.project_id AND ms.post_id=p.post_id AND ms.source_md5=p.md5 AND ms.kind='thumbnail')",
+            (project_id, item["post_id"]),
+        )
+        if stored and stored["media_ext"] in ANIMATED_EXTENSIONS:
+            raw = await state.feed.raw(item["post_id"], fresh=True)
+            if (raw.get("file") or {}).get("md5") != stored["md5"]:
+                raise HTTPException(409, "Source changed; the existing review was preserved")
+            thumbnail_posts[item["post_id"]] = raw
+    for post in thumbnail_posts.values():
+        source = post.get("file") or {}
+        if await uses_thumbnail_review(state, post):
+            existing = await state.db.one("SELECT id FROM media_samples WHERE project_id=? AND post_id=? AND source_md5=? AND kind='thumbnail'", (project_id, post["id"], source.get("md5")))
+            if not existing:
+                raw = await state.media.thumbnail_bytes(post_row(post))
+                image = await asyncio.to_thread(store_image, state.db.root, raw, state.settings.reference_max_pixels)
+                thumbnails[post["id"]] = (source["md5"], image)
+    return await edit_labels(state.db, project_id, request_id, items, posts=posts, evidence=evidence, thumbnails=thumbnails)
 
 
 async def undo_label(db, project_id, post_id, mutation):

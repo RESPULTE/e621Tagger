@@ -1,5 +1,5 @@
 import { artistName } from "./artworkName";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api, errorText, mutationId, type Candidate } from "../api/client";
@@ -69,48 +69,59 @@ function ReferenceSearch({ project, available, select }: {
   </section>;
 }
 
-export function useFindSimilar(project: number, post: number) {
+export function useFindSimilar(project: number, post: number, referenceImageUrl?: string) {
   const client = useQueryClient();
-  const [notice, setNotice] = useState("");
-  const [result, setResult] = useState<string | null>(null);
+  const source = JSON.stringify([project, post, referenceImageUrl ?? null]);
+  const generation = useRef({ source, invocation: 0 });
+  if (generation.current.source !== source) generation.current = { source, invocation: generation.current.invocation + 1 };
+  const [display, setDisplay] = useState<{ source: string; notice: string; result: string | null }>({ source, notice: "", result: null });
+  useEffect(() => () => { generation.current.invocation++; }, []);
   async function find() {
-    setNotice("Checking image search availability…");
-    setResult(null);
+    const requestSource = source;
+    const requestUrl = referenceImageUrl;
+    const requestProject = project;
+    const requestPost = post;
+    const invocation = ++generation.current.invocation;
+    const show = (notice: string, result: string | null = null) => {
+      if (generation.current.source === requestSource && generation.current.invocation === invocation)
+        setDisplay({ source: requestSource, notice, result });
+    };
+    show("Checking image search availability...");
     try {
       const capability = await client.fetchQuery({
-        queryKey: ["similarity-list", project], staleTime: 0,
-        queryFn: () => api<SimilarList>(`/projects/${project}/similar`),
+        queryKey: ["similarity-list", requestProject], staleTime: 0,
+        queryFn: () => api<SimilarList>(`/projects/${requestProject}/similar`),
       });
       if (!capability.available) {
-        setNotice(capability.message ?? "Image search unavailable: GPU worker is not ready");
+        show(capability.message ?? "Image search unavailable: GPU worker is not ready");
         return;
       }
-      setNotice("Queuing similarity search…");
-      const search = await api<SimilarSearch>(`/projects/${project}/similar`, {
-        method: "POST",
-        body: JSON.stringify({
-          post_id: post,
-          limit: 32,
-          request_id: mutationId(),
-        }),
-      });
-      setNotice(`Similarity search: ${search.stage.toLowerCase()}.`);
-      setResult(search.id);
-      void client.invalidateQueries({ queryKey: ["similarity-list", project] });
+      show("Queuing similarity search...");
+      let search: SimilarSearch;
+      if (requestUrl) {
+        const response = await fetch(requestUrl, { credentials: "same-origin" });
+        if (!response.ok) throw new Error(`Could not load reference image (${response.status}).`);
+        const image = await response.blob();
+        search = await api<SimilarSearch>(`/projects/${requestProject}/similar/reference?request_id=${mutationId()}`, {
+          method: "POST", body: image, headers: { "Content-Type": "application/octet-stream" },
+        });
+      } else {
+        search = await api<SimilarSearch>(`/projects/${requestProject}/similar`, {
+          method: "POST", body: JSON.stringify({ post_id: requestPost, limit: 32, request_id: mutationId() }),
+        });
+      }
+      show(`Similarity search: ${search.stage.toLowerCase()}.`, search.id);
+      void client.invalidateQueries({ queryKey: ["similarity-list", requestProject] });
     } catch (error) {
-      setNotice(errorText(error));
+      show(errorText(error));
     }
   }
+  const { notice, result } = display.source === source ? display : { notice: "", result: null };
   return {
     find,
     notice: notice ? (
       <span className="similarity-notice" role="status">
-        {notice}{" "}
-        {result && (
-          <Link to={`/projects/${project}?tab=similarity&search=${result}`}>
-            Open results
-          </Link>
-        )}
+        {notice} {result && <Link to={`/projects/${project}?tab=similarity&search=${result}`}>Open results</Link>}
       </span>
     ) : null,
   };

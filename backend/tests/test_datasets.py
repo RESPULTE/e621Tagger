@@ -41,7 +41,7 @@ def test_frozen_manifest_exports_idempotency_and_later_reviews(client):
     assert all(result.status_code == 200 for result in results)
     frozen = results[0].json()
     assert results[1].json() == frozen
-    assert frozen["counts"]["included"] == 2
+    assert frozen["counts"]["included"] == 3
     version_id = frozen["id"]
     export = f"/api/datasets/{version_id}/export"
     original = client.get(export + "?format=json")
@@ -52,9 +52,10 @@ def test_frozen_manifest_exports_idempotency_and_later_reviews(client):
     assert len({row["split"] for row in included}) == 1  # mock artwork shares one near-duplicate group
     assert all(row["relative_path"] is None and row["provenance"] for row in included)
     reasons = {row["post_id"]: row["excluded_reason"] for row in manifest["samples"]}
-    assert reasons[1000] == "unsupported_media"
+    assert reasons[1000] is None
+    assert next(s for s in included if s["post_id"] == 1000)["sample_kind"] == "thumbnail"
     lines = client.get(export).text.splitlines()
-    assert len(lines) == 3 and json.loads(lines[0])["type"] == "manifest"
+    assert len(lines) == 4 and json.loads(lines[0])["type"] == "manifest"
     assert json.loads(lines[0])["manifest_sha256"] == frozen["manifest_sha256"]
     csv = client.get(export + "?format=csv")
     assert csv.status_code == 200 and "provenance" in csv.text and "attachment" in csv.headers["content-disposition"]
@@ -73,7 +74,7 @@ def test_frozen_manifest_exports_idempotency_and_later_reviews(client):
         run(client, mutate())
     quality = client.get(f"/api/projects/{pid}/quality").json()
     assert quality["missing_fingerprints"] == 0
-    assert quality["availability"]["unsupported_media"] == 1
+    assert quality["availability"]["available"] == 3
 
 
 def sample(post_id, *, md5=None, dhash=None, state="positive", artist=None):
@@ -143,11 +144,11 @@ async def test_v1_migration_preserves_data_and_makes_online_backup(tmp_path):
     db = Database(tmp_path)
     try:
         await db.open()
-        assert (await db.one("PRAGMA user_version"))["user_version"] == 7
+        assert (await db.one("PRAGMA user_version"))["user_version"] == 8
         assert (await db.one("SELECT count(*) AS n FROM projects"))["n"] == 1
         assert (await db.one("PRAGMA integrity_check"))["integrity_check"] == "ok"
         assert await db.rows("PRAGMA foreign_key_check") == []
-        backups = list((tmp_path / "backups").glob("pre-schema-v7-*.sqlite3"))
+        backups = list((tmp_path / "backups").glob("pre-schema-v8-*.sqlite3"))
         assert len(backups) == 1
         with sqlite3.connect(backups[0]) as conn:
             assert conn.execute("PRAGMA user_version").fetchone()[0] == 1
@@ -196,3 +197,24 @@ def test_fingerprint_never_rebinds_transient_bytes_to_concurrent_metadata_refres
     monkeypatch.setattr(media, "thumbnail_bytes", changed)
     run(client, media.download_preview(999))
     assert run(client, db.one("SELECT * FROM image_fingerprints WHERE post_id=999")) is None
+
+
+def test_sampled_frames_keep_source_group_and_unique_export_names():
+    from backend.app.downloads import export_name, sample_key
+
+    base = sample(42, md5="a" * 32)
+    thumbnail = {**base, "sample_id": "thumbnail:42:" + "a" * 32,
+                 "sample_kind": "thumbnail", "sample_image_path": "private.png",
+                 "sample_md5": "b" * 32, "media_ext": "gif"}
+    frame = {**base, "sample_id": str(uuid4()), "sample_kind": "frame",
+             "sample_image_path": "private2.png", "sample_md5": "c" * 32,
+             "timestamp_ms": 500, "state": "negative"}
+    result = manifest_samples([thumbnail, frame], DatasetCreate(request_id=uuid4(), name="test"))
+    assert [s["target"] for s in result] == [1, 0]
+    assert result[0]["group"] == result[1]["group"]
+    assert result[0]["split"] == result[1]["split"]
+    assert {s["md5"] for s in result} == {"b" * 32, "c" * 32}
+    assert all(s["source_md5"] == "a" * 32 and s["media_ext"] == "png" for s in result)
+    assert all("sample_image_path" not in s for s in result)
+    assert export_name(result[0]) != export_name(result[1])
+    assert sample_key("dataset", result[0]) != sample_key("dataset", result[1])

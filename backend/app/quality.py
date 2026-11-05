@@ -27,6 +27,10 @@ def availability(row):
         return "deleted_or_unavailable"
     if not row["file_url"]:
         return "missing_url"
+    if row.get("sample_kind") in {"thumbnail", "frame"}:
+        if not row.get("sample_image_path") or not row.get("sample_md5") or not row.get("md5"):
+            return "missing_sample"
+        return "available"
     if row["media_ext"] not in STILL_IMAGES:
         return "unsupported_media"
     if not row["md5"]:
@@ -118,8 +122,9 @@ def summarize(rows):
     states = Counter(availability(row) for row in rows)
     md5s, sources = defaultdict(list), Counter()
     for row in rows:
-        if row["md5"]:
-            md5s[row["md5"]].append(row)
+        digest = row.get("sample_md5") or row["md5"]
+        if digest:
+            md5s[digest].append(row)
         sources.update({source["kind"] for source in json.loads(row["provenance_json"])})
     clusters = Counter(groups(rows).values())
     conflicts = [
@@ -147,12 +152,18 @@ def summarize(rows):
 def manifest_samples(rows, options):
     clusters = groups(rows, threshold=options.near_hamming, artists=options.group_artists, series=options.group_series)
     exact = defaultdict(list)
+    def image_md5(row):
+        return row.get("sample_md5") or row["md5"]
+
+    def identity(row):
+        return (row["post_id"], row.get("sample_id") or "")
+
     for row in rows:
-        if row["md5"] and row["state"] in {"positive", "negative"}:
-            exact[row["md5"]].append(row)
+        if image_md5(row) and row["state"] in {"positive", "negative"}:
+            exact[image_md5(row)].append(row)
     conflicting = {md5 for md5, values in exact.items() if {row["state"] for row in values} >= {"positive", "negative"}}
     representatives = {
-        md5: min(row["post_id"] for row in values if eligible(row))
+        md5: min(identity(row) for row in values if eligible(row))
         for md5, values in exact.items()
         if any(eligible(row) for row in values)
     }
@@ -167,24 +178,27 @@ def manifest_samples(rows, options):
             reason = state
         elif available != "available":
             reason = available
-        elif row["md5"] in conflicting:
+        elif image_md5(row) in conflicting:
             reason = "conflicting_exact_labels"
-        elif representatives[row["md5"]] != row["post_id"]:
+        elif representatives[image_md5(row)] != identity(row):
             reason = "exact_duplicate"
         group_id = f"post:{clusters[row['post_id']]}"
         bucket = int(hashlib.sha256(f"{options.split_seed}:{group_id}".encode()).hexdigest()[:8], 16) % 100
         split = "train" if bucket < 80 else "validation" if bucket < 90 else "test"
+        sampled = row.get("sample_kind") in {"thumbnail", "frame"}
         samples.append(
             {
+                **({"sample_id": row["sample_id"], "sample_kind": row["sample_kind"],
+                    "timestamp_ms": row.get("timestamp_ms"), "source_md5": row["md5"]} if sampled else {}),
                 "post_id": row["post_id"],
                 "label": state,
                 "target": int(state == "positive") if reason is None else None,
                 "review_version": row["review_version"],
                 "reviewed_at": row["reviewed_at"],
                 "event_id": row["event_id"],
-                "md5": row["md5"],
+                "md5": image_md5(row),
                 "media_url": row["file_url"],
-                "media_ext": row["media_ext"],
+                "media_ext": "png" if sampled else row["media_ext"],
                 "relative_path": None,
                 "availability": available,
                 "group": group_id,

@@ -1,0 +1,233 @@
+.animated-viewer {
+  width: 100%;
+}
+.animation-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0;
+}
+.frame-timeline-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 8px 20px;
+  animation: timeline-arrive 220ms ease-out;
+}
+.frame-timeline {
+  position: relative;
+  flex: 1;
+  height: 62px;
+  touch-action: none;
+  cursor: pointer;
+}
+.frame-track {
+  position: absolute;
+  top: 19px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #366185, #7892ac);
+}
+.frame-checkpoint,
+.frame-cursor {
+  position: absolute;
+  transform: translateX(-50%);
+  padding: 0;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+/* Separate hit lanes keep the playhead from covering a nearby saved sample. */
+.frame-checkpoint {
+  top: -6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  z-index: 2;
+}
+.frame-checkpoint::before {
+  content: "";
+  position: absolute;
+  inset: 7px;
+  border: 2px solid #102747;
+  border-radius: 50%;
+  background: #e8c446;
+  transition:
+    background 180ms,
+    scale 180ms;
+}
+.frame-checkpoint::after {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 20px;
+  height: 6px;
+  width: 2px;
+  background: #7892ac;
+  pointer-events: none;
+}
+.frame-checkpoint.positive::before {
+  background: #8ed8a1;
+}
+.frame-checkpoint.negative::before {
+  background: #f3a5a5;
+}
+.frame-checkpoint:hover::before {
+  scale: 1.25;
+}
+.frame-cursor {
+  top: 22px;
+  width: 34px;
+  height: 38px;
+  border-radius: 0;
+  z-index: 3;
+  touch-action: none;
+  cursor: grab;
+}
+.frame-cursor::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  top: 8px;
+  left: 8px;
+  border: 2px solid #102747;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(135deg);
+  background: #e8c446;
+  box-shadow: 0 2px 8px #0008;
+  transition:
+    background 160ms,
+    scale 160ms;
+}
+.frame-cursor::after {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  top: 16px;
+  left: 16px;
+  border-radius: 50%;
+  background: #102747;
+}
+.frame-cursor:hover::before {
+  background: #f6df7a;
+  scale: 1.12;
+}
+.frame-cursor:active {
+  cursor: grabbing;
+}
+.frame-cursor:focus-visible,
+.frame-checkpoint:focus-visible,
+.frame-timeline:focus-visible {
+  outline: 2px solid #e8c446;
+  outline-offset: 3px;
+}
+.frame-time {
+  color: #b4c7d9;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sample-image {
+  border: 4px solid #e8c446;
+  transition: border-color 180ms ease;
+  animation: sample-arrive 180ms ease-out;
+}
+.sample-image.sample-positive {
+  border-color: #8ed8a1;
+}
+.sample-image.sample-negative {
+  border-color: #f3a5a5;
+}
+.detail-layout .post-content {
+  padding-bottom: 190px;
+}
+.post-content .detail-review {
+  width: auto;
+  min-width: 220px;
+  justify-content: center;
+  padding: 0;
+  gap: 0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.post-content .detail-review .review-block {
+  display: block;
+}
+.post-content .detail-review .review-buttons {
+  gap: 0;
+}
+.post-content .detail-review .review-buttons button {
+  width: 110px;
+  height: 52px;
+  border: 0;
+  border-radius: 0;
+  transition:
+    color 160ms,
+    background 160ms;
+}
+.post-content .detail-review .review-buttons button + button {
+  border-left: 1px solid #7892ac;
+}
+.post-content .detail-review .review-buttons button.chosen {
+  box-shadow: none;
+}
+.post-content .detail-review .review-buttons button.positive.chosen {
+  background: #143c39;
+}
+.post-content .detail-review .review-buttons button.negative.chosen {
+  background: #4c283c;
+}
+.post-content .detail-review:focus-within {
+  outline: 2px solid #e8c446;
+  outline-offset: 3px;
+}
+.post-content .detail-review .save-state {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+@media (max-width: 700px) {
+  .post-content .detail-review {
+    left: 50%;
+    right: auto;
+    width: auto;
+    transform: translateX(-50%);
+    bottom: max(84px, calc(env(safe-area-inset-bottom) + 72px));
+  }
+  .post-content .detail-review.is-collapsed {
+    transform: translate(-50%, calc(100% + 120px));
+  }
+}
+@keyframes timeline-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes sample-arrive {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animated-viewer *,
+  .animated-viewer *::before,
+  .post-content .detail-review,
+  .post-content .detail-review * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

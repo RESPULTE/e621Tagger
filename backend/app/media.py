@@ -54,6 +54,9 @@ class Media:
         self.previews = OrderedDict()
         self.preview_bytes = 0
         self.preview_tasks = {}
+        self.animation_cache = OrderedDict()
+        self.animation_lock = asyncio.Lock()
+        self.animation_decode_slots = asyncio.Semaphore(2)
 
     async def close(self):
         tasks = [entry[0] for entry in self.preview_tasks.values()]
@@ -61,6 +64,7 @@ class Media:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
         self.previews.clear()
+        self.animation_cache.clear()
         await self.client.aclose()
 
     async def acquire_slot(self, kind="preview"):

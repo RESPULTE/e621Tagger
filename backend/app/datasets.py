@@ -97,6 +97,33 @@ async def snapshot(conn, project_id):
             provenance.append({"kind": "hydra_image", "candidate_post_id": sample["post_id"],
                                **image_evidence[sample["event_id"]]})
         sample["provenance_json"] = json.dumps(provenance)
+    # Samples retain parent identity for grouping, but have their own image and
+    # review identities. A thumbnail replaces the animated original's export row.
+    saved = await (await conn.execute(
+        "SELECT s.*,p.tags_json,p.rating,p.score,p.posted_at,p.media_ext,p.preview_url,p.file_url,p.unavailable, "
+        "(SELECT max(e.id) FROM media_sample_events e WHERE e.sample_id=s.id) AS sample_event_id "
+        "FROM media_samples s JOIN posts p ON p.post_id=s.post_id AND p.md5=s.source_md5 "
+        "WHERE s.project_id=? AND s.state IS NOT NULL ORDER BY s.post_id,s.timestamp_ms LIMIT ?",
+        (project_id, MAX_CANDIDATES + 1),
+    )).fetchall()
+    for row in saved:
+        row = dict(row)
+        metadata = {"sample_id": row["id"], "sample_kind": row["kind"],
+                    "sample_image_path": "samples/" + row["image_path"], "sample_md5": row["image_md5"],
+                    "timestamp_ms": row["timestamp_ms"] if row["kind"] == "frame" else None,
+                    "dhash": row["dhash"]}
+        if row["kind"] == "thumbnail":
+            original = next((item for item in samples if item["post_id"] == row["post_id"]), None)
+            if original:
+                original.update(metadata)
+            continue
+        samples.append({**row, **metadata, "md5": row["source_md5"],
+                        "review_version": row["version"], "reviewed_at": row["updated_at"],
+                        "event_id": row["sample_event_id"], "project_conflict": False,
+                        "provenance_json": json.dumps([{"kind": "sampled_frame", "sample_id": row["id"],
+                                                        "source_md5": row["source_md5"], "timestamp_ms": row["timestamp_ms"]}])})
+    if len(samples) > MAX_CANDIDATES:
+        raise HTTPException(413, f"This dataset supports at most {MAX_CANDIDATES} reviewed samples")
     return dict(project), samples
 
 
@@ -232,7 +259,7 @@ async def export(version_id: UUID, request: Request, format: Literal["json", "js
             media_type = "application/x-ndjson"
         else:
             out = io.StringIO(newline="")
-            fields = ["dataset_id", "manifest_sha256", *included[0].keys()]
+            fields = ["dataset_id", "manifest_sha256", *dict.fromkeys(key for sample in included for key in sample)]
             writer = csv.DictWriter(out, fieldnames=fields)
             writer.writeheader()
             for sample in included:

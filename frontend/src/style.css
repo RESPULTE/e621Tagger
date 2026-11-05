@@ -455,12 +455,6 @@ kbd {
   outline: 2px solid #b8d3e8;
   outline-offset: -1px;
 }
-.post-card.positive {
-  border-bottom: 3px solid var(--positive);
-}
-.post-card.negative {
-  border-bottom: 3px solid var(--negative);
-}
 .thumbnail-link {
   height: 162px;
   flex: 1;
@@ -1210,7 +1204,7 @@ footer {
 }
 .media-type {
   position: absolute;
-  top: 7px;
+  bottom: 7px;
   right: 7px;
   padding: 3px 6px;
   border-radius: 8px;
@@ -1602,7 +1596,6 @@ a { color: var(--accent); }
 .favorite-paw { position: absolute; z-index: 3; top: 10px; right: 10px; width: 38px; height: 38px; display: grid; place-items: center; color: #ff7eb6; background: #271c37dd; border: 1px solid #ff8abd66; border-radius: 9px; pointer-events: none; box-shadow: 0 3px 12px #0005; animation: paw-arrive 360ms cubic-bezier(.2,.9,.3,1.35); }
 .favorite-paw svg { width: 25px; height: 25px; fill: currentColor; stroke-width: .8; }
 .favorite-paw.is-pending { border-style: dashed; }
-.thumbnail-link:has(.favorite-paw) .media-type { right: 54px; }
 .quick-labels button { flex: 1; min-height: 44px; }
 .quick-labels button.positive { color: #64df88; }
 .quick-labels button.negative { color: #ff747d; }
@@ -1622,3 +1615,19 @@ a { color: var(--accent); }
   .detail-review .review-block { justify-content: space-between; width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) { .project-empty-notice { animation: none; } }
+
+/* Two independent cycling filters; their glyph and colour show the current state. */
+.tagged-filters { display: flex; align-items: center; gap: 10px; }
+.tagged-filters .tagged-filter { display: grid; place-items: center; width: 44px; height: 44px; padding: 10px; border: 1px solid #507393; border-radius: 12px; background: #152f56; color: #c3d6e6; transition: background 140ms ease, border-color 140ms ease; }
+.tagged-filters .tagged-filter:hover { background: #234f70; border-color: currentColor; }
+.tagged-filters .tagged-filter:focus-visible { outline: 2px solid #f5c960; outline-offset: 3px; }
+.tagged-filters .filter-positive { color: #64df88; border-color: #64df8880; }
+.tagged-filters .filter-negative { color: #ff747d; border-color: #ff747d80; }
+.tagged-filters .filter-favourited { color: #ff7eb6; border-color: #ff7eb680; }
+.tagged-filters .filter-unfavourited { color: #a7b1c3; border-color: #a7b1c380; }
+.tagged-filters .filter-favourited svg, .tagged-filters .filter-unfavourited svg { fill: currentColor; stroke-width: .8; }
+.quick-labels button[aria-pressed="true"] { outline: 2px solid currentColor; outline-offset: -2px; }
+
+/* Sample majority summarizes animated artwork without replacing its thumbnail review. */
+.post-card.sample-majority-positive .thumbnail-link { box-shadow: inset 0 0 0 3px #8ed8a1; outline: 3px solid #8ed8a1; outline-offset: -3px; }
+.post-card.sample-majority-negative .thumbnail-link { box-shadow: inset 0 0 0 3px #f3a5a5; outline: 3px solid #f3a5a5; outline-offset: -3px; }

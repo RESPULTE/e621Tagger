@@ -6,6 +6,7 @@ import { api, errorText, mutationId, type Candidate } from "../api/client";
 import { useFindSimilar } from "./Similarity";
 import { useLongPress } from "./useLongPress";
 import type { components } from "../api/schema";
+import { useMediaSamples, type MediaSample } from "./mediaSamples";
 
 type Saved = components["schemas"]["SaveState"];
 type Capability = components["schemas"]["LibraryCapability"];
@@ -17,6 +18,7 @@ const active = new Set([
   "retrying",
 ]);
 const requests = new Map<number, Promise<boolean>>();
+const sampleRequests = new Map<string, Promise<boolean>>();
 
 export function useCollectionSave(project: number, post: Candidate) {
   const client = useQueryClient();
@@ -76,6 +78,7 @@ export function useCollectionSave(project: number, post: Candidate) {
         );
         client.setQueryData(key, result);
         void client.invalidateQueries({ queryKey: ["downloads"] });
+        void client.invalidateQueries({ queryKey: ["candidates"] });
         return true;
       } catch (e) {
         setError(errorText(e));
@@ -103,9 +106,39 @@ export function useCollectionSave(project: number, post: Candidate) {
 }
 
 /** Shared tap/hold arbitration for thumbnails and original image/video media. */
-function useMediaInteractions(project: number, post: Candidate, onOpen?: () => void) {
+function useMediaInteractions(project: number, post: Candidate, onOpen?: () => void, sample?: MediaSample,
+  onSampleChange?: (sample: MediaSample) => void, allowSimilarity = true) {
   const save = useCollectionSave(project, post);
-  const similar = useFindSimilar(project, post.post_id);
+  const samples = useMediaSamples(project, post, !!sample);
+  const [samplePending, setSamplePending] = useState(0);
+  const client = useQueryClient();
+  const focusKey = sample ? `${project}:${post.post_id}:${post.md5}:${sample.id}` : "";
+  const focusedSample = useRef(focusKey);
+  focusedSample.current = focusKey;
+  useEffect(() => () => { focusedSample.current = ""; }, []);
+  const currentSample = sample && (samples.samples.find((item) => item.id === sample.id) ?? sample);
+  async function change() {
+    if (!currentSample) return save.change();
+    const selected = currentSample;
+    const requestKey = `${project}:${post.post_id}:${selected.id}`;
+    setSamplePending((pending) => pending + 1);
+    try {
+      while (sampleRequests.has(requestKey)) {
+        if (!(await sampleRequests.get(requestKey))) return false;
+      }
+      const run = (async () => {
+        const cached = client.getQueryData<MediaSample[]>(["media-samples", project, post.post_id, post.md5]);
+        const latest = cached?.find((item) => item.id === selected.id) ?? selected;
+        const updated = await samples.update(latest, { favorite: !latest.favorite });
+        if (updated && focusedSample.current === focusKey) onSampleChange?.(updated);
+        return !!updated;
+      })();
+      sampleRequests.set(requestKey, run);
+      try { return await run; }
+      finally { if (sampleRequests.get(requestKey) === run) sampleRequests.delete(requestKey); }
+    } finally { setSamplePending((pending) => pending - 1); }
+  }
+  const similar = useFindSimilar(project, post.post_id, sample?.image_url);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const last = useRef<{ at: number; x: number; y: number } | null>(null);
   const surface = useRef<HTMLElement | null>(null);
@@ -117,6 +150,7 @@ function useMediaInteractions(project: number, post: Candidate, onOpen?: () => v
     down.current = null;
   }
   const hold = useLongPress(() => { cancel(); void similar.find(); }, post.post_id);
+  useEffect(() => { hold.cancel(); cancel(); }, [project, post.post_id, post.md5, sample?.id, sample?.image_url, allowSimilarity]);
   useEffect(() => {
     const outside = (event: PointerEvent) => {
       if (!event.isPrimary || (surface.current && !surface.current.contains(event.target as Node))) cancel();
@@ -130,31 +164,36 @@ function useMediaInteractions(project: number, post: Candidate, onOpen?: () => v
       window.removeEventListener("pointerdown", outside, true);
       window.removeEventListener("blur", cancel);
     };
-  }, [post.post_id, project]);
+  }, [post.post_id, project, sample?.id]);
   const handlers: HTMLAttributes<HTMLElement> = {
     title: "Double tap to toggle favourite · F on focused media · hold two seconds for similar · Shift+S",
     onDragStart: (event) => event.preventDefault(),
     onContextMenu: (event) => event.preventDefault(),
     onKeyDown: (event) => {
-      hold.key(event);
+      if (sample && event.key.toLowerCase() === "z" && !event.ctrlKey && !event.metaKey && !event.altKey &&
+          !(event.target as Element).closest("input,textarea,select,[contenteditable]")) event.stopPropagation();
+      if (allowSimilarity) hold.key(event);
       if (!event.repeat && event.key.toLowerCase() === "f" && !event.ctrlKey && !event.metaKey && !event.altKey &&
           !(event.target as Element).closest("input,textarea,select,video,[contenteditable]")) {
-        event.preventDefault(); event.stopPropagation(); cancel(); void save.change();
+        event.preventDefault(); event.stopPropagation(); cancel(); void change();
       }
     },
     onPointerDown: (event) => {
+      if (sample) event.stopPropagation();
       surface.current = event.currentTarget;
-      hold.down(event);
-      if (!event.isPrimary || event.button !== 0) { cancel(); return; }
+      if (!event.isPrimary || event.button !== 0 ||
+          ((event.target as Element).closest("input,textarea,select,a,button,[contenteditable]") && (event.target as Element).closest("input,textarea,select,a,button,[contenteditable]") !== event.currentTarget)) { cancel(); return; }
       const video = (event.target as Element).closest("video");
       // Keep seeking, volume and other native video controls independent of gestures.
       if (video && event.clientY > video.getBoundingClientRect().bottom - 56) { cancel(); return; }
+      if (allowSimilarity) hold.down(event);
       if (timer.current) clearTimeout(timer.current);
       timer.current = null;
       down.current = { at: performance.now(), x: event.clientX, y: event.clientY, pointer: event.pointerId, element: event.currentTarget };
     },
     onPointerMove: (event) => {
-      hold.move(event);
+      if (sample) event.stopPropagation();
+      if (allowSimilarity) hold.move(event);
       const d = down.current;
       if (d && Math.hypot(event.clientX - d.x, event.clientY - d.y) > 10) cancel();
     },
@@ -165,36 +204,46 @@ function useMediaInteractions(project: number, post: Candidate, onOpen?: () => v
     },
     onPointerCancel: () => { hold.cancel(); cancel(); },
     onPointerUp: (event) => {
-      if (hold.up(event)) { cancel(); return; }
+      if (sample) event.stopPropagation();
+      if (allowSimilarity && hold.up(event)) { cancel(); return; }
       const d = down.current;
       down.current = null;
       const hit = document.elementFromPoint(event.clientX, event.clientY);
       if (!d || d.pointer !== event.pointerId || !hit || !d.element.contains(hit) || performance.now() - d.at > 500) { cancel(); return; }
       const previous = last.current;
       if (previous && performance.now() - previous.at < 300 && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) < 24) {
-        cancel(); event.preventDefault(); void save.change();
+        cancel(); event.preventDefault(); void change();
       } else {
         last.current = { at: performance.now(), x: event.clientX, y: event.clientY };
         timer.current = setTimeout(() => { cancel(); onOpen?.(); }, 300);
       }
     },
     onClick: (event) => {
+      if (sample) event.stopPropagation();
       if (hold.consumed.current && event.detail !== 0) { event.preventDefault(); return; }
       if (event.detail === 0) { cancel(); onOpen?.(); }
     },
-    onDoubleClick: (event) => event.preventDefault(),
+    onDoubleClick: (event) => {
+      if (sample) event.stopPropagation();
+      const video = (event.target as Element).closest("video");
+      if (video && event.clientY > video.getBoundingClientRect().bottom - 56) return;
+      const control = (event.target as Element).closest("input,textarea,select,a,button,[contenteditable]");
+      if (control && control !== event.currentTarget) return;
+      event.preventDefault();
+    },
   };
-  const status = save.busy ? "Updating favourite…" : save.waiting
+  const status = currentSample ? (samplePending > 0 ? "Updating sample favourite..." : currentSample.favorite ? "Sample favourited." : "Sample not favourited.") : save.busy ? "Updating favourite…" : save.waiting
     ? save.saved.wanted ? "Favourite queued; original is not yet saved." : "Removing saved files and partial downloads…"
     : save.saved.status === "saved" ? "Original saved."
     : save.saved.wanted ? "Favourite selected; download not complete." : "Not favourited.";
   return { handlers, hold, overlays: <>
     <HoldIndicator holding={hold.holding} armed={hold.armed} />
-    {save.saved.wanted && <span className={`favorite-paw${save.waiting ? " is-pending" : ""}`} role="img" aria-label={save.waiting ? "Favourited; saving" : "Favourited"}><StudioIcon name="paw" /></span>}
+    {(currentSample ? currentSample.favorite : save.saved.wanted) && <span className={`favorite-paw${!currentSample && save.waiting ? " is-pending" : ""}`} role="img" aria-label={!currentSample && save.waiting ? "Favourited; saving" : "Favourited"}><StudioIcon name="paw" /></span>}
   </>, notice: <>
     {similar.notice}
     <span className="sr-only" role="status">{status}</span>
-    {save.error && <span className="favorite-error" role="alert">{save.error} <button onClick={() => void save.retry()}>Retry favourite change</button></span>}
+    {currentSample ? samples.error && <span className="favorite-error" role="alert">{samples.error}</span> :
+      save.error && <span className="favorite-error" role="alert">{save.error} <button onClick={() => void save.retry()}>Retry favourite change</button></span>}
   </> };
 }
 
@@ -210,13 +259,14 @@ export function SaveThumbnail({ project, post, onOpen, children }: {
   </>;
 }
 
-export function SaveMedia({ project, post, actualSize, children }: {
-  project: number; post: Candidate; actualSize: boolean; children: ReactNode;
+export function SaveMedia({ project, post, actualSize = false, children, sample, onSampleChange, allowSimilarity = true }: {
+  project: number; post: Candidate; actualSize?: boolean; children: ReactNode;
+  sample?: MediaSample; onSampleChange?: (sample: MediaSample) => void; allowSimilarity?: boolean;
 }) {
-  const media = useMediaInteractions(project, post);
+  const media = useMediaInteractions(project, post, undefined, sample, onSampleChange, allowSimilarity);
   return <>
     <div {...media.handlers} className={`media-stage ${actualSize ? "actual-size" : ""} ${media.hold.armed ? "similarity-armed" : ""}`}
-      role="group" tabIndex={0} aria-label={`Post ${post.post_id} media; hold to find similar`}>
+      role="group" tabIndex={0} aria-label={`${sample ? "Sample" : "Post"} ${post.post_id} media${allowSimilarity ? "; hold to find similar" : ""}`} >
       {children}{media.overlays}
     </div>
     {media.notice}

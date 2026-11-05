@@ -54,6 +54,19 @@ export function Project() {
   )
     ? params.get("tab")!
     : "query";
+  const labelFilter = tab === "tagged" && ["positive", "negative"].includes(params.get("label") ?? "")
+    ? params.get("label")! : "all";
+  const favoriteFilter = tab === "tagged" && ["favourited", "unfavourited"].includes(params.get("favorite") ?? "")
+    ? params.get("favorite")! : "all";
+  function cycleFilter(key: "label" | "favorite", values: string[], current: string) {
+    const next = new URLSearchParams(params);
+    const value = values[(values.indexOf(current) + 1) % values.length];
+    if (value === "all") next.delete(key);
+    else next.set(key, value);
+    setParams(next);
+    setFocused(null);
+    scroll.current?.scrollTo(0, 0);
+  }
   const similarityFilter = params.get("similar_q") ?? "";
   const similarity = useSimilarity(
     projectId,
@@ -70,6 +83,8 @@ export function Project() {
       tab,
       visit,
       revision,
+      labelFilter,
+      favoriteFilter,
     ],
     enabled: !!project.data && ["query", "tagged"].includes(tab),
     initialPageParam: null as string | null,
@@ -77,7 +92,10 @@ export function Project() {
       const search = new URLSearchParams({ limit: "50" });
       if (pageParam) search.set("cursor", pageParam);
       if (tab === "query") search.set("query", query);
-      else search.set("state", "reviewed");
+      else {
+        search.set("state", labelFilter === "all" ? "reviewed" : labelFilter);
+        if (favoriteFilter !== "all") search.set("favorite", String(favoriteFilter === "favourited"));
+      }
       return api<CandidatePage>(
         `/projects/${projectId}/${tab === "query" ? "query" : "candidates"}?${search}`,
         { signal },
@@ -364,10 +382,21 @@ export function Project() {
                 </form>
               ) : (
                 <div className="tagged-actions">
-                  <span>{project.data?.counts.total ?? 0} reviewed</span>
-                  <span className="muted">
-                    Review target: {project.data?.display_name}
-                  </span>
+                  <span>{candidates.data?.pages[0]?.total ?? 0} reviewed</span>
+                  <div className="tagged-filters" role="group" aria-label="Tagged image filters">
+                    <button
+                      className={`tagged-filter filter-${labelFilter}`}
+                      aria-label={`Label filter: ${labelFilter}`}
+                      title={`Labels: ${labelFilter}. Show ${labelFilter === "all" ? "positive" : labelFilter === "positive" ? "negative" : "all"} images`}
+                      onClick={() => cycleFilter("label", ["all", "positive", "negative"], labelFilter)}
+                    ><StudioIcon name={labelFilter === "all" ? "all" : labelFilter === "positive" ? "positive" : "negative"} /></button>
+                    <button
+                      className={`tagged-filter filter-${favoriteFilter}`}
+                      aria-label={`Favourite filter: ${favoriteFilter}`}
+                      title={`Favourites: ${favoriteFilter}. Show ${favoriteFilter === "all" ? "favourited" : favoriteFilter === "favourited" ? "unfavourited" : "all"} images`}
+                      onClick={() => cycleFilter("favorite", ["all", "favourited", "unfavourited"], favoriteFilter)}
+                    ><StudioIcon name={favoriteFilter === "all" ? "all" : "paw"} /></button>
+                  </div>
                 </div>
               )}
               {tab !== "similarity" && candidates.error && (
@@ -385,12 +414,12 @@ export function Project() {
                   <div className="empty-state">
                     <h2>
                       {tab === "tagged"
-                        ? "No reviewed posts yet"
+                        ? labelFilter !== "all" || favoriteFilter !== "all" ? "No matching reviewed posts" : "No reviewed posts yet"
                         : "No matching posts"}
                     </h2>
                     <p>
                       {tab === "tagged"
-                        ? "Review posts in Query to keep them here."
+                        ? labelFilter !== "all" || favoriteFilter !== "all" ? "Try another label or favourite filter." : "Review posts in Query to keep them here."
                         : "Try another discovery query."}
                     </p>
                   </div>
@@ -448,10 +477,15 @@ export function Project() {
                           const state = pending?.saving
                             ? pending.state
                             : post.state;
+                          const summary = post.sample_summary;
+                          const sampleBorder = summary && summary.total > 0
+                            ? summary.positive > summary.negative ? "sample-majority-positive"
+                              : summary.negative > summary.positive ? "sample-majority-negative" : ""
+                            : "";
                           return (
                             <article
                               key={post.post_id}
-                              className={`post-card ${state ?? ""} ${focusedPost?.post_id === post.post_id ? "focused" : ""}`}
+                              className={`post-card ${state ?? ""} ${sampleBorder} ${focusedPost?.post_id === post.post_id ? "focused" : ""}`}
                               onFocus={() => setFocused(post.post_id)}
                               onMouseEnter={() => setFocused(post.post_id)}
                             >

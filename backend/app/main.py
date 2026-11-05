@@ -20,6 +20,7 @@ from .jobs import Workers
 from .library import Library
 from .library import router as library_router
 from .media import Media
+from .media_samples import router as media_samples_router
 from .mock import SyntheticImageSearch
 from .mock import transport as mock_transport
 from .processing_machine import ProcessingMachine
@@ -155,6 +156,7 @@ await self.registration.unregister();for(const client of await self.clients.matc
     app.include_router(public)
     app.include_router(router)
     app.include_router(datasets_router)
+    app.include_router(media_samples_router)
     app.include_router(similarity_router)
     app.include_router(processing_machine_router)
     app.include_router(library_router)

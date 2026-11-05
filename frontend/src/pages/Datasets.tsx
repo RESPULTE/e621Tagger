@@ -113,7 +113,7 @@ export function Datasets() {
       <Link to={`/projects/${projectId}?tab=tagged`}>← Candidate gallery</Link>
       <h1>Datasets</h1>
       <p>
-        Freeze reviewed labels and splits. Export metadata, or explicitly queue
+        Freeze reviewed labels and splits, including animated thumbnails and separately reviewed frames. Samples from the same post share a split. Export metadata, or explicitly queue
         original files and download a checked media bundle.
       </p>
       {(quality.error || versions.error) && (
@@ -204,9 +204,9 @@ export function Datasets() {
                 Refresh quality
               </button>
               <p className="muted">
-                Preview similarity can miss crops or edits. GIF/video frame
-                sampling is not defined yet, so animated and unsupported media
-                remain explicit exclusions.
+                Preview similarity can miss crops or edits. Animated media uses its
+                reviewed thumbnail and saved frames. All frames from one artwork
+                stay in the same training split.
               </p>
             </section>
           </div>

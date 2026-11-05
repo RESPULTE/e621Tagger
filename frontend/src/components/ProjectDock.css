@@ -75,3 +75,6 @@
 @keyframes project-fox-stretch { 0% { transform: scale(1); } 35% { transform: scale(.75,1.4) rotate(-8deg); } 65% { transform: scale(1.2,.85); } 100% { transform: scale(1); } }
 .project-dock-composer .query-suggestions { position: static; max-height: 120px; margin-bottom: 0; }
 .project-dock-composer { max-height: 55dvh; overflow-y: auto; }
+
+/* Keep the annotation beside the mascot with their lower edges aligned. */
+.project-dock-trigger > span:nth-child(2) { bottom: 0; left: calc(100% + 6px); max-width: min(240px, calc(100vw - 100px)); }

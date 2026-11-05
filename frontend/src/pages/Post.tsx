@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
@@ -12,6 +12,9 @@ import { ReviewButtons, useReviews } from "../components/Reviews";
 import { TagSidebar } from "../components/TagSidebar";
 import { artistName } from "../components/artworkName";
 import { SaveMedia } from "../components/FavoriteButton";
+import { AnimatedMedia } from "../components/AnimatedMedia";
+import { useMediaSamples, type MediaSample } from "../components/mediaSamples";
+import { StudioIcon } from "../components/StudioIcon";
 
 type NavigationState = {
   ids?: number[];
@@ -35,9 +38,8 @@ export function Post() {
     queryKey: ["project", projectId],
     queryFn: () => api<Project>(`/projects/${projectId}`),
   });
-  const [actualSize, setActualSize] = useState(false);
+  const [focused, setFocused] = useState<MediaSample>();
   const [mediaError, setMediaError] = useState(false);
-  const [fallback, setFallback] = useState(false);
   const [mediaReady, setMediaReady] = useState(false);
   const [barHidden, setBarHidden] = useState(false);
   useEffect(() => {
@@ -52,7 +54,7 @@ export function Post() {
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, [currentId]);
-  const video = useRef<HTMLVideoElement>(null);
+
   const ids = navigation.ids ?? [currentId];
   const index = ids.indexOf(currentId);
   const contextParams = new URLSearchParams(location.search);
@@ -61,10 +63,25 @@ export function Post() {
   const searchId = contextParams.get("similar_search");
   const context =
     searchId && indexRevision
-      ? { search_id: searchId, index_revision: indexRevision,
-          ...(Number.isSafeInteger(seed) && seed > 0 ? { seed_post_id: seed } : {}) }
+      ? {
+          search_id: searchId,
+          index_revision: indexRevision,
+          ...(Number.isSafeInteger(seed) && seed > 0
+            ? { seed_post_id: seed }
+            : {}),
+        }
       : navigation.similarity;
   const post = query.data ? { ...query.data, similarity: context } : undefined;
+  const samples = useMediaSamples(projectId, post);
+  useEffect(() => {
+    setFocused((current) => {
+      if (!current) return current;
+      if (current.post_id !== currentId || current.source_md5 !== post?.md5)
+        return undefined;
+      const latest = samples.samples.find((item) => item.id === current.id);
+      return latest && latest.version > current.version ? latest : current;
+    });
+  }, [samples.samples, currentId, post?.md5]);
   const isVideo = ["mp4", "webm"].includes(post?.media_ext ?? "");
   const imageTypes = ["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp"];
   const isImage = imageTypes.includes(post?.media_ext ?? "");
@@ -81,20 +98,9 @@ export function Post() {
   }
   useEffect(() => {
     setMediaError(false);
-    setFallback(false);
-    setActualSize(false);
+    setFocused(undefined);
     setMediaReady(false);
   }, [currentId]);
-  useEffect(() => {
-    const player = video.current;
-    return () => {
-      if (player) {
-        player.pause();
-        player.removeAttribute("src");
-        player.load();
-      }
-    };
-  }, [currentId, isVideo, fallback]);
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if (
@@ -108,15 +114,30 @@ export function Post() {
         !post
       )
         return;
-      const state = (
-        { "1": "positive", "2": "negative" } as const
-      )[event.key as "1"];
+      const state = ({ "1": "positive", "2": "negative" } as const)[
+        event.key as "1"
+      ];
       if (state) {
         event.preventDefault();
+        if (focused) {
+          void samples
+            .update(focused, { state: focused.state === state ? null : state })
+            .then((result) => {
+              if (result)
+                setFocused((current) =>
+                  current?.id === result.id ? result : current,
+                );
+            });
+          return;
+        }
         const pending = reviews.pending[`${projectId}:${currentId}`];
         if (!pending?.saving && !pending?.error)
-          void reviews.edit(projectId, [post], post.state === state ? null : state);
-      } else if (event.key.toLowerCase() === "z") {
+          void reviews.edit(
+            projectId,
+            [post],
+            post.state === state ? null : state,
+          );
+      } else if (event.key.toLowerCase() === "z" && !focused) {
         event.preventDefault();
         void reviews.undoLast(projectId, post).then((postId) => {
           if (postId && postId !== currentId) {
@@ -157,26 +178,28 @@ export function Post() {
         </div>
         <header className="artwork-heading">
           <div>
-            <span className="eyebrow">{project.data?.display_name.replaceAll("_", " ") ?? "Artwork"}</span>
+            <span className="eyebrow">
+              {project.data?.display_name.replaceAll("_", " ") ?? "Artwork"}
+            </span>
             <h1>{artistName(post?.tags.artist)}</h1>
-            {post && <p className="artwork-facts"><span>Score <strong>{post.score}</strong></span><span>Rating <strong>{({ s: "Safe", q: "Questionable", e: "Explicit" } as Record<string, string>)[post.rating ?? ""] ?? "Unknown"}</strong></span></p>}
-          </div>
-          <div className="media-tools">
-          {isImage && (
-            <button onClick={() => setActualSize((value) => !value)}>
-              {actualSize ? "Fit to window" : "Actual size / zoom"}
-            </button>
-          )}
-          {isVideo && post?.has_video_fallback && (
-            <button
-              onClick={() => {
-                setFallback((value) => !value);
-                setMediaError(false);
-              }}
-            >
-              {fallback ? "Use original video" : "Use compatible MP4"}
-            </button>
-          )}
+            {post && (
+              <p className="artwork-facts">
+                <span>
+                  Score <strong>{post.score}</strong>
+                </span>
+                <span>
+                  Rating{" "}
+                  <strong>
+                    {(
+                      { s: "Safe", q: "Questionable", e: "Explicit" } as Record<
+                        string,
+                        string
+                      >
+                    )[post.rating ?? ""] ?? "Unknown"}
+                  </strong>
+                </span>
+              </p>
+            )}
           </div>
         </header>
         {query.isPending && <p role="status">Loading post…</p>}
@@ -187,11 +210,21 @@ export function Post() {
         )}
         {post && (
           <>
-            {post.conflict && <div role="alert" className="error">
-              <strong>Conflicting saved reviews</strong>
-              <p>This artwork is excluded from new datasets until explicitly resolved.</p>
-              {post.conflicting_reviews?.map((review, i) => <p key={i}>Project {String(review.project_id)}: {String(review.state)} (review {String(review.version)})</p>)}
-            </div>}
+            {post.conflict && (
+              <div role="alert" className="error">
+                <strong>Conflicting saved reviews</strong>
+                <p>
+                  This artwork is excluded from new datasets until explicitly
+                  resolved.
+                </p>
+                {post.conflicting_reviews?.map((review, i) => (
+                  <p key={i}>
+                    Project {String(review.project_id)}: {String(review.state)}{" "}
+                    (review {String(review.version)})
+                  </p>
+                ))}
+              </div>
+            )}
             {!post.has_original || post.unavailable ? (
               <div className="empty-state">
                 The original is unavailable. You can still inspect its metadata
@@ -209,40 +242,34 @@ export function Post() {
                 </a>
                 .
               </div>
+            ) : isVideo ||
+              ["gif", "webp", "avif"].includes(post.media_ext ?? "") ? (
+              <AnimatedMedia
+                key={currentId}
+                project={projectId}
+                post={post}
+                samples={samples.samples}
+                focused={focused}
+                setFocused={setFocused}
+                capture={samples.capture}
+                update={samples.update}
+              />
             ) : (
-              <SaveMedia key={currentId} project={projectId} post={post} actualSize={actualSize}>
-                {isVideo ? (
-                  <video
-                    ref={video}
-                    key={`${currentId}:${fallback}`}
-                    controls
-                    playsInline
-                    preload="metadata"
-                    src={mediaUrl(
-                      currentId,
-                      fallback ? "video_mp4" : "original",
-                      post.md5,
-                    )}
-                    onLoadedMetadata={() => setMediaReady(true)}
-                    onError={() => {
-                      if (!fallback && post.has_video_fallback) {
-                        setFallback(true);
-                        setMediaError(false);
-                      } else setMediaError(true);
-                    }}
-                  />
-                ) : (
-                  <img
-                    key={currentId}
-                    src={mediaUrl(currentId, "original", post.md5)}
-                    alt={`Original post ${currentId}`}
-                    onLoad={() => setMediaReady(true)}
-                    onError={() => setMediaError(true)}
-                  />
-                )}
+              <SaveMedia
+                key={currentId}
+                project={projectId}
+                post={post}
+                actualSize={false}
+              >
+                <img
+                  src={mediaUrl(currentId, "original", post.md5)}
+                  alt={`Original post ${currentId}`}
+                  onLoad={() => setMediaReady(true)}
+                  onError={() => setMediaError(true)}
+                />
                 {!mediaReady && !mediaError && (
                   <p className="media-loading" role="status">
-                    Loading original {isVideo ? "video metadata" : "image"}…
+                    Loading original image…
                   </p>
                 )}
               </SaveMedia>
@@ -260,13 +287,54 @@ export function Post() {
                 .
               </p>
             )}
+            {samples.error && (
+              <p className="error" role="alert">
+                {String(samples.error)}
+              </p>
+            )}
             <section className="artwork-tags" aria-label="Artwork tags">
               <h2>Tags</h2>
               <TagSidebar tags={post.tags} hidden={false} />
             </section>
-            <div className={`detail-review${barHidden ? " is-collapsed" : ""}`} role="group" aria-label="Review artwork" onKeyDownCapture={() => setBarHidden(false)} onFocusCapture={() => setBarHidden(false)}>
-              <span className="review-target-name">{project.data?.display_name.replaceAll("_", " ") ?? "Review artwork"}</span>
-              <ReviewButtons project={projectId} post={post} />
+            <div
+              className={`detail-review${barHidden ? " is-collapsed" : ""}`}
+              role="group"
+              aria-label="Review artwork"
+              onKeyDownCapture={() => setBarHidden(false)}
+              onFocusCapture={() => setBarHidden(false)}
+            >
+              {focused ? (
+                <div className="review-block">
+                  <div className="review-buttons">
+                    {(["positive", "negative"] as const).map((value) => (
+                      <button
+                        key={value}
+                        className={`${value} ${focused.state === value ? "chosen" : ""}`}
+                        aria-label={
+                          value === "positive" ? "Positive" : "Negative"
+                        }
+                        aria-pressed={focused.state === value}
+                        onClick={() =>
+                          void samples
+                            .update(focused, {
+                              state: focused.state === value ? null : value,
+                            })
+                            .then((result) => {
+                              if (result)
+                                setFocused((current) =>
+                                  current?.id === result.id ? result : current,
+                                );
+                            })
+                        }
+                      >
+                        <StudioIcon name={value} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <ReviewButtons project={projectId} post={post} />
+              )}
             </div>
           </>
         )}

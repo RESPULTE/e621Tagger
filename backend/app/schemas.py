@@ -110,7 +110,14 @@ class SaveState(BaseModel):
     updated_at: float = 0
 
 
+class SampleSummary(BaseModel):
+    positive: int = 0
+    negative: int = 0
+    total: int = 0
+
+
 class Candidate(BaseModel):
+    sample_summary: SampleSummary = Field(default_factory=SampleSummary)
     similarity: SimilarityContext | None = None
     post_id: int
     rating: str | None

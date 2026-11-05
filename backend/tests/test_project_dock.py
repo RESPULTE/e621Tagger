@@ -86,10 +86,10 @@ async def test_v6_upgrade_preserves_project_and_backs_up(tmp_path):
     db = Database(tmp_path)
     try:
         await db.open()
-        assert (await db.one('PRAGMA user_version'))['user_version'] == 7
+        assert (await db.one('PRAGMA user_version'))['user_version'] == 8
         assert await db.rows('SELECT * FROM project_family') == [{'member_id': 1, 'project_id': 1}]
         assert await db.rows('PRAGMA foreign_key_check') == []
-        backups = list((tmp_path / 'backups').glob('pre-schema-v7-*.sqlite3'))
+        backups = list((tmp_path / 'backups').glob('pre-schema-v8-*.sqlite3'))
         assert len(backups) == 1
         with sqlite3.connect(backups[0]) as old:
             assert old.execute('PRAGMA user_version').fetchone()[0] == 6

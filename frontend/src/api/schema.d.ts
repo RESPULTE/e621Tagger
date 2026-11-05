@@ -466,6 +466,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/posts/{post_id}/samples": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Samples */
+        get: operations["list_samples_api_projects__project_id__posts__post_id__samples_get"];
+        put?: never;
+        /** Create Sample */
+        post: operations["create_sample_api_projects__project_id__posts__post_id__samples_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/posts/{post_id}/samples/{sample_id}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sample Image */
+        get: operations["sample_image_api_projects__project_id__posts__post_id__samples__sample_id__image_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/posts/{post_id}/samples/{sample_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit Sample */
+        patch: operations["edit_sample_api_projects__project_id__posts__post_id__samples__sample_id__patch"];
+        trace?: never;
+    };
+    "/api/posts/{post_id}/animation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Animation Info */
+        get: operations["animation_info_api_posts__post_id__animation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/posts/{post_id}/animation/frames/{index}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Animation Frame */
+        get: operations["animation_frame_api_posts__post_id__animation_frames__index__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/similar": {
         parameters: {
             query?: never;
@@ -722,6 +808,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/datasets/{dataset_id}/media/samples/{sample_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Exported Sample File */
+        get: operations["exported_sample_file_api_datasets__dataset_id__media_samples__sample_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets/{dataset_id}/media/bundle": {
         parameters: {
             query?: never;
@@ -784,6 +887,7 @@ export interface components {
         };
         /** Candidate */
         Candidate: {
+            sample_summary?: components["schemas"]["SampleSummary"];
             similarity?: components["schemas"]["SimilarityContext"] | null;
             /** Post Id */
             post_id: number;
@@ -1181,6 +1285,64 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** Sample */
+        Sample: {
+            /** Id */
+            id: string;
+            /** Project Id */
+            project_id: number;
+            /** Post Id */
+            post_id: number;
+            /** Source Md5 */
+            source_md5: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "thumbnail" | "frame";
+            /** Timestamp Ms */
+            timestamp_ms: number | null;
+            /** Image Url */
+            image_url: string;
+            /** State */
+            state: ("positive" | "negative") | null;
+            /** Favorite */
+            favorite: boolean;
+            /** Version */
+            version: number;
+        };
+        /** SampleEdit */
+        SampleEdit: {
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Expected Version */
+            expected_version: number;
+            /** State */
+            state?: ("positive" | "negative") | null;
+            /** Favorite */
+            favorite?: boolean | null;
+        };
+        /** SampleSummary */
+        SampleSummary: {
+            /**
+             * Positive
+             * @default 0
+             */
+            positive: number;
+            /**
+             * Negative
+             * @default 0
+             */
+            negative: number;
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
+        };
         /** SaveMutation */
         SaveMutation: {
             /**
@@ -1373,6 +1535,10 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
         };
         /** WorkerAssignment */
         WorkerAssignment: {
@@ -1825,6 +1991,7 @@ export interface operations {
         parameters: {
             query?: {
                 state?: string;
+                favorite?: boolean | null;
                 cursor?: number | null;
                 limit?: number;
                 rating?: string | null;
@@ -2288,6 +2455,212 @@ export interface operations {
             header?: never;
             path: {
                 version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_samples_api_projects__project_id__posts__post_id__samples_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sample"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_sample_api_projects__project_id__posts__post_id__samples_post: {
+        parameters: {
+            query: {
+                request_id: string;
+                source_md5: string;
+                kind?: "thumbnail" | "frame";
+                timestamp_ms?: number | null;
+            };
+            header?: never;
+            path: {
+                project_id: number;
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sample"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sample_image_api_projects__project_id__posts__post_id__samples__sample_id__image_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                post_id: number;
+                sample_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_sample_api_projects__project_id__posts__post_id__samples__sample_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                post_id: number;
+                sample_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SampleEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Sample"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    animation_info_api_posts__post_id__animation_get: {
+        parameters: {
+            query: {
+                source_md5: string;
+            };
+            header?: never;
+            path: {
+                post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    animation_frame_api_posts__post_id__animation_frames__index__get: {
+        parameters: {
+            query: {
+                source_md5: string;
+            };
+            header?: never;
+            path: {
+                post_id: number;
+                index: number;
             };
             cookie?: never;
         };
@@ -2802,6 +3175,38 @@ export interface operations {
             path: {
                 dataset_id: string;
                 post_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exported_sample_file_api_datasets__dataset_id__media_samples__sample_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+                sample_id: string;
             };
             cookie?: never;
         };
