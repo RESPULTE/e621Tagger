@@ -62,6 +62,8 @@ test("search → import → original → labels → undo → gallery", async ({
       .locator(".detail-review")
       .getByRole("button", { name: "Positive", exact: false }),
   ).toHaveAttribute("aria-pressed", "true");
+  // Verify persistence only after the acknowledged save and its refetches finish.
+  await expect(page.locator(".detail-review .save-state")).toHaveText("Saved");
   await page.reload();
   await expect(
     page
