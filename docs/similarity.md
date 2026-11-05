@@ -14,7 +14,7 @@ when unavailable, including if the laptop disconnects between those requests.
 
 Open a project's existing Similarity tab, use the **+** control beside the source
 (**Search another image**), and upload a reference or enter an e621
-post ID. Hold a thumbnail/expanded image for two seconds and release on that post, or
+post ID. Hold a thumbnail/expanded image for one second and release on that post, or
 press Shift+S on focused media, to search from artwork already being viewed.
 A fading progress ring fills during the hold; the search starts only on release. Moving, scrolling or releasing
 outside cancels a hold. Ordinary opening and explicit collection saves still work.

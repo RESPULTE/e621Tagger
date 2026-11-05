@@ -45,7 +45,7 @@
 .project-dock-pull { display: flex; position: relative; flex-direction: column; align-items: center; justify-content: center; gap: 8px; overflow: hidden; color: #e8c446; font-size: 11px; user-select: none; }
 .project-dock-pull > span { white-space: nowrap; }
 .project-dock-pull i { width: 100px; height: 3px; background: #366185; border-radius: 9px; position: relative; overflow: hidden; }
-.project-dock-pull.is-holding i::after { content: ""; display: block; width: 100%; height: 100%; background: #e8c446; transform-origin: left; animation: project-hold 1.5s linear both; }
+.project-dock-pull.is-holding i::after { content: ""; display: block; width: 100%; height: 100%; background: #e8c446; transform-origin: left; animation: project-hold var(--hold-duration) linear both; }
 .project-dock-more { display: block; width: 100%; margin-top: 8px; border-radius: 10px; font-size: 12px; }
 .project-dock-error { color: #f3a5a5 !important; font-size: 12px; line-height: 1.5; }
 .project-dock-delete-error { padding: 0 16px; }

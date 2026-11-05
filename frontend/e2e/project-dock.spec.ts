@@ -51,7 +51,7 @@ test('no setup, alias reuse, last project, viewer switching and deletion', async
   expect((await page.request.get('/api' + path)).status()).toBe(404);
   expect(dialogs).toBe(0); expect(errors).toEqual([]);
 });
-test('pull needs continuous 1.5s hold and swipe reveals trash', async ({ page, isMobile, browserName }) => {
+test('pull needs continuous 1s hold and swipe reveals trash', async ({ page, isMobile, browserName }) => {
   await login(page); await createReviewProject(page, 'dock_gesture');
   const path = new URL(page.url()).pathname;
   const p = await (await page.request.get('/api' + path)).json();
@@ -80,8 +80,8 @@ test('pull needs continuous 1.5s hold and swipe reveals trash', async ({ page, i
   const query = page.getByRole('combobox', { name: 'New project e621 tag' });
   await expect(query).toHaveCount(0);
   await input('touchStart', x, y); await input('touchMove', x, y + 80);
-  await page.waitForTimeout(1000); await expect(query).toHaveCount(0);
-  await expect(query).toBeVisible({ timeout: 1600 });
+  await page.waitForTimeout(300); await expect(query).toHaveCount(0);
+  await expect(query).toBeVisible({ timeout: 1000 });
   await input('touchEnd', x, y + 80);
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   const r = (await row.boundingBox())!;

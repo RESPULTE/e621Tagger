@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, errorText, mutationId, type Candidate } from "../api/client";
 import { useFindSimilar } from "./Similarity";
 import { useLongPress } from "./useLongPress";
+import { HOLD_DURATION_MS } from "./gestureSettings";
 import type { components } from "../api/schema";
 import { useMediaSamples, type MediaSample } from "./mediaSamples";
 
@@ -167,7 +168,7 @@ function useMediaInteractions(project: number, post: Candidate, onOpen?: () => v
     };
   }, [post.post_id, project, sample?.id]);
   const handlers: HTMLAttributes<HTMLElement> = {
-    title: "Double tap to toggle favourite · F on focused media · hold two seconds for similar · Shift+S",
+    title: `Double tap to toggle favourite · F on focused media · hold ${HOLD_DURATION_MS / 1000} second for similar · Shift+S`,
     onDragStart: (event) => event.preventDefault(),
     onContextMenu: (event) => event.preventDefault(),
     onKeyDown: (event) => {

@@ -137,7 +137,7 @@ test("artist-first viewer, full tags, reversible reviews and scroll-aware dock",
   await page.screenshot({ path: info.outputPath("viewer.png") });
 });
 
-test("two-second hold progresses, releases once, and cancels without opening", async ({ page }) => {
+test("one-second hold progresses, releases once, and cancels without opening", async ({ page }) => {
   await open(page);
   const url = page.url();
   const card = page.getByRole("button", { name: "Open post 999", exact: true });
@@ -146,7 +146,7 @@ test("two-second hold progresses, releases once, and cancels without opening", a
   page.on("request", (r) => { if (r.method() === "POST" && /\/similar$/.test(r.url())) searches++; });
   await pointer(card, "pointerdown");
   await expect(card.locator(".hold-indicator")).toBeAttached();
-  await page.waitForTimeout(900); // A release before the specified 2s threshold must not search.
+  await page.waitForTimeout(300); // A release before the specified 1s threshold must not search.
   await expect(card).not.toHaveClass(/similarity-armed/);
   await pointer(card, "pointerup");
   await expect(card.locator(".hold-indicator")).toHaveCount(0);

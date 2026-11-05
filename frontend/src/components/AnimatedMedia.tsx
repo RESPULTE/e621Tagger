@@ -34,6 +34,7 @@ export function AnimatedMedia({
   capture,
 }: Props) {
   const video = useRef<HTMLVideoElement>(null);
+  const requestedTime = useRef<number | null>(null);
   const focusIntent = useRef(0);
   const mounted = useRef(true),
     busy = useRef(false),
@@ -55,7 +56,8 @@ export function AnimatedMedia({
     let id = 0;
     const tick = () => {
       const player = video.current;
-      if (player && !player.paused) setTime(player.currentTime * 1000);
+      if (player && !player.paused && requestedTime.current === null)
+        setTime(player.currentTime * 1000);
       id = requestAnimationFrame(tick);
     };
     id = requestAnimationFrame(tick);
@@ -135,21 +137,42 @@ export function AnimatedMedia({
     focusIntent.current++;
     setFocused(undefined);
     setPlaying(false);
+    // The timeline owns the requested position; decoding must never drag it back.
+    setTime(ms);
     if (videoType && video.current) {
-      video.current.pause();
-      if (Math.abs(video.current.currentTime - ms / 1000) > 0.0001) {
+      seekVideo(ms);
+    }
+  }
+  function seekVideo(ms: number) {
+    const player = video.current;
+    if (!player) return;
+    requestedTime.current = ms;
+    player.pause();
+    if (player.readyState >= 1) {
+      if (Math.abs(player.currentTime - ms / 1000) > 0.0001) {
         selecting.current = true;
-        video.current.currentTime = ms / 1000;
-      }
-    } else setTime(ms);
+        player.currentTime = ms / 1000;
+      } else if (!player.seeking) requestedTime.current = null;
+    }
+  }
+  function syncVideoTime(player: HTMLVideoElement) {
+    const target = requestedTime.current;
+    if (target !== null) {
+      if (player.seeking || Math.abs(player.currentTime * 1000 - target) > 1) return;
+      requestedTime.current = null;
+    }
+    setTime(player.currentTime * 1000);
   }
   function pause() {
     video.current?.pause();
     setPlaying(false);
   }
   async function waitForFrame(player: HTMLVideoElement) {
-    if (!player.seeking && player.readyState >= 2) return;
-    // A double tap can arrive before an earlier timeline seek has decoded.
+    const frameReady = () => !player.seeking && player.readyState >= 2 && (
+      requestedTime.current === null || Math.abs(player.currentTime * 1000 - requestedTime.current) <= 1
+    );
+    if (frameReady()) return;
+    // The capture hold can finish before an earlier timeline seek has decoded.
     // Wait for the browser instead of rejecting a valid capture gesture.
     await new Promise<void>((resolve, reject) => {
       const cleanup = () => {
@@ -160,7 +183,7 @@ export function AnimatedMedia({
         player.removeEventListener("emptied", fail);
       };
       const check = () => {
-        if (!player.seeking && player.readyState >= 2) {
+        if (frameReady()) {
           cleanup();
           resolve();
         }
@@ -241,15 +264,7 @@ export function AnimatedMedia({
     focusIntent.current++;
     video.current?.pause();
     setPlaying(false);
-    if (video.current && sample.timestamp_ms != null) {
-      if (
-        Math.abs(video.current.currentTime - sample.timestamp_ms / 1000) >
-        0.0001
-      ) {
-        selecting.current = true;
-        video.current.currentTime = sample.timestamp_ms / 1000;
-      }
-    }
+    if (video.current && sample.timestamp_ms != null) seekVideo(sample.timestamp_ms);
     setTime(sample.timestamp_ms ?? 0);
     setFocused(sample);
   }
@@ -296,23 +311,28 @@ export function AnimatedMedia({
             onLoadedMetadata={(event) => {
               setDuration(event.currentTarget.duration * 1000);
               setReady(true);
+              if (requestedTime.current !== null) seekVideo(requestedTime.current);
             }}
             onTimeUpdate={(event) =>
-              setTime(event.currentTarget.currentTime * 1000)
+              syncVideoTime(event.currentTarget)
             }
             onSeeking={() => {
               if (!selecting.current) {
-                focusIntent.current++;
-                setFocused(undefined);
+                const player = video.current;
+                if (requestedTime.current === null || (player && Math.abs(player.currentTime * 1000 - requestedTime.current) > 1)) {
+                  requestedTime.current = null;
+                  focusIntent.current++;
+                  setFocused(undefined);
+                }
               }
               selecting.current = false;
             }}
             onSeeked={(event) => {
-              const player = event.currentTarget;
-              setTime(player.currentTime * 1000);
+              syncVideoTime(event.currentTarget);
             }}
             onPlay={() => {
               focusIntent.current++;
+              requestedTime.current = null;
               setFocused(undefined);
             }}
             onError={() => {

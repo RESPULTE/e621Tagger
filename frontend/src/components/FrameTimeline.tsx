@@ -1,4 +1,6 @@
-import { useRef, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from "react";
+import { HOLD_DURATION_MS } from "./gestureSettings";
+import { HoldIndicator } from "./HoldIndicator";
 import type { MediaSample } from "./mediaSamples";
 type Props = {
   duration: number;
@@ -19,10 +21,38 @@ export function FrameTimeline({
   onSelect,
 }: Props) {
   const track = useRef<HTMLDivElement>(null);
-  const gesture = useRef<{ pointer: number; x: number; moved: boolean } | null>(
-    null,
-  );
-  const tap = useRef<{ time: number; x: number } | null>(null);
+  const gesture = useRef<{
+    pointer: number; x: number; y: number; mode: "pending" | "scrub" | "pull" | "done";
+  } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const capture = useRef(onCapture);
+  capture.current = onCapture;
+  const [holding, setHolding] = useState(false);
+  const [pull, setPull] = useState(0);
+  const stopHold = useCallback(() => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    timer.current = null;
+    setHolding(false);
+    setPull(0);
+  }, []);
+  const cancel = useCallback(() => {
+    gesture.current = null;
+    stopHold();
+  }, [stopHold]);
+  useEffect(() => {
+    const outsidePointer = (event: globalThis.PointerEvent) => {
+      if (gesture.current && event.pointerId !== gesture.current.pointer) cancel();
+    };
+    window.addEventListener("blur", cancel);
+    window.addEventListener("scroll", cancel, true);
+    window.addEventListener("pointerdown", outsidePointer, true);
+    return () => {
+      cancel();
+      window.removeEventListener("blur", cancel);
+      window.removeEventListener("scroll", cancel, true);
+      window.removeEventListener("pointerdown", outsidePointer, true);
+    };
+  }, [cancel]);
   const clamp = (value: number) => Math.max(0, Math.min(duration, value));
   const seekAt = (x: number) => {
     const rect = track.current?.getBoundingClientRect();
@@ -31,15 +61,16 @@ export function FrameTimeline({
   const down = (event: PointerEvent<HTMLElement>, cursor: boolean) => {
     if (!event.isPrimary || event.button !== 0) return;
     event.stopPropagation();
+    cancel();
     if (cursor) onPause();
     event.currentTarget.setPointerCapture(event.pointerId);
     gesture.current = {
       pointer: event.pointerId,
       x: event.clientX,
-      moved: !cursor,
+      y: event.clientY,
+      mode: cursor ? "pending" : "scrub",
     };
     if (!cursor) {
-      tap.current = null;
       seekAt(event.clientX);
     }
   };
@@ -47,28 +78,39 @@ export function FrameTimeline({
     const g = gesture.current;
     if (!g || g.pointer !== event.pointerId) return;
     event.stopPropagation();
-    if (Math.abs(event.clientX - g.x) > 5) g.moved = true;
-    if (g.moved) {
-      tap.current = null;
+    if (g.mode === "done") return;
+    const dx = Math.abs(event.clientX - g.x);
+    const dy = event.clientY - g.y;
+    if (g.mode !== "scrub") {
+      if (dx > 12) {
+        stopHold();
+        g.mode = "scrub";
+      } else if (dy >= 18) {
+        setPull(Math.min(dy, 36));
+        if (g.mode !== "pull") {
+          g.mode = "pull";
+          setHolding(true);
+          timer.current = setTimeout(() => {
+            if (gesture.current !== g || g.mode !== "pull") return;
+            g.mode = "done";
+            stopHold();
+            capture.current();
+          }, HOLD_DURATION_MS);
+        }
+      } else {
+        stopHold();
+        g.mode = "pending";
+      }
+    }
+    if (g.mode === "scrub") {
       seekAt(event.clientX);
     }
   };
-  const up = (event: PointerEvent<HTMLElement>, cursor: boolean) => {
+  const up = (event: PointerEvent<HTMLElement>) => {
     const g = gesture.current;
     if (!g || g.pointer !== event.pointerId) return;
     event.stopPropagation();
-    gesture.current = null;
-    if (cursor && !g.moved) {
-      const now = performance.now();
-      if (
-        tap.current &&
-        now - tap.current.time < 350 &&
-        Math.abs(event.clientX - tap.current.x) < 24
-      ) {
-        tap.current = null;
-        onCapture();
-      } else tap.current = { time: now, x: event.clientX };
-    }
+    cancel();
   };
   const keyboard = (event: React.KeyboardEvent) => {
     let next: number | undefined;
@@ -81,7 +123,7 @@ export function FrameTimeline({
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       event.stopPropagation();
-      onCapture();
+      if (!event.repeat) onCapture();
     } else if (next !== undefined) {
       event.preventDefault();
       event.stopPropagation();
@@ -102,11 +144,9 @@ export function FrameTimeline({
         aria-valuetext={`${(time / 1000).toFixed(2)} seconds`}
         onPointerDown={(event) => down(event, false)}
         onPointerMove={move}
-        onPointerUp={(event) => up(event, false)}
-        onPointerCancel={() => {
-          gesture.current = null;
-          tap.current = null;
-        }}
+        onPointerUp={up}
+        onPointerCancel={cancel}
+        onLostPointerCapture={cancel}
         onKeyDown={keyboard}
       >
         <div className="frame-track" />
@@ -137,18 +177,18 @@ export function FrameTimeline({
         <button
           type="button"
           className="frame-cursor"
-          style={{ left: `${duration ? (time / duration) * 100 : 0}%` }}
+          style={{ left: `${duration ? (time / duration) * 100 : 0}%`, transform: `translate(-50%, ${pull}px)` }}
           aria-label="Capture current frame"
-          title="Double tap to capture frame"
+          title={`Pull down and hold ${HOLD_DURATION_MS / 1000} second to capture frame · Enter to capture`}
           onPointerDown={(event) => down(event, true)}
           onPointerMove={move}
-          onPointerUp={(event) => up(event, true)}
-          onPointerCancel={() => {
-            gesture.current = null;
-            tap.current = null;
-          }}
+          onPointerUp={up}
+          onPointerCancel={cancel}
+          onLostPointerCapture={cancel}
           onKeyDown={keyboard}
-        />
+        >
+          <HoldIndicator holding={holding} armed={false} showIcon={false} />
+        </button>
       </div>
       <span className="frame-time">
         {(time / 1000).toFixed(2)} / {(duration / 1000).toFixed(2)}s

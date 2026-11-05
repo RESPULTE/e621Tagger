@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { HOLD_DURATION_MS } from "./gestureSettings";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, errorText, mutationId } from "../api/client";
 import type { components } from "../api/schema";
@@ -119,7 +120,7 @@ export function ProjectDock({ activeId, activeName, onSelect, onDeleted }: {
       if (dy >= 64) {
         if (timer.current === null) {
           setHolding(true);
-          timer.current = setTimeout(showComposer, 1500);
+          timer.current = setTimeout(showComposer, HOLD_DURATION_MS);
         }
       } else resetHold();
       return true;
@@ -181,7 +182,7 @@ export function ProjectDock({ activeId, activeName, onSelect, onDeleted }: {
   }, [open, composing]);
 
   const rows = projects.data?.pages.flatMap((page) => page.items) ?? [];
-  return <div className="project-dock" ref={root}
+  return <div className="project-dock" ref={root} style={{ "--hold-duration": `${HOLD_DURATION_MS}ms` } as CSSProperties}
     onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape" && open) { event.preventDefault(); close(); } }}
     onKeyUp={(event) => event.stopPropagation()} onKeyPress={(event) => event.stopPropagation()}>
     {open && <section className="project-dock-panel" ref={panel} id={id} role="dialog" aria-label="Projects" tabIndex={-1}>

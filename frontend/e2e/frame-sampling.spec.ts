@@ -8,6 +8,42 @@ async function doubleTap(target: Locator, touch: boolean) {
   else { await target.click(); await target.click(); }
 }
 
+async function startPull(page: Page, touch: boolean) {
+  const cursor = page.getByRole("button", { name: "Capture current frame" });
+  await page.locator(".frame-timeline-wrap").scrollIntoViewIfNeeded();
+  const box = (await cursor.boundingBox())!;
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  const cdp = touch && page.context().browser()?.browserType().name() === "chromium"
+    ? await page.context().newCDPSession(page) : null;
+  if (cdp) {
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + 28 }] });
+  } else {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + 28, { steps: 4 });
+  }
+  const ring = cursor.locator(".hold-indicator");
+  await expect(ring).toBeVisible();
+  await expect(ring.locator(".hold-indicator-progress")).toHaveCSS("animation-duration", "1s");
+  return async () => {
+    if (cdp) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+      await cdp.detach();
+    } else await page.mouse.up();
+  };
+}
+
+async function pullToCapture(page: Page, touch: boolean) {
+  const release = await startPull(page, touch);
+  try {
+    // Capture fires on completion while the pointer is still held down.
+    await expect(page.locator(".frame-cursor .hold-indicator")).toHaveCount(0, { timeout: 1800 });
+  } finally {
+    await release();
+  }
+}
+
 async function login(page: Page) {
   await page.goto("/");
   const options = await (await page.request.get("/api/auth/options")).json();
@@ -56,6 +92,27 @@ test("video checkpoints retain reviews until normal playback resumes", async ({ 
   const timeline = page.getByRole("slider", { name: "Animation position" });
   await expect(timeline).toBeVisible();
   await expect(page.locator(".detail-review")).toHaveCount(0);
+  // A stalled decoder must not delay or overwrite requested timeline positions.
+  await video.evaluate((v: HTMLVideoElement) => {
+    v.pause();
+    const previous = v.currentTime;
+    Object.defineProperty(v, "seeking", { configurable: true, get: () => true });
+    Object.defineProperty(v, "currentTime", { configurable: true, get: () => previous, set: () => {} });
+  });
+  await timeline.press("End");
+  await expect(timeline).toHaveAttribute("aria-valuenow", await timeline.getAttribute("aria-valuemax") as string);
+  await video.dispatchEvent("timeupdate");
+  await video.dispatchEvent("seeked");
+  await expect(timeline).toHaveAttribute("aria-valuenow", await timeline.getAttribute("aria-valuemax") as string);
+  await timeline.press("Home");
+  await timeline.press("ArrowRight");
+  await timeline.press("ArrowRight");
+  await video.dispatchEvent("timeupdate");
+  await expect(timeline).toHaveAttribute("aria-valuenow", "200");
+  await video.evaluate((v: HTMLVideoElement) => {
+    Reflect.deleteProperty(v, "seeking");
+    Reflect.deleteProperty(v, "currentTime");
+  });
   // Seeking while playing must pause and make the freshly rendered frame capturable.
   await timeline.focus();
   await timeline.press("Home");
@@ -66,7 +123,7 @@ test("video checkpoints retain reviews until normal playback resumes", async ({ 
   await video.evaluate((v: HTMLVideoElement) => {
     Object.defineProperty(v, "seeking", { configurable: true, get: () => true });
   });
-  await doubleTap(page.getByRole("button", { name: "Capture current frame" }), !!testInfo.project.use.hasTouch);
+  await pullToCapture(page, !!testInfo.project.use.hasTouch);
   await expect(page.locator(".sample-image")).toHaveCount(0);
   await expect(page.getByRole("alert")).toHaveCount(0);
   await video.evaluate((v: HTMLVideoElement) => {
@@ -131,7 +188,21 @@ test("animated images show decisions only for a saved frame", async ({ page }, t
   await page.getByRole("button", { name: "Enable frame sampling" }).click();
   await expect(page.getByRole("slider", { name: "Animation position" })).toBeVisible();
   await expect(page.locator(".detail-review")).toHaveCount(0);
+  // Taps no longer sample, and a short pull must cancel without leaving a marker.
   await doubleTap(page.getByRole("button", { name: "Capture current frame" }), !!testInfo.project.use.hasTouch);
+  await expect(page.locator(".frame-checkpoint")).toHaveCount(0);
+  const release = await startPull(page, !!testInfo.project.use.hasTouch);
+  await page.waitForTimeout(250);
+  await release();
+  await expect(page.locator(".frame-cursor .hold-indicator")).toHaveCount(0);
+  await expect(page.locator(".frame-checkpoint")).toHaveCount(0);
+  const releaseCancelled = await startPull(page, !!testInfo.project.use.hasTouch);
+  await page.getByRole("button", { name: "Capture current frame" }).dispatchEvent("pointercancel");
+  await releaseCancelled();
+  await page.waitForTimeout(1100);
+  await expect(page.locator(".frame-cursor .hold-indicator")).toHaveCount(0);
+  await expect(page.locator(".frame-checkpoint")).toHaveCount(0);
+  await pullToCapture(page, !!testInfo.project.use.hasTouch);
   await expect(page.locator(".frame-checkpoint.undecided")).toHaveCount(1);
   const positive = page.locator(".detail-review").getByRole("button", { name: "Positive", exact: true });
   await positive.click();

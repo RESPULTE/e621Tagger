@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
 } from "react";
 
-export const LONG_PRESS_DURATION_MS = 2000;
+import { HOLD_DURATION_MS } from "./gestureSettings";
 const MOVEMENT_THRESHOLD_PX = 10;
 
 /** Arms on hold, fires only on release inside the original element. */
@@ -90,7 +90,7 @@ export function useLongPress(action: () => void, identity: number) {
       timer.current = null;
       if (gesture.current === current && current.element.isConnected)
         setArmed(true);
-    }, LONG_PRESS_DURATION_MS);
+    }, HOLD_DURATION_MS);
   }
 
   function move(e: PointerEvent<HTMLElement>) {
@@ -111,7 +111,7 @@ export function useLongPress(action: () => void, identity: number) {
     const inside = Boolean(g && hit && g.element.contains(hit));
     const stationary = Boolean(g &&
       Math.hypot(g.x - e.clientX, g.y - e.clientY) <= MOVEMENT_THRESHOLD_PX);
-    const held = Boolean(g && performance.now() - g.started >= LONG_PRESS_DURATION_MS);
+    const held = Boolean(g && performance.now() - g.started >= HOLD_DURATION_MS);
     const valid = Boolean(g && inside && stationary &&
       g.element.isConnected && g.identity === identity);
     if (g && (!valid || held)) consumed.current = true;
