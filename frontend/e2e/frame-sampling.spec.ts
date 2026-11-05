@@ -92,4 +92,6 @@ test("video frames and thumbnail retain independent reviews and favourites", asy
   await expect(page.locator(".media-stage .favorite-paw")).toBeVisible();
   await expect.poll(async () => (await samples()).find(s => s.kind === "frame")?.favorite).toBe(true);
   await expect.poll(async () => (await samples()).find(s => s.kind === "thumbnail")?.favorite).toBe(false);
+  await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+  await expect(page.getByRole("button", { name: "Thumbnail", exact: true })).toBeInViewport();
 });

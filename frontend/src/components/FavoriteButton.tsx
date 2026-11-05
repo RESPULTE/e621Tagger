@@ -142,6 +142,7 @@ function useMediaInteractions(project: number, post: Candidate, onOpen?: () => v
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const last = useRef<{ at: number; x: number; y: number } | null>(null);
   const surface = useRef<HTMLElement | null>(null);
+  const suppressVideoClick = useRef(false);
   const down = useRef<{ at: number; x: number; y: number; pointer: number; element: HTMLElement } | null>(null);
   function cancel() {
     if (timer.current) clearTimeout(timer.current);
@@ -179,6 +180,7 @@ function useMediaInteractions(project: number, post: Candidate, onOpen?: () => v
       }
     },
     onPointerDown: (event) => {
+      suppressVideoClick.current = false;
       if (sample) event.stopPropagation();
       surface.current = event.currentTarget;
       if (!event.isPrimary || event.button !== 0 ||
@@ -212,10 +214,21 @@ function useMediaInteractions(project: number, post: Candidate, onOpen?: () => v
       if (!d || d.pointer !== event.pointerId || !hit || !d.element.contains(hit) || performance.now() - d.at > 500) { cancel(); return; }
       const previous = last.current;
       if (previous && performance.now() - previous.at < 300 && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) < 24) {
-        cancel(); event.preventDefault(); void change();
+        cancel(); event.preventDefault();
+        // Native video handles the second click before a bubbling dblclick handler.
+        // Consume only our recognised body gesture; keep native controls independent.
+        suppressVideoClick.current = !!(event.target as Element).closest("video");
+        void change();
       } else {
         last.current = { at: performance.now(), x: event.clientX, y: event.clientY };
         timer.current = setTimeout(() => { cancel(); onOpen?.(); }, 300);
+      }
+    },
+    onClickCapture: (event) => {
+      if (suppressVideoClick.current && (event.target as Element).closest("video")) {
+        suppressVideoClick.current = false;
+        event.preventDefault();
+        event.stopPropagation();
       }
     },
     onClick: (event) => {
@@ -223,13 +236,14 @@ function useMediaInteractions(project: number, post: Candidate, onOpen?: () => v
       if (hold.consumed.current && event.detail !== 0) { event.preventDefault(); return; }
       if (event.detail === 0) { cancel(); onOpen?.(); }
     },
-    onDoubleClick: (event) => {
+    onDoubleClickCapture: (event) => {
       if (sample) event.stopPropagation();
       const video = (event.target as Element).closest("video");
       if (video && event.clientY > video.getBoundingClientRect().bottom - 56) return;
       const control = (event.target as Element).closest("input,textarea,select,a,button,[contenteditable]");
       if (control && control !== event.currentTarget) return;
       event.preventDefault();
+      if (video) event.stopPropagation();
     },
   };
   const status = currentSample ? (samplePending > 0 ? "Updating sample favourite..." : currentSample.favorite ? "Sample favourited." : "Sample not favourited.") : save.busy ? "Updating favourite…" : save.waiting
