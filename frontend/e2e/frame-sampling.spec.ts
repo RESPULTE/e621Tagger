@@ -113,12 +113,6 @@ test("video checkpoints retain reviews until normal playback resumes", async ({ 
     await expect(page.locator(".media-stage .favorite-paw")).toHaveCount(0);
   }
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.readyState)).toBeGreaterThanOrEqual(2);
-  await video.evaluate(async (v: HTMLVideoElement) => { v.muted = true; await v.play(); });
-  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(0);
-  await video.evaluate((v: HTMLVideoElement) => { v.currentTime = v.duration - 0.15; });
-  await expect.poll(() => video.evaluate((v: HTMLVideoElement) =>
-    !v.paused && v.currentTime < v.duration / 2,
-  )).toBe(true);
   await page.getByRole("button", { name: "Enable frame sampling" }).click();
   const timeline = page.getByRole("slider", { name: "Animation position" });
   await expect(timeline).toBeVisible();
@@ -223,6 +217,16 @@ test("video checkpoints retain reviews until normal playback resumes", async ({ 
   await expect.poll(async () => (await samples()).find(s => s.kind === "frame")?.favorite).toBe(true);
   await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
   await expect(page.getByRole("slider", { name: "Animation position" })).toBeInViewport();
+  // Check looping after decoder-stall tests so native loop seek events cannot
+  // race the frozen decoder properties used earlier in this scenario.
+  await video.evaluate(async (v: HTMLVideoElement) => {
+    v.muted = true;
+    await v.play();
+    v.currentTime = v.duration - 0.15;
+  });
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) =>
+    !v.paused && !v.seeking && v.currentTime > 0 && v.currentTime < v.duration / 2,
+  )).toBe(true);
 });
 
 test("deselected project keeps video capture and frame favourites without tagging", async ({ page }, testInfo) => {
