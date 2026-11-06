@@ -1,20 +1,22 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   api,
   errorText,
   mediaUrl,
   type Candidate,
+  type CandidatePage,
   type Project,
 } from "../api/client";
 import { ReviewButtons, useReviews } from "../components/Reviews";
 import { TagSidebar } from "../components/TagSidebar";
 import { artistName } from "../components/artworkName";
-import { SaveMedia } from "../components/FavoriteButton";
+import { ProgressiveImage } from "../components/ProgressiveImage";
 import { AnimatedMedia } from "../components/AnimatedMedia";
 import { useMediaSamples, type MediaSample } from "../components/mediaSamples";
 import { StudioIcon } from "../components/StudioIcon";
+import type { SimilarSearch } from "../components/Similarity";
 
 type NavigationState = {
   ids?: number[];
@@ -29,10 +31,26 @@ export function Post({ canReview }: { canReview: boolean }) {
   const navigation = (location.state ?? {}) as NavigationState;
   const navigate = useNavigate();
   const reviews = useReviews();
+  const client = useQueryClient();
   const query = useQuery({
     queryKey: ["post", projectId, currentId],
-    queryFn: () =>
-      api<Candidate>(`/projects/${projectId}/candidates/${currentId}`),
+    queryFn: ({ signal }) =>
+      api<Candidate>(`/projects/${projectId}/candidates/${currentId}`, { signal }),
+    gcTime: 5 * 60_000,
+    initialData: () => {
+      for (const scope of ["feed", "candidates"]) {
+        for (const [, data] of client.getQueriesData<InfiniteData<CandidatePage>>({ queryKey: [scope, projectId] })) {
+          const candidate = data?.pages.flatMap(page => page.items).find(item => item.post_id === currentId);
+          if (candidate) return candidate;
+        }
+      }
+      for (const [, data] of client.getQueriesData<SimilarSearch>({ queryKey: ["similarity", projectId] })) {
+        const candidate = data?.results.find(item => item.post_id === currentId)?.candidate;
+        if (candidate) return candidate;
+      }
+      return undefined;
+    },
+    initialDataUpdatedAt: 0,
   });
   const project = useQuery({
     queryKey: ["project", projectId],
@@ -40,8 +58,6 @@ export function Post({ canReview }: { canReview: boolean }) {
   });
   const [focused, setFocused] = useState<MediaSample>();
   const [animatedImage, setAnimatedImage] = useState(true);
-  const [mediaError, setMediaError] = useState(false);
-  const [mediaReady, setMediaReady] = useState(false);
   const [barHidden, setBarHidden] = useState(false);
   useEffect(() => {
     setBarHidden(false);
@@ -99,10 +115,8 @@ export function Post({ canReview }: { canReview: boolean }) {
     );
   }
   useEffect(() => {
-    setMediaError(false);
     setFocused(undefined);
     setAnimatedImage(true);
-    setMediaReady(false);
   }, [currentId]);
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -249,7 +263,7 @@ export function Post({ canReview }: { canReview: boolean }) {
             ) : isVideo ||
               ["gif", "webp", "avif"].includes(post.media_ext ?? "") ? (
               <AnimatedMedia
-                key={currentId}
+                key={`${currentId}:${post.md5}`}
                 project={projectId}
                 post={post}
                 samples={samples.samples}
@@ -259,37 +273,11 @@ export function Post({ canReview }: { canReview: boolean }) {
                 capture={samples.capture}
               />
             ) : (
-              <SaveMedia
-                key={currentId}
+              <ProgressiveImage
+                key={`${currentId}:${post.md5}`}
                 project={projectId}
                 post={post}
-                actualSize={false}
-              >
-                <img
-                  src={mediaUrl(currentId, "original", post.md5)}
-                  alt={`Original post ${currentId}`}
-                  onLoad={() => setMediaReady(true)}
-                  onError={() => setMediaError(true)}
-                />
-                {!mediaReady && !mediaError && (
-                  <p className="media-loading" role="status">
-                    Loading original image…
-                  </p>
-                )}
-              </SaveMedia>
-            )}
-            {mediaError && (
-              <p className="error" role="alert">
-                Media could not load or this browser does not support its codec.{" "}
-                <a
-                  href={`https://e621.net/posts/${currentId}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open the e621 post
-                </a>
-                .
-              </p>
+              />
             )}
             {samples.error && (
               <p className="error" role="alert">

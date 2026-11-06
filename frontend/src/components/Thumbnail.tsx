@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { mediaUrl } from "../api/client";
+import { thumbnailBlob } from "./thumbnailCache";
 
 export function Thumbnail({
   id,
@@ -18,17 +19,9 @@ export function Thumbnail({
     queryKey: ["thumbnail", id, md5],
     enabled: available,
     staleTime: Infinity,
-    gcTime: 30_000,
+    gcTime: 0,
     retry: false,
-    queryFn: async ({ signal }) => {
-      const response = await fetch(mediaUrl(id, "preview", md5), {
-        signal,
-        cache: "no-store",
-      });
-      if (response.status === 202) return null;
-      if (!response.ok) throw new Error("Thumbnail unavailable");
-      return response.blob();
-    },
+    queryFn: ({ signal }) => thumbnailBlob(mediaUrl(id, "preview", md5), signal),
     refetchInterval: (query) => (query.state.data === null ? 1000 : false),
   });
   useEffect(() => {

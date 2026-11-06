@@ -103,7 +103,7 @@ class Media:
         ):
             raise HTTPException(403, "Media URL is outside the configured e621 CDN allowlist")
 
-    async def _open(self, url, headers=None, method="GET"):
+    async def _open(self, url, headers=None, method="GET", *, priority=0):
         for redirect in range(5):
             self.validate_url(url)
             host = urlsplit(url).hostname
@@ -122,12 +122,14 @@ class Media:
             self.timings.record("host_wait_ms", (time.monotonic() - started) * 1000)
             started = time.monotonic()
             if self.gate:
-                await self.gate.acquire()
+                await self.gate.acquire(priority=priority)
             response = await self.client.send(self.client.build_request(method, url, headers=headers), stream=True)
             self.timings.record("upstream_headers_ms", (time.monotonic() - started) * 1000)
             if response.status_code in {429, 503}:
                 self.metrics["throttled"] += 1
                 delay = retry_delay(response.headers.get("Retry-After"), 2)
+                if self.gate:
+                    await self.gate.defer(delay)
                 self.host_next[host] = max(
                     self.host_next.get(host, 0),
                     time.monotonic() + delay,
@@ -190,10 +192,12 @@ class Media:
         key = (post["post_id"], post["md5"], post["preview_url"], post["unavailable"])
         cached = self.previews.get(key)
         if cached:
+            self.metrics["hits"] += 1
             self.previews.move_to_end(key)
             return cached
         entry = self.preview_tasks.get(key)
         if entry is None:
+            self.metrics["misses"] += 1
             entry = [asyncio.create_task(self._thumbnail_bytes(post)), 0]
             self.preview_tasks[key] = entry
         entry[1] += 1
@@ -220,6 +224,7 @@ class Media:
         response = None
         await self.acquire_slot()
         try:
+            fetched_at = time.monotonic()
             response = await self._open(post["preview_url"])
             if response.status_code != 200:
                 raise HTTPException(
@@ -242,7 +247,11 @@ class Media:
             ):
                 raise HTTPException(502, "Incomplete preview")
             try:
-                return await asyncio.to_thread(self._thumbnail, raw)
+                self.timings.record("preview_fetch_ms", (time.monotonic() - fetched_at) * 1000)
+                started = time.monotonic()
+                result = await asyncio.to_thread(self._thumbnail, raw)
+                self.timings.record("thumbnail_conversion_ms", (time.monotonic() - started) * 1000)
+                return result
             except (
                 ValueError,
                 OSError,
@@ -284,6 +293,7 @@ class Media:
         return Response(raw, media_type="image/webp", headers=headers)
 
     async def stream_response(self, request: Request, post_id, variant, source_md5=None):
+        requested_at = time.monotonic()
         column = {"sample": "sample_url", "original": "file_url", "video_mp4": "video_url"}[variant]
         post = await self.resolve(post_id, source_md5)
         if not post or post["unavailable"] or not post[column]:
@@ -299,7 +309,7 @@ class Media:
         response = None
         handed_off = False
         try:
-            response = await self._open(post[column], headers, method=request.method)
+            response = await self._open(post[column], headers, method=request.method, priority=-10)
             forwarded = {
                 key: response.headers[key]
                 for key in ("content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified")
@@ -325,8 +335,12 @@ class Media:
                 return Response(status_code=response.status_code, headers=forwarded)
 
             async def chunks():
+                first = True
                 try:
                     async for chunk in response.aiter_raw(65536):
+                        if first:
+                            self.timings.record("first_stream_chunk_ms", (time.monotonic() - requested_at) * 1000)
+                            first = False
                         self.metrics["bytes"] += len(chunk)
                         yield chunk
                 finally:

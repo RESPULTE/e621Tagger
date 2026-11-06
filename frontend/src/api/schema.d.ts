@@ -913,6 +913,11 @@ export interface components {
             unavailable: boolean;
             /** Has Preview */
             has_preview: boolean;
+            /**
+             * Has Sample
+             * @default false
+             */
+            has_sample: boolean;
             /** Has Original */
             has_original: boolean;
             /** Has Video Fallback */

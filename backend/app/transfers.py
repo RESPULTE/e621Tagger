@@ -39,7 +39,7 @@ class Transfers:
         count, checked_at = 0, 0
         md5_hash, sha256 = hashlib.md5(), hashlib.sha256()
         try:
-            response = await self.media._open(url)
+            response = await self.media._open(url, priority=10)
             if response.status_code != 200:
                 raise HTTPException(
                     response.status_code if response.status_code in {403, 404, 429, 503} else 502,

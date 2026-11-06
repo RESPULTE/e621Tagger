@@ -36,7 +36,10 @@ export function AnimatedMedia({
   const video = useRef<HTMLVideoElement>(null);
   const viewer = useRef<HTMLDivElement>(null);
   const [enabled, setEnabled] = useState(false),
-    [fallback, setFallback] = useState(false),
+    [fallback, setFallback] = useState(() =>
+      !!post.has_video_fallback && post.media_ext === "webm" &&
+      !document.createElement("video").canPlayType("video/webm"),
+    ),
     [ready, setReady] = useState(false);
   const [timelineBounds, setTimelineBounds] = useState<{ left: number; width: number }>();
   useEffect(() => {

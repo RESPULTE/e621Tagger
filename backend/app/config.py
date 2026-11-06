@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     secure_cookie: bool = True
     mock_e621: bool = False
     similarity_worker_token: str = Field(default="", repr=False, min_length=0)
-    upstream_interval: float = Field(default=1.0, ge=0.0)
-    transient_preview_bytes: int = Field(default=32 * 1024**2, ge=0, le=256 * 1024**2)
+    upstream_interval: float = Field(default=0.7, ge=0.0)
+    transient_preview_bytes: int = Field(default=64 * 1024**2, ge=0, le=256 * 1024**2)
     library_root: Path | None = None
     library_subdirectory: str = Field(default="", pattern=r"^(?:[A-Za-z0-9][A-Za-z0-9_-]{0,99})?$")
     library_max_bytes: int = Field(default=256 * 1024**2, ge=1024, le=2 * 1024**3)

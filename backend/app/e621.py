@@ -86,22 +86,24 @@ class E621:
 
     async def _run(self):
         while True:
-            _, _, key, future = await self.queue.get()
+            priority, _, key, future = await self.queue.get()
             path, params = key
             try:
                 for attempt in range(4):
                     state = await self.db.one("SELECT value FROM runtime_state WHERE key='metadata_next'")
                     await asyncio.sleep(max(0, (state["value"] if state else 0) - time.time()))
-                    async with self.db.transaction() as conn:
-                        await conn.execute(
-                            "INSERT OR REPLACE INTO runtime_state VALUES('metadata_next',?)",
-                            (time.time() + self.settings.metadata_interval,),
-                        )
                     start = time.monotonic()
                     try:
                         self.metrics["requests"] += 1
                         if self.gate:
-                            await self.gate.acquire()
+                            await self.gate.acquire(priority=priority)
+                        # Persist API pacing at admission, after any aggregate
+                        # wait, so a configurable CDN budget cannot weaken it.
+                        async with self.db.transaction() as conn:
+                            await conn.execute(
+                                "INSERT OR REPLACE INTO runtime_state VALUES('metadata_next',?)",
+                                (time.time() + self.settings.metadata_interval,),
+                            )
                         response = await self.client.get(path, params=dict(params))
                         self.metrics["last_latency_ms"] = round((time.monotonic() - start) * 1000, 1)
                     except httpx.TransportError:
@@ -112,6 +114,8 @@ class E621:
                     if response.status_code in {429, 503, 502, 504}:
                         self.metrics["throttled"] += 1
                         delay = retry_delay(response.headers.get("Retry-After"), attempt)
+                        if self.gate:
+                            await self.gate.defer(delay)
                         async with self.db.transaction() as conn:
                             await conn.execute(
                                 "INSERT OR REPLACE INTO runtime_state VALUES('metadata_next',?)",

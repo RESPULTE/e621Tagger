@@ -360,12 +360,15 @@ async def test_shared_gate_rechecks_deadline_after_an_early_timer(monkeypatch):
     now, sleeps = [100.0], []
     gate = UpstreamGate(1)
 
-    async def early_sleep(delay):
+    async def early_wait(waiter, timeout):
+        waiter.close()
+        delay = timeout
         sleeps.append(delay)
         now[0] += delay / 2 if len(sleeps) == 1 else delay
+        raise asyncio.TimeoutError
 
     monkeypatch.setattr(upstream, "time", SimpleNamespace(monotonic=lambda: now[0]))
-    monkeypatch.setattr(upstream, "asyncio", SimpleNamespace(sleep=early_sleep))
+    monkeypatch.setattr(upstream, "asyncio", SimpleNamespace(wait_for=early_wait, TimeoutError=asyncio.TimeoutError))
     await gate.acquire()
     await gate.acquire()
     assert now[0] == 101 and sleeps == [1, 0.5]

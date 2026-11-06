@@ -127,6 +127,7 @@ export function App() {
                 .then(() => {
                   setSession(null);
                   setCsrf("");
+                  window.dispatchEvent(new Event("studio-signed-out"));
                 })
                 .catch((error) => setError(errorText(error)));
             }}

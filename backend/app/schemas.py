@@ -130,6 +130,7 @@ class Candidate(BaseModel):
     height: int | None
     unavailable: bool
     has_preview: bool
+    has_sample: bool = False
     has_original: bool
     has_video_fallback: bool
     state: LabelState | None

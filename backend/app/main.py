@@ -50,7 +50,9 @@ def create_app(settings=None, *, transport=None, start_workers=True):
             app.state.feed = feed = Feed(source, db)
             app.state.media = media = Media(config, db, active_transport)
             media.feed = feed
-            source.gate = media.gate = UpstreamGate(0 if config.mock_e621 else config.upstream_interval)
+            app.state.upstream = upstream = UpstreamGate(0 if config.mock_e621 else config.upstream_interval)
+            source.gate = upstream.lane("metadata")
+            media.gate = upstream.lane("media")
             app.state.processing_machine = processing_machine = ProcessingMachine(config.similarity_worker_token)
             processing_machine.images.media = media
             index = SyntheticImageSearch() if config.mock_e621 else processing_machine

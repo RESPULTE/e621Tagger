@@ -17,6 +17,9 @@ const queryClient = new QueryClient({
   },
 });
 
+for (const event of ["studio-session-expired", "studio-signed-out"])
+  window.addEventListener(event, () => queryClient.clear());
+
 // Retire the former inference app's PWA cache without registering a new worker.
 if ("serviceWorker" in navigator) {
   void navigator.serviceWorker.getRegistrations().then((registrations) => {

@@ -1,6 +1,6 @@
 # Data policy
 
-Studio stores reviewed-post identity/metadata and provenance, project-specific human labels, audit events, retry receipts, sessions and explicit download journals under its configured data root. Fresh unreviewed query results stay in bounded expiring memory. Browsing media is never retained on the server. Plaintext administrator passwords and API keys are not stored in SQLite or returned to the browser.
+Studio stores reviewed-post identity/metadata and provenance, project-specific human labels, audit events, retry receipts, sessions and explicit download journals under its configured data root. Fresh unreviewed query results stay in bounded expiring memory. Browsing media is never retained on server disk; prepared thumbnails use bounded transient RAM caches on the server and client, as described in [media performance](media-performance.md). Plaintext administrator passwords and API keys are not stored in SQLite or returned to the browser.
 
 Raw e621 tags are discovery evidence. Every candidate starts unreviewed. The reviewer confirms positive or negative; tag absence never implies a verified negative. Skip leaves the label unchanged. Undo appends history rather than deleting it.
 

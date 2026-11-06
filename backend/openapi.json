@@ -2803,6 +2803,11 @@
             "type": "boolean",
             "title": "Has Preview"
           },
+          "has_sample": {
+            "type": "boolean",
+            "title": "Has Sample",
+            "default": false
+          },
           "has_original": {
             "type": "boolean",
             "title": "Has Original"

@@ -80,6 +80,9 @@ The current bounded workflow supports at most 5,000 reviewed samples per project
 
 ## Checks
 
+See [media performance](docs/media-performance.md) for scheduling, transient
+cache budgets, progressive viewing and measurement limits.
+
 ```sh
 python -m pytest -q
 python -m ruff check backend

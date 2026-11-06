@@ -314,6 +314,7 @@ export function similarityCandidates(search?: SimilarSearch): Candidate[] {
           height: null,
           unavailable: false,
           has_preview: false,
+          has_sample: false,
           has_original: false,
           has_video_fallback: false,
           state: null,

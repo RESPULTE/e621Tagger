@@ -6,7 +6,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Link,
@@ -17,7 +17,6 @@ import {
 import {
   api,
   errorText,
-  mutationId,
   type Candidate,
   type CandidatePage,
   type Project as ProjectInfo,
@@ -33,17 +32,31 @@ import {
 } from "../components/Similarity";
 import { Downloads } from "./Downloads";
 
+const scrollPositions = new Map<string, { offset: number; expires: number }>();
+let scrollGeneration = 0;
+for (const event of ["studio-session-expired", "studio-signed-out"])
+  window.addEventListener(event, () => {
+    scrollPositions.clear();
+    scrollGeneration++;
+  });
+// Reuse the measured layout on remount so a narrow screen does not briefly
+// mount four columns of uncached previews before ResizeObserver runs.
+let lastGalleryColumns = 4;
+function savedOffset(key: string) {
+  const entry = scrollPositions.get(key);
+  return entry && entry.expires > Date.now() ? entry.offset : 0;
+}
+
 export function Project({ canReview }: { canReview: boolean }) {
   const projectId = Number(useParams().id);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const reviews = useReviews();
+  const client = useQueryClient();
   const scroll = useRef<HTMLDivElement>(null);
-  const [columns, setColumns] = useState(4);
+  const [columns, setColumns] = useState(() => lastGalleryColumns);
   const [focused, setFocused] = useState<number | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
-  const [visit] = useState(mutationId);
-  const [revision, setRevision] = useState(0);
   const project = useQuery({
     queryKey: ["project", projectId],
     queryFn: () => api<ProjectInfo>(`/projects/${projectId}`),
@@ -81,8 +94,6 @@ export function Project({ canReview }: { canReview: boolean }) {
       projectId,
       query,
       tab,
-      visit,
-      revision,
       labelFilter,
       favoriteFilter,
     ],
@@ -103,7 +114,7 @@ export function Project({ canReview }: { canReview: boolean }) {
     },
     getNextPageParam: (page) => page.next_cursor,
     maxPages: 40,
-    gcTime: 0,
+    gcTime: 5 * 60_000,
     retry: false,
   });
   const items =
@@ -118,11 +129,13 @@ export function Project({ canReview }: { canReview: boolean }) {
           ).values(),
         ];
   const focusedPost = items.find((p) => p.post_id === focused) ?? items[0];
+  const galleryKey = JSON.stringify([projectId, tab, query, labelFilter, favoriteFilter, params.get("search"), similarityFilter]);
   useLayoutEffect(() => {
     if (!scroll.current) return;
-    const observer = new ResizeObserver(([entry]) =>
-      setColumns(Math.max(2, Math.floor(entry.contentRect.width / 180))),
-    );
+    const observer = new ResizeObserver(([entry]) => {
+      lastGalleryColumns = Math.max(2, Math.floor(entry.contentRect.width / 180));
+      setColumns(lastGalleryColumns);
+    });
     observer.observe(scroll.current);
     return () => observer.disconnect();
   }, [tab]);
@@ -131,7 +144,27 @@ export function Project({ canReview }: { canReview: boolean }) {
     getScrollElement: () => scroll.current,
     estimateSize: () => 256,
     overscan: 1,
+    initialOffset: () => savedOffset(galleryKey),
   });
+  const hasItems = items.length > 0;
+  useLayoutEffect(() => {
+    const element = scroll.current;
+    if (!element || !hasItems) return;
+    virtual.scrollToOffset(savedOffset(galleryKey));
+    const generation = scrollGeneration;
+    const remember = () => {
+      if (generation !== scrollGeneration) return;
+      scrollPositions.delete(galleryKey);
+      scrollPositions.set(galleryKey, { offset: element.scrollTop, expires: Date.now() + 5 * 60_000 });
+      while (scrollPositions.size > 100)
+        scrollPositions.delete(scrollPositions.keys().next().value!);
+    };
+    element.addEventListener("scroll", remember, { passive: true });
+    return () => {
+      remember();
+      element.removeEventListener("scroll", remember);
+    };
+  }, [galleryKey, hasItems]);
   const rows = virtual.getVirtualItems();
   const nearEnd =
     !items.length ||
@@ -169,6 +202,9 @@ export function Project({ canReview }: { canReview: boolean }) {
     previous.current = first;
   }, [first]);
   function openPost(post: Candidate) {
+    // Seed from the gallery, then revalidate independently in the viewer.
+    const key = ["post", projectId, post.post_id];
+    if (!client.getQueryData(key)) client.setQueryData(key, post, { updatedAt: 0 });
     const context = post.similarity
       ? `?index=${encodeURIComponent(post.similarity.index_revision)}${post.similarity.seed_post_id ? `&seed=${post.similarity.seed_post_id}` : ""}${post.similarity.search_id ? `&similar_search=${post.similarity.search_id}` : ""}`
       : "";
@@ -239,7 +275,7 @@ export function Project({ canReview }: { canReview: boolean }) {
   function search(event: FormEvent) {
     event.preventDefault();
     setParams({ q: (draft ?? query).trim() });
-    setRevision((n) => n + 1);
+    if ((draft ?? query).trim() === query) void candidates.refetch();
     if (scroll.current) scroll.current.scrollTop = 0;
   }
   return (
