@@ -65,9 +65,12 @@ export function Downloads() {
         const exporting = !!job.dataset_id;
         const running = inProgress(job.status);
         const deleting = pending[job.id] === "delete" || ["removing", "deleting"].includes(job.status) || (!!job.favorite && !job.favorite.wanted && ["queued", "removing", "retrying"].includes(job.favorite.status));
+        const retryable = !deleting && (["failed", "cancelled"].includes(job.status) || (job.status === "pending" && !!job.error));
+        const retrying = retryable && job.status === "pending";
         const cancelling = pending[job.id] === "cancel" || job.status === "cancelling";
         const status = deleting ? "Deleting…" : cancelling ? "Cancelling…"
           : job.status === "done" ? "Completed"
+          : retrying ? "Waiting to retry"
           : running ? "In progress"
           : job.status === "failed" ? "Failed"
           : job.status === "cancelled" ? "Cancelled" : job.status;
@@ -89,7 +92,7 @@ export function Downloads() {
                 <TaskProgress active={running && !deleting && !cancelling} value={job.progress_bytes} total={job.total_bytes ?? undefined} label={`Post ${job.post_id} download progress`} />
                 <span>{(job.progress_bytes / 1048576).toFixed(1)} MiB{job.total_bytes ? ` / ${(job.total_bytes / 1048576).toFixed(1)} MiB` : ""}</span>
                 {exporting && running && <button disabled={!!pending[job.id]} onClick={() => void control(job, "cancel")}>Cancel</button>}
-                {["failed", "cancelled"].includes(job.status) && <button disabled={!!pending[job.id]} onClick={() => void control(job, "retry")}>Retry</button>}
+                {exporting && retryable && <button disabled={!!pending[job.id]} onClick={() => void control(job, "retry")}>Retry</button>}
                 {job.status === "done" && exporting && <>
                   <a href={`/api/datasets/${job.dataset_id}/media/files/${job.post_id}`}>File</a>
                   <a href={`/api/datasets/${job.dataset_id}/media/manifest`}>Checked manifest</a>
@@ -100,7 +103,11 @@ export function Downloads() {
             </div>
             <div className="download-actions">
               <span className={`download-state ${tone}`} role="status">{status}</span>
-              {!exporting && (job.can_delete ?? ["done", "pending", "running", "queued", "downloading", "failed"].includes(job.status)) && (
+              {!exporting && retryable ? (
+                <button className="download-delete" disabled={!!pending[job.id]} onClick={() => void control(job, "retry")} title="Retry favourite download">
+                  Retry
+                </button>
+              ) : !exporting && (job.can_delete ?? ["done", "pending", "running", "queued", "downloading", "failed"].includes(job.status)) && (
                 <button className="download-delete" disabled={!!pending[job.id] || deleting} onClick={() => void control(job, "delete")} aria-label={`Delete post ${job.post_id} favourite`} title="Delete favourite">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6M14 10v6" />

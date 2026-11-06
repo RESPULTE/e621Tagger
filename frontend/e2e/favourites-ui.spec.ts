@@ -77,6 +77,7 @@ test("downloads show upvotes and delete favourites with heart cache reconciliati
   const failed = page.getByRole("article", { name: "Post 995 favourite", exact: true });
   await expect(failed.getByText("Failed", { exact: true })).toHaveCSS("color", "rgb(255, 165, 173)");
   await expect(failed.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+  await expect(failed.getByRole("button", { name: /Delete/ })).toHaveCount(0);
   await expect(running.getByText("Upvotes unavailable", { exact: true })).toBeVisible();
   await expect(running.getByRole("button", { name: "Delete post 998 favourite", exact: true })).toBeVisible();
   await expect(page.getByRole("article", { name: "Post 996 favourite", exact: true }).getByText("Deleting…", { exact: true })).toBeVisible();
@@ -119,4 +120,29 @@ test("real favourite download deletion removes its row and resets the gallery he
   }).toEqual([false, false, "idle"]);
   await page.getByRole("tab", { name: "Query", exact: true }).click();
   await expect(heart.locator(".favorite-paw")).toHaveCount(0);
+});
+
+
+test("favourites offer manual Retry during automatic retry backoff", async ({ page }) => {
+  await open(page);
+  let retried = false;
+  await page.route("**/api/downloads", (route) => route.fulfill({ json: { active: 1, items: [
+    { id: 201, post_id: 999, status: retried ? "running" : "pending", attempts: retried ? 1 : 2,
+      error: retried ? null : "ReadTimeout: operation failed", progress_bytes: 0, total_bytes: null,
+      dataset_id: null, can_delete: true },
+  ] } }));
+  await page.route("**/api/downloads/201/retry", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    expect(route.request().postDataJSON().request_id).toBeTruthy();
+    retried = true;
+    await route.fulfill({ json: { id: 201, status: "pending" } });
+  });
+  await page.getByRole("tab", { name: "Downloads", exact: true }).click();
+  const waiting = page.getByRole("article", { name: "Post 999 favourite", exact: true });
+  await expect(waiting.getByText("Waiting to retry", { exact: true })).toBeVisible();
+  await expect(waiting.getByRole("button", { name: /Delete/ })).toHaveCount(0);
+  await waiting.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(waiting.getByText("In progress", { exact: true })).toBeVisible();
+  await expect(waiting.getByRole("button", { name: "Retry", exact: true })).toHaveCount(0);
+  await expect(waiting.getByRole("button", { name: "Delete post 999 favourite", exact: true })).toBeVisible();
 });

@@ -85,29 +85,56 @@
         "frontend/src/components/ProjectWorkspace.tsx"
       ],
       "fingerprints": {
-        ".superdesign/design-system.md": "b40bf28da06bd31f887e0fe362f14c9994721ca66e3b9ba03ab6050c5caaac73",
-        "frontend/src/pages/Project.tsx": "a0a9ec0198d2949b703c17d6f620632f900c5540afad19f7ccc090d642299923",
+        ".superdesign/design-system.md": "1e939e94f1d5105d47bb7c4ebf5ea52657ecf5498829519ccf6cc71b26733a26",
+        "frontend/src/pages/Project.tsx": "eebcb5631f9dee4d7502dc0d633e465bb29e02df335c65e87b7d19b63fff1de5",
         "frontend/src/App.tsx": "88abe85e29702accab0eb8dec1afdcbf431e4531958af109312b8320dd64674c",
-        "frontend/src/components/QueryInput.tsx": "4aaafbebd01b592886b01b35446515862b1cd62a25373c2284027d9ae8e74e9e",
-        "frontend/src/components/FavoriteButton.tsx": "a1cd8288d6ea88ea0de1d1e143677c8597efa846a1a51118699ac68c4ac3a151",
-        "frontend/src/style.css": "76ef347d26fd5d9d4f6ea89d5c2b36a87844d258ffb2a0584831fbabb7d02699",
-        "frontend/src/pages/Downloads.tsx": "a185cf61a9ba5255ed92d63d96d6046fd4b082fa78052c5de4024610b0f97b66",
-        "frontend/src/components/Similarity.tsx": "435417a68fa9b6ab712019ea347ca925f1bcc0e4b6c8d13de85394556cbbb101",
-        "frontend/src/pages/Post.tsx": "a332a854f53a04d2ec3986b92229db7a080b5a4e2ed7388ffc87f4181fe8ff1e",
+        "frontend/src/components/QueryInput.tsx": "7633bbec50276cce681998894fafeb19f4fae78d600405314d335a6c994bad05",
+        "frontend/src/components/FavoriteButton.tsx": "bd47764caf03133df59580a5e20cb3e44f32c11a081b25cbac9fbb636b8e8c16",
+        "frontend/src/style.css": "d58c83e31326de2e1b525ce030082f9cc69553c4a90bba9bbd0ea6822e2ad155",
+        "frontend/src/pages/Downloads.tsx": "f0d73b885ef23c6637aef6ebac21d74d7dfe4d28839a29f22a6908ce2133f5dd",
+        "frontend/src/components/Similarity.tsx": "a0252a9a7b5ead5333090fb2bdf950be907e49537628db96dfec2bcf7a8a6df5",
+        "frontend/src/pages/Post.tsx": "8f0faa56fccee47cfd000d3e70e70a1b51b1324e6851caa35385ef2740418a88",
         "frontend/src/components/StudioIcon.tsx": "a5712c38c30d5d4caa0fe537b964c3534ca23500f1819e6d93cfe6e87c146aa8",
-        "frontend/src/components/ProjectDock.tsx": "ea2aa2794bd64268f6d8e3712ddc4b349e75cef2180dba2b89aef4b4aa3f372e",
-        "frontend/src/components/ProjectDock.css": "890628c390adbbf85aa6b49ada413456a09b031988402bee17636ed061f5ad4b",
+        "frontend/src/components/ProjectDock.tsx": "747776dc720bd168a2a4e90f4cbac6dc0df4b53e7e9eef59074c431d339769cc",
+        "frontend/src/components/ProjectDock.css": "552c7d35138a74da420a3d5c630d29f2d032ed028ffe656f20d1fc02e1b168c2",
         "frontend/src/components/ProjectWorkspace.tsx": "bb174c527488ff23677bb4d0bad454d7aec5ffc1ab5e12a50f9b28bc1bde631e"
       },
       "components": [],
       "drafts": {
         "1645dd99-e27b-4fac-9919-843a579f0684": {
           "title": "Tagged gallery - independent icon filters",
-          "visualDirection": "Current implemented navy gallery: neutral card edges, outlined selected label controls, bottom-right media pills, independent cycling label/favourite icon filters with union for all. Static canvas export from isolated demo; repository provides interactions.",
-          "currentVersion": 1
+          "visualDirection": "Navy tagged gallery with labelled Tag status and Favourite cycling filters; >w< marks all. Full-width phone spacing, bounded 300px desktop filter group, and 44px touch targets. Repository provides interactions.",
+          "currentVersion": 2
         }
       },
-      "updatedAt": "2026-11-05T12:18:26.826920+00:00"
+      "updatedAt": "2026-11-06T13:10:29.449309+00:00"
+    },
+    "/projects/:id/posts/:postId#timeline": {
+      "targetKind": "existing-ui",
+      "projectId": "4192ccd7-421e-442d-af29-c46ea06ac596",
+      "baselineDraftId": "1320aeae-78a3-42ae-9692-1f6bd127b9a8",
+      "activeDraftId": "1320aeae-78a3-42ae-9692-1f6bd127b9a8",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        "frontend/src/components/FrameTimeline.tsx",
+        "frontend/src/components/animated-media.css",
+        "frontend/src/components/HoldIndicator.tsx"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "1e939e94f1d5105d47bb7c4ebf5ea52657ecf5498829519ccf6cc71b26733a26",
+        "frontend/src/components/FrameTimeline.tsx": "30b4673012610109480bb28d11705b41744e42b059caf02ba878e8ce654e5e49",
+        "frontend/src/components/animated-media.css": "cfd426bdc0e102483c030f17fc5c6951973c5a521fac568c4a51bf1e19816950",
+        "frontend/src/components/HoldIndicator.tsx": "76beb66b8f2ec496499bc35e156a9408255bd7a2edb14d3410130ea7f52555ab"
+      },
+      "components": [],
+      "drafts": {
+        "1320aeae-78a3-42ae-9692-1f6bd127b9a8": {
+          "title": "Hydra frame timeline \u2014 saved notches",
+          "currentVersion": 1,
+          "visualDirection": "Component reference: native-track-width timeline; fixed live notch and gold/green/pink saved notches, centered map pin and reduced-motion-aware spring arrival."
+        }
+      }
     }
   }
 }

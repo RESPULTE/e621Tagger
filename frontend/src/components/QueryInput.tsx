@@ -161,7 +161,8 @@ export function QueryInput({
               role="option"
               aria-selected={active === index}
               className={`tag-${categories[tag.category] ?? "general"}`}
-              onPointerDown={(event) => event.preventDefault()}
+              // Keep input focus without suppressing WebKit's touch-generated click.
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => choose(tag.canonical_name)}
             >
               <span>

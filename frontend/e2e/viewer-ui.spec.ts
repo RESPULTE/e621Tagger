@@ -142,11 +142,15 @@ test("one-second hold progresses, releases once, and cancels without opening", a
   const url = page.url();
   const card = page.getByRole("button", { name: "Open post 999", exact: true });
   await card.scrollIntoViewIfNeeded();
+  // Wall-clock protocol/trace latency must not turn a short hold into a long one.
+  const start = new Date("2026-01-01T00:00:00Z");
+  await page.clock.install({ time: start });
+  await page.clock.pauseAt(new Date(start.getTime() + 10_000));
   let searches = 0;
   page.on("request", (r) => { if (r.method() === "POST" && /\/similar$/.test(r.url())) searches++; });
   await pointer(card, "pointerdown");
   await expect(card.locator(".hold-indicator")).toBeAttached();
-  await page.waitForTimeout(300); // A release before the specified 1s threshold must not search.
+  await page.clock.runFor(300); // A release before the specified 1s threshold must not search.
   await expect(card).not.toHaveClass(/similarity-armed/);
   await pointer(card, "pointerup");
   await expect(card.locator(".hold-indicator")).toHaveCount(0);
@@ -154,6 +158,7 @@ test("one-second hold progresses, releases once, and cancels without opening", a
   expect(page.url()).toBe(url);
   for (const cancellation of ["outside", "scroll", "pointercancel", "movement"]) {
     await pointer(card, "pointerdown");
+    await page.clock.runFor(1000);
     await expect(card).toHaveClass(/similarity-armed/);
     expect(searches).toBe(0); // Timer alone never submits.
     if (cancellation === "scroll") await page.evaluate(() => window.dispatchEvent(new Event("scroll")));
@@ -165,9 +170,11 @@ test("one-second hold progresses, releases once, and cancels without opening", a
     expect(page.url()).toBe(url);
   }
   await pointer(card, "pointerdown");
+  await page.clock.runFor(1000);
   await expect(card).toHaveClass(/similarity-armed/);
   expect(searches).toBe(0);
   await pointer(card, "pointerup");
+  await page.clock.resume();
   await expect(page.getByRole("link", { name: "Open results" })).toBeVisible();
   expect(searches).toBe(1);
   expect(page.url()).toBe(url);

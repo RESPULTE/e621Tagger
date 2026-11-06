@@ -1617,8 +1617,16 @@ a { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .project-empty-notice { animation: none; } }
 
 /* Two independent cycling filters; their glyph and colour show the current state. */
-.tagged-filters { display: flex; align-items: center; gap: 10px; }
-.tagged-filters .tagged-filter { display: grid; place-items: center; width: 44px; height: 44px; padding: 10px; border: 1px solid #507393; border-radius: 12px; background: #152f56; color: #c3d6e6; transition: background 140ms ease, border-color 140ms ease; }
+.tagged-filters { display: flex; flex: 1; max-width: 300px; align-items: center; justify-content: space-between; gap: 8px; }
+.tagged-filters .tagged-filter { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 10px; white-space: nowrap; font-size: 12px; border: 1px solid #507393; border-radius: 12px; background: #152f56; color: #c3d6e6; transition: background 140ms ease, border-color 140ms ease; }
+.tagged-filter-icon { display: grid; place-items: center; flex: 0 0 26px; width: 26px; font-size: 15px; font-weight: 700; line-height: 1; }
+.tagged-filter-icon svg { width: 24px; height: 24px; }
+@media (max-width: 600px) {
+  .tagged-actions { flex-wrap: nowrap; gap: 8px; font-size: 11px; }
+  .tagged-actions > span { flex-shrink: 0; }
+  .tagged-filters { max-width: none; }
+  .tagged-filters .tagged-filter { gap: 5px; padding-inline: 7px; font-size: 11px; }
+}
 .tagged-filters .tagged-filter:hover { background: #234f70; border-color: currentColor; }
 .tagged-filters .tagged-filter:focus-visible { outline: 2px solid #f5c960; outline-offset: 3px; }
 .tagged-filters .filter-positive { color: #64df88; border-color: #64df8880; }

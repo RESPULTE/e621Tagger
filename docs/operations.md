@@ -37,11 +37,15 @@ Follow [processing laptop setup](similarity.md). Image search requires a current
 All queries encode/search images against the laptop's local corpus. There is no historical-array reader, remote published-neighbor API, legacy worker protocol or `STUDIO_PUBLISHED_NEIGHBORS` setting. Remove that obsolete environment setting when updating deployment configuration. Saved historical provenance remains auditable. `STUDIO_UPSTREAM_INTERVAL` still gates metadata/media starts; reference byte/pixel bounds are configurable in Compose. A 16 MiB byte cap supports the verified Radar reference. Keep model/corpus dependencies off the server.
 
 If a reverse proxy limits JSON requests to 64 KiB, preserve that general limit
-and allow 16 MiB only for `^/api/projects/[1-9][0-9]*/similar/reference$`.
+and allow 16 MiB for reference images and frame samples using
+`^/api/projects/[1-9][0-9]*/(similar/reference|posts/[1-9][0-9]*/samples)$`.
+The sample upload needs this exception too: captured PNG frames commonly exceed 64 KiB.
 Use the same Host/proxy settings as the ordinary API, HTTP/1.1 and
 `proxy_request_buffering off` on that upload location. Validate configuration
 before switching. The application still enforces reference bytes, decoded pixels,
 formats, authentication and its shared memory budget.
+See [the upload location snippet](../deploy/nginx-uploads.conf); include it inside
+the proxy's existing `server` block and replace the old reference-only location.
 
 ## Optional heart saves to the main collection
 
@@ -74,6 +78,18 @@ Mocked regression tests and browser tests are separate from live API/CDN probes.
 To run the browser suite against a container, start an isolated Compose project with its own volume, `STUDIO_MOCK_E621=true`, and either private passwordless access or the disposable password `studio-browser-test-password` (generate its hash with `backend.app.auth`). Set `STUDIO_E2E_BASE_URL` to that deployment's exact origin, then run `npm run test:e2e` from `frontend/`. The override disables the local demo server. Tests verify mock mode after connecting before creating projects or reviews. Never point this suite at the real review database. Leave the override unset for the normal temporary local demo server. Use trusted HTTPS for private-origin browser checks; the suite does not bypass certificate validation.
 
 Browser checks cover desktop Chromium, mobile Chromium and iPhone-sized WebKit. Before the WebKit playback test, an independent local MP4 probe checks the host decoder. If the host cannot decode that clip, playback is explicitly skipped and the unsupported-codec UI is tested instead. This is not physical iPhone playback verification; [Playwright documents OS-dependent WebKit codecs](https://playwright.dev/docs/browsers#webkit). Run the playback case on macOS WebKit or an actual iPhone before declaring that device verified.
+
+For release validation, set `STUDIO_E2E_REQUIRE_VIDEO=1` and run the
+`iphone-webkit` project against an isolated mock deployment. This converts a
+failed codec probe into a failure rather than a skipped video test. The probe
+requires decoded image data and canvas readback. Use a Linux/macOS host with
+working codecs; the official Playwright image must match the lockfile version
+(currently `mcr.microsoft.com/playwright:v1.64.1-noble`). The sampling tests use
+trusted native touch sequences, including WebKit's page-proxy input protocol;
+recheck that private test adapter when upgrading Playwright. Coverage includes
+touch cancellation, portrait/landscape resizing, reduced motion, frame capture,
+and persistent notches/reviews. Emulation does not verify physical Safari chrome
+or the OS back-swipe gesture.
 
 The obsolete PWA worker URL serves a retirement script that removes only `e621tagger-*` caches and unregisters itself. No offline save queue is installed. Previously cached clients may need one online reload.
 

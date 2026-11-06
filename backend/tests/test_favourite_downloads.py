@@ -212,3 +212,94 @@ def test_missing_or_unsafe_inbox_fails_without_creating_a_destination(client):
     assert not (library.root / "Inbox").exists()
     with pytest.raises(HTTPException, match="409"):
         library.destination({"directory": "../outside"})
+
+@pytest.mark.parametrize("error", [HTTPException(404, "Original unavailable"), TimeoutError()])
+def test_downloads_wait_fifteen_seconds_and_retry_three_times_before_manual_retry(client, monkeypatch, error):
+    import asyncio
+
+    pid = setup(client)
+    toggle(client, pid)
+    db, workers, library = client.app.state.db, client.app.state.workers, client.app.state.library
+    job_id = client.get("/api/downloads").json()["items"][0]["id"]
+    real_process = library.process
+    calls = []
+
+    async def fail(job, payload):
+        calls.append(time.time())
+        raise error
+
+    monkeypatch.setattr(library, "process", fail)
+
+    async def exercise():
+        task = asyncio.create_task(workers._loop("downloads"))
+        try:
+            for attempt in range(1, 5):
+                for _ in range(300):
+                    row = await db.one("SELECT * FROM jobs WHERE id=?", (job_id,))
+                    if row["attempts"] == attempt and row["status"] in {"pending", "failed"} and job_id not in workers.active_downloads:
+                        break
+                    await asyncio.sleep(0.01)
+                assert len(calls) == attempt
+                assert row["status"] == ("failed" if attempt == 4 else "pending")
+                assert row["error"]
+                saved = await db.one("SELECT status FROM saved_media WHERE post_id=999")
+                assert saved["status"] == ("failed" if attempt == 4 else "retrying")
+                assert 14.9 <= row["available_at"] - calls[-1] <= 16
+                assert await workers._claim("downloads") is None
+                if attempt < 4:
+                    # Advance the persisted schedule without sleeping 45 seconds.
+                    async with db.transaction() as conn:
+                        await conn.execute("UPDATE jobs SET available_at=0 WHERE id=?", (job_id,))
+        finally:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+    run(client, exercise())
+    monkeypatch.setattr(library, "process", real_process)
+    response = client.post(f"/api/downloads/{job_id}/retry", json={"request_id": str(uuid4())})
+    assert response.status_code == 200
+    row = run(client, db.one("SELECT * FROM jobs WHERE id=?", (job_id,)))
+    assert row["attempts"] == 0 and row["status"] == "pending" and row["error"] is None
+    process(client)
+    assert client.get("/api/library/posts/999").json()["status"] == "saved"
+
+
+def test_manual_retry_during_backoff_resets_error_progress_and_retry_budget(client):
+    pid = setup(client)
+    toggle(client, pid)
+    db = client.app.state.db
+    job_id = client.get("/api/downloads").json()["items"][0]["id"]
+
+    async def backoff():
+        async with db.transaction() as conn:
+            await conn.execute("UPDATE jobs SET attempts=2,error='Timeout',progress_bytes=123,total_bytes=456,available_at=? WHERE id=?", (time.time() + 15, job_id))
+            await conn.execute("UPDATE saved_media SET status='retrying',error='Timeout' WHERE post_id=999")
+
+    run(client, backoff())
+    response = client.post(f"/api/downloads/{job_id}/retry", json={"request_id": str(uuid4())})
+    assert response.status_code == 200
+    row = run(client, db.one("SELECT * FROM jobs WHERE id=?", (job_id,)))
+    assert row["attempts"] == 0 and row["error"] is None and row["progress_bytes"] == 0 and row["total_bytes"] is None
+    assert row["available_at"] <= time.time()
+    process(client)
+    assert client.get("/api/library/posts/999").json()["status"] == "saved"
+
+
+def test_six_hour_download_default_and_hard_timeout_cleans_partial(client, monkeypatch):
+    pid = setup(client)
+    settings = client.app.state.settings
+    assert settings.library_timeout == 6 * 60 * 60
+    # Keep the real cancellation and cleanup path, with a compressed deadline.
+    settings.library_timeout = 0.1
+    old, _, _ = slow_originals(client, monkeypatch, stall_post=999)
+    toggle(client, pid)
+    try:
+        with pytest.raises(HTTPException) as exc:
+            process(client)
+        assert exc.value.status_code == 504
+        assert not list(client.app.state.library.root.glob("e621_*"))
+        assert not list((client.app.state.library.root / ".hydra-studio-tmp").iterdir())
+        assert not run(client, client.app.state.db.rows("SELECT * FROM download_partials"))
+    finally:
+        run(client, client.app.state.media.client.aclose())
+        client.app.state.media.client = old

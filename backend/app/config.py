@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     library_subdirectory: str = Field(default="", pattern=r"^(?:[A-Za-z0-9][A-Za-z0-9_-]{0,99})?$")
     library_max_bytes: int = Field(default=256 * 1024**2, ge=1024, le=2 * 1024**3)
     library_reserve_bytes: int = Field(default=128 * 1024**2, ge=0)
-    library_timeout: int = Field(default=300, ge=10, le=1800)
+    library_timeout: int = Field(default=21600, ge=10, le=21600)
     e621_username: str = ""
     e621_api_key: str = ""
     metadata_interval: float = Field(default=1.0, ge=1.0)

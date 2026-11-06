@@ -21,7 +21,7 @@ type NavigationState = {
   gallery?: string;
   similarity?: Candidate["similarity"];
 };
-export function Post() {
+export function Post({ canReview }: { canReview: boolean }) {
   const { id, postId } = useParams();
   const projectId = Number(id),
     currentId = Number(postId);
@@ -120,7 +120,7 @@ export function Post() {
       const state = ({ "1": "positive", "2": "negative" } as const)[
         event.key as "1"
       ];
-      if (state) {
+      if (state && canReview) {
         event.preventDefault();
         if (isSampleMedia && !focused) return;
         if (focused) {
@@ -141,7 +141,7 @@ export function Post() {
             [post],
             post.state === state ? null : state,
           );
-      } else if (event.key.toLowerCase() === "z" && !focused) {
+      } else if (event.key.toLowerCase() === "z" && !focused && canReview) {
         event.preventDefault();
         void reviews.undoLast(projectId, post).then((postId) => {
           if (postId && postId !== currentId) {
@@ -298,9 +298,9 @@ export function Post() {
             )}
             <section className="artwork-tags" aria-label="Artwork tags">
               <h2>Tags</h2>
-              <TagSidebar tags={post.tags} hidden={false} />
+              <TagSidebar projectId={projectId} tags={post.tags} hidden={false} />
             </section>
-            {(!isSampleMedia || focused) && <div
+            {canReview && (!isSampleMedia || focused) && <div
               className={`detail-review${barHidden && !focused ? " is-collapsed" : ""}`}
               role="group"
               aria-label="Review artwork"

@@ -8,6 +8,11 @@ import { Datasets } from "../pages/Datasets";
 import { ProjectDock } from "./ProjectDock";
 
 const storageKey = "studio-last-project";
+const browseOnlyKey = "studio-browse-only";
+function readBrowseOnly(): boolean {
+  try { return localStorage.getItem(browseOnlyKey) === "true"; }
+  catch { return false; }
+}
 function readLast(): number | null {
   try {
     const id = Number(localStorage.getItem(storageKey));
@@ -20,13 +25,17 @@ export function ProjectWorkspace() {
   const navigate = useNavigate();
   const client = useQueryClient();
   const [last, setLast] = useState(readLast);
+  const [browseOnly, setBrowseOnly] = useState(readBrowseOnly);
   const [notice, setNotice] = useState(false);
   const routeId = Number(location.pathname.match(/^\/projects\/(\d+)(?:\/|$)/)?.[1]) || null;
-  const activeId = routeId ?? (location.pathname === "/" ? last : null);
+  // Route/last retain browsing context for favourites and frame sampling.
+  // Explicit deselection persists separately so navigation cannot re-enable tagging.
+  const workspaceId = routeId ?? (location.pathname === "/" ? last : null);
+  const activeId = browseOnly ? null : workspaceId;
   const project = useQuery({
-    queryKey: ["project", activeId],
-    enabled: activeId !== null,
-    queryFn: () => api<ProjectInfo>(`/projects/${activeId}`),
+    queryKey: ["project", workspaceId],
+    enabled: workspaceId !== null,
+    queryFn: () => api<ProjectInfo>(`/projects/${workspaceId}`),
   });
   function remember(id: number | null) {
     setLast(id);
@@ -48,13 +57,21 @@ export function ProjectWorkspace() {
     }
   }, [project.error]);
   useEffect(() => {
-    if (activeId !== null) { setNotice(false); return; }
+    if (workspaceId !== null) { setNotice(false); return; }
     setNotice(true);
     const timer = setTimeout(() => setNotice(false), 3600);
     return () => clearTimeout(timer);
-  }, [activeId]);
-  function select(id: number) {
+  }, [workspaceId]);
+  function select(id: number | null) {
+    const browsing = id === null;
+    setBrowseOnly(browsing);
+    try {
+      if (browsing) localStorage.setItem(browseOnlyKey, "true");
+      else localStorage.removeItem(browseOnlyKey);
+    } catch { /* Selection still works for the current session. */ }
+    if (id === null) return;
     remember(id);
+    if (id === routeId) return;
     // Keep the artwork when switching in the viewer, but discard old-project
     // similarity provenance, review versions and gallery navigation state.
     const post = location.pathname.match(/\/posts\/(\d+)$/)?.[1];
@@ -66,15 +83,15 @@ export function ProjectWorkspace() {
         {activeId !== null && project.isPending && <p role="status">Opening your last project…</p>}
         {project.error && !(project.error instanceof ApiError && project.error.status === 404) && <p role="alert">{errorText(project.error)} <button onClick={() => void project.refetch()}>Retry</button></p>}
       </main>} />
-      <Route path="/projects/:id" element={<Project key={routeId} />} />
+      <Route path="/projects/:id" element={<Project key={routeId} canReview={activeId !== null} />} />
       <Route path="/projects/:id/datasets" element={<Datasets key={routeId} />} />
-      <Route path="/projects/:id/posts/:postId" element={<Post key={routeId} />} />
+      <Route path="/projects/:id/posts/:postId" element={<Post key={routeId} canReview={activeId !== null} />} />
       <Route path="*" element={<main className="centered"><h1>Page not found</h1><Link to="/">Return to workspace</Link></main>} />
     </Routes>
     {notice && <div className="project-empty-notice" role="status">No project created yet.</div>}
-    <ProjectDock activeId={project.data?.id ?? activeId} activeName={project.data?.display_name ?? "Opening project…"} onSelect={select} onDeleted={(id) => {
+    <ProjectDock activeId={activeId} activeName={project.data?.display_name ?? "Opening project…"} onSelect={select} onDeleted={(id) => {
       client.removeQueries({ queryKey: ["project", id] });
-      if (id === activeId || id === project.data?.id) { remember(null); navigate("/", { replace: true }); }
+      if (id === workspaceId || id === project.data?.id) { remember(null); navigate("/", { replace: true }); }
       else if (id === last) remember(null);
     }} />
   </>;

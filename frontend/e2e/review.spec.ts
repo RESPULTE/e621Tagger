@@ -222,6 +222,14 @@ test("failed original video automatically uses the compatible fallback", async (
   await expect(video).toBeVisible();
   await expect(video).toHaveAttribute("src", /video_mp4(?:\?|$)/);
   await expect(page.getByRole("button", { name: "Use compatible MP4" })).toHaveCount(0);
+  await expect.poll(() => video.evaluate((player: HTMLVideoElement) => player.readyState)).toBeGreaterThanOrEqual(2);
+  await expect(page.locator(".detail-review")).toHaveCount(0);
+  await page.getByRole("button", { name: "Enable frame sampling" }).click();
+  const timeline = page.getByRole("slider", { name: "Animation position" });
+  await timeline.press("Home");
+  await timeline.press("ArrowRight");
+  await timeline.press("Enter");
+  await expect(page.locator(".sample-image")).toBeVisible();
   await expect(page.locator(".detail-review").getByRole("button", { name: "Negative", exact: true })).toBeEnabled();
 });
 

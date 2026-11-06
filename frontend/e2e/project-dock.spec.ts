@@ -17,6 +17,9 @@ async function tag(page: Page, name: string) {
   await dock(page);
   await page.getByRole('button', { name: '+ New project', exact: true }).click();
   await page.getByRole('combobox', { name: 'New project e621 tag' }).fill(name);
+  // These fixture tags have suggestions; let the inline results settle before
+  // clicking a submit button whose position changes as they arrive.
+  await expect(page.getByRole('listbox', { name: 'Tag suggestions' })).toBeVisible();
   await page.getByRole('button', { name: 'Let’s collect', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Projects', exact: true })).toHaveCount(0);
 }
@@ -54,7 +57,92 @@ test('no setup, alias reuse, last project, viewer switching and deletion', async
   expect((await page.request.get('/api' + path)).status()).toBe(404);
   expect(dialogs).toBe(0); expect(errors).toEqual([]);
 });
-test('pull needs continuous 1s hold and swipe reveals trash', async ({ page, isMobile, browserName }) => {
+test('deselecting keeps browse context and media actions without reviews', async ({ page }) => {
+  await login(page);
+  await createReviewProject(page, 'dock_browse');
+  const gallery = new URL(page.url());
+  const path = gallery.pathname;
+  const project = await (await page.request.get('/api' + path)).json();
+
+  await page.getByRole('button', { name: 'Open post 999', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(path + "/posts/999$"));
+  const viewerUrl = page.url();
+  const positive = page.getByRole('button', { name: 'Positive', exact: true });
+  await expect(positive).toBeVisible();
+
+  await dock(page);
+  const row = page.locator(`.project-dock-row[data-project-id="${project.id}"]`);
+  await expect(row.locator('.project-dock-select')).toHaveAttribute('aria-pressed', 'true');
+  await row.locator('.project-dock-select').click();
+  await expect(page).toHaveURL(viewerUrl);
+  await expect(page.getByRole('button', { name: 'Projects', exact: true })).toHaveAttribute('title', 'Find your fixation');
+  await expect(page.locator('.detail-review')).toHaveCount(0);
+  await expect(page.locator('.quick-labels')).toHaveCount(0);
+  await expect(page.locator('.media-stage')).toBeVisible();
+
+  const browseProject = await page.evaluate(() => localStorage.getItem('studio-last-project'));
+  expect(browseProject).toBe(String(project.id));
+  expect(await page.evaluate(() => localStorage.getItem('studio-browse-only'))).toBe('true');
+
+  let labelWrites = 0;
+  page.on('request', request => {
+    if (request.method() !== 'GET' && request.url().includes('/labels/')) labelWrites++;
+  });
+  await page.locator('h1').click();
+  await page.keyboard.press('1');
+  await page.keyboard.press('2');
+  await page.keyboard.press('z');
+  await expect.poll(async () => (await (await page.request.get('/api' + path)).json()).counts).toEqual(project.counts);
+
+  // Collection favourites remain independent of whether this project is selected.
+  const favoriteUrl = '/api/library/posts/999';
+  const initialFavorite = await (await page.request.get(favoriteUrl)).json();
+  const media = page.locator('.media-stage');
+  await media.press('f');
+  await expect.poll(async () => (await (await page.request.get(favoriteUrl)).json()).wanted).toBe(!initialFavorite.wanted);
+  await media.press('f');
+  await expect.poll(async () => (await (await page.request.get(favoriteUrl)).json()).wanted).toBe(initialFavorite.wanted);
+
+  expect(labelWrites).toBe(0);
+
+  // Reselecting restores review controls; deselect again to check the persisted state.
+  await dock(page);
+  await row.locator('.project-dock-select').click();
+  await expect(positive).toBeVisible();
+  await dock(page);
+  await row.locator('.project-dock-select').click();
+  await page.reload();
+  await expect(page).toHaveURL(viewerUrl);
+  await expect(page.locator('.detail-review')).toHaveCount(0);
+  await expect(page.locator('.media-stage')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Thumbnail gallery', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`${path}(?:\\?.*)?$`));
+  await expect(page.getByRole('button', { name: 'Open post 999', exact: true })).toBeVisible();
+  await expect(page.locator('.quick-labels')).toHaveCount(0);
+
+  await page.setViewportSize({ width: 320, height: 740 });
+  await dock(page);
+  await page.locator('.project-dock-panel').evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
+  const heading = page.locator('.project-dock-heading h2');
+  const newProject = page.getByRole('button', { name: '+ New project', exact: true });
+  await expect(page.getByRole('button', { name: 'Close projects', exact: true })).toHaveCount(0);
+  const headingBox = await heading.boundingBox();
+  const buttonBox = await newProject.boundingBox();
+  expect(headingBox).not.toBeNull();
+  expect(buttonBox).not.toBeNull();
+  const overlaps = headingBox!.x < buttonBox!.x + buttonBox!.width && headingBox!.x + headingBox!.width > buttonBox!.x &&
+    headingBox!.y < buttonBox!.y + buttonBox!.height && headingBox!.y + headingBox!.height > buttonBox!.y;
+  expect(overlaps).toBe(false);
+  expect(Math.abs(headingBox!.y + headingBox!.height / 2 - buttonBox!.y - buttonBox!.height / 2)).toBeLessThan(1);
+  expect(headingBox!.x).toBeGreaterThanOrEqual(0);
+  expect(buttonBox!.x + buttonBox!.width).toBeLessThanOrEqual(320);
+  await page.screenshot({ path: test.info().outputPath('compact-project-dock.png'), fullPage: true });
+});
+
+test('swipe reveals trash', async ({ page, isMobile, browserName }) => {
   await login(page); await createReviewProject(page, 'dock_gesture');
   const path = new URL(page.url()).pathname;
   const p = await (await page.request.get('/api' + path)).json();
@@ -76,17 +164,6 @@ test('pull needs continuous 1s hold and swipe reveals trash', async ({ page, isM
     else if (type === 'touchEnd') await page.mouse.up();
     else await page.mouse.move(x, y, { steps: 5 });
   }
-  const b = (await list.boundingBox())!, x = b.x + b.width / 2, y = b.y + 18;
-  await input('touchStart', x, y); await input('touchMove', x, y + 80);
-  await page.waitForTimeout(500); await input('touchEnd', x, y + 80);
-  await page.waitForTimeout(1150);
-  const query = page.getByRole('combobox', { name: 'New project e621 tag' });
-  await expect(query).toHaveCount(0);
-  await input('touchStart', x, y); await input('touchMove', x, y + 80);
-  await page.waitForTimeout(300); await expect(query).toHaveCount(0);
-  await expect(query).toBeVisible({ timeout: 1000 });
-  await input('touchEnd', x, y + 80);
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   const r = (await row.boundingBox())!;
   await input('touchStart', r.x + 160, r.y + 20, row);
   await input('touchMove', r.x + 70, r.y + 20, row);

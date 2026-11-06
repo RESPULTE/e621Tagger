@@ -34,6 +34,26 @@ export function AnimatedMedia({
   capture,
 }: Props) {
   const video = useRef<HTMLVideoElement>(null);
+  const viewer = useRef<HTMLDivElement>(null);
+  const [enabled, setEnabled] = useState(false),
+    [fallback, setFallback] = useState(false),
+    [ready, setReady] = useState(false);
+  const [timelineBounds, setTimelineBounds] = useState<{ left: number; width: number }>();
+  useEffect(() => {
+    const root = viewer.current;
+    const media = video.current ?? root?.querySelector<HTMLImageElement>(".media-stage img");
+    if (!root || !media) return;
+    const measure = () => {
+      const parent = root.getBoundingClientRect();
+      const bounds = media.getBoundingClientRect();
+      setTimelineBounds({ left: bounds.left - parent.left, width: bounds.width });
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    observer.observe(media);
+    measure();
+    return () => observer.disconnect();
+  }, [enabled, focused?.id]);
   const requestedTime = useRef<number | null>(null);
   const focusIntent = useRef(0);
   const mounted = useRef(true),
@@ -56,16 +76,20 @@ export function AnimatedMedia({
     let id = 0;
     const tick = () => {
       const player = video.current;
-      if (player && !player.paused && requestedTime.current === null)
+      if (player && !player.paused && requestedTime.current === null) {
+        // WebKit can leave a streamed video at its duration with loop enabled,
+        // without emitting ended. Resume that loop only during active playback;
+        // an explicitly paused end-frame selection must stay at the endpoint.
+        if (player.loop && !player.seeking && Number.isFinite(player.duration) &&
+            player.duration > 0 && player.currentTime >= player.duration)
+          player.currentTime = 0;
         setTime(player.currentTime * 1000);
+      }
       id = requestAnimationFrame(tick);
     };
     id = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(id);
   }, []);
-  const [enabled, setEnabled] = useState(false),
-    [fallback, setFallback] = useState(false),
-    [ready, setReady] = useState(false);
   const [duration, setDuration] = useState(0),
     [time, setTime] = useState(0),
     [playing, setPlaying] = useState(false),
@@ -269,7 +293,7 @@ export function AnimatedMedia({
     setFocused(sample);
   }
   return (
-    <div className="animated-viewer">
+    <div className="animated-viewer" ref={viewer}>
       <SaveMedia
         project={project}
         post={post}
@@ -368,6 +392,7 @@ export function AnimatedMedia({
       </div>
       {enabled && duration > 0 && (
         <FrameTimeline
+          bounds={timelineBounds}
           duration={duration}
           time={time}
           samples={samples}

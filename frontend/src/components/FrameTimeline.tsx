@@ -3,6 +3,7 @@ import { HOLD_DURATION_MS } from "./gestureSettings";
 import { HoldIndicator } from "./HoldIndicator";
 import type { MediaSample } from "./mediaSamples";
 type Props = {
+  bounds?: { left: number; width: number };
   duration: number;
   time: number;
   samples: MediaSample[];
@@ -12,6 +13,7 @@ type Props = {
   onSelect: (sample: MediaSample) => void;
 };
 export function FrameTimeline({
+  bounds,
   duration,
   time,
   samples,
@@ -25,6 +27,8 @@ export function FrameTimeline({
     pointer: number; x: number; y: number; mode: "pending" | "scrub" | "pull" | "done";
   } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const checkpointPress = useRef<{ pointer: number; x: number; y: number } | null>(null);
+  const checkpointTouchClick = useRef<string | null>(null);
   const capture = useRef(onCapture);
   capture.current = onCapture;
   const [holding, setHolding] = useState(false);
@@ -37,11 +41,13 @@ export function FrameTimeline({
   }, []);
   const cancel = useCallback(() => {
     gesture.current = null;
+    checkpointPress.current = null;
     stopHold();
   }, [stopHold]);
   useEffect(() => {
     const outsidePointer = (event: globalThis.PointerEvent) => {
-      if (gesture.current && event.pointerId !== gesture.current.pointer) cancel();
+      const pointer = gesture.current?.pointer ?? checkpointPress.current?.pointer;
+      if (pointer !== undefined && event.pointerId !== pointer) cancel();
     };
     window.addEventListener("blur", cancel);
     window.addEventListener("scroll", cancel, true);
@@ -131,7 +137,7 @@ export function FrameTimeline({
     }
   };
   return (
-    <div className="frame-timeline-wrap">
+    <div className="frame-timeline-wrap" style={bounds ? { marginLeft: bounds.left, width: bounds.width } : undefined}>
       <div
         ref={track}
         className="frame-timeline"
@@ -150,6 +156,11 @@ export function FrameTimeline({
         onKeyDown={keyboard}
       >
         <div className="frame-track" />
+        <span
+          className={`frame-position${holding ? " is-holding" : ""}`}
+          style={{ left: `${duration ? (time / duration) * 100 : 0}%` }}
+          aria-hidden="true"
+        />
         {samples
           .filter(
             (sample) => sample.kind === "frame" && sample.timestamp_ms != null,
@@ -163,13 +174,47 @@ export function FrameTimeline({
                 left: `${duration ? (sample.timestamp_ms! / duration) * 100 : 0}%`,
               }}
               aria-label={`Frame at ${(sample.timestamp_ms! / 1000).toFixed(2)} seconds, ${sample.state ?? "undecided"}`}
-              onPointerDown={(event) => event.stopPropagation()}
+              onPointerDown={(event) => {
+                event.stopPropagation();
+                if (!event.isPrimary || event.button !== 0) return;
+                checkpointPress.current = null;
+                // Touch selection belongs to the validated release below. Ignore
+                // its compatibility click even if movement/scroll cancels it.
+                // The next primary press resets this for mouse activation.
+                checkpointTouchClick.current = event.pointerType === "touch" ? sample.id : null;
+                if (event.pointerType !== "touch") return;
+                checkpointPress.current = { pointer: event.pointerId, x: event.clientX, y: event.clientY };
+                event.currentTarget.setPointerCapture(event.pointerId);
+              }}
+              onPointerMove={(event) => {
+                const press = checkpointPress.current;
+                if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > 10)
+                  checkpointPress.current = null;
+              }}
+              onPointerUp={(event) => {
+                const press = checkpointPress.current;
+                checkpointPress.current = null;
+                if (event.pointerType !== "touch" || !press || press.pointer !== event.pointerId) return;
+                const hit = document.elementFromPoint(event.clientX, event.clientY);
+                if (!hit || !event.currentTarget.contains(hit) ||
+                    Math.hypot(event.clientX - press.x, event.clientY - press.y) > 10) return;
+                // Browsers can suppress the compatibility click after scrubbing.
+                // Select a stationary touch on release; keep mouse/keyboard clicks.
+                event.stopPropagation();
+                event.preventDefault();
+                onSelect(sample);
+              }}
+              onPointerCancel={() => { checkpointPress.current = null; }}
+              onLostPointerCapture={() => { checkpointPress.current = null; }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ")
                   event.stopPropagation();
               }}
               onClick={(event) => {
                 event.stopPropagation();
+                const touch = checkpointTouchClick.current;
+                checkpointTouchClick.current = null;
+                if (event.detail !== 0 && touch === sample.id) return;
                 onSelect(sample);
               }}
             />

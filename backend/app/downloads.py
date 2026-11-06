@@ -382,7 +382,7 @@ async def control(job_id: int, action: str, body: schemas.Mutation, request: Req
             await conn.execute(
                 "UPDATE jobs SET status='cancelled',lease_until=NULL,updated_at=? WHERE id=?", (time.time(), job_id)
             )
-        elif job["status"] in {"failed", "cancelled"}:
+        elif job["status"] in {"failed", "cancelled"} or (job["status"] == "pending" and job["error"]):
             # A running cancelled transfer must relinquish its destination before retry.
             if job_id in request.app.state.workers.active_downloads:
                 raise HTTPException(409, "Cancellation is finishing; retry shortly")
@@ -405,7 +405,7 @@ async def control(job_id: int, action: str, body: schemas.Mutation, request: Req
                 await conn.execute("UPDATE jobs SET job_key=? WHERE id=?",
                                    (f"library:{payload['post_id']}:{payload['version']}", job_id))
             await conn.execute(
-                "UPDATE jobs SET status='pending',attempts=0,available_at=?,error=NULL,payload_json=?,updated_at=? WHERE id=?",
+                "UPDATE jobs SET status='pending',attempts=0,available_at=?,lease_until=NULL,error=NULL,progress_bytes=0,total_bytes=NULL,payload_json=?,updated_at=? WHERE id=?",
                 (time.time(), json.dumps(payload), time.time(), job_id),
             )
         if action != "delete":

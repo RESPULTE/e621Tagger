@@ -44,7 +44,9 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
           : (detail?.message ??
             (Array.isArray(detail)
               ? detail.map((item: { msg: string }) => item.msg).join("; ")
-              : `Request failed (${response.status})`));
+              : response.status === 413
+                ? "The upload is too large for the server. Check the frame upload limit and try again."
+                : `Request failed (${response.status})`));
       if (
         response.status === 401 &&
         !["/auth/login", "/auth/session"].includes(path)

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { Candidate } from "../api/client";
 
 const order = [
@@ -12,9 +13,11 @@ const order = [
   "invalid",
 ];
 export function TagSidebar({
+  projectId,
   tags,
   hidden,
 }: {
+  projectId: number;
   tags: Candidate["tags"];
   hidden: boolean;
 }) {
@@ -27,15 +30,13 @@ export function TagSidebar({
           <section key={category}>
             <h3>{category}</h3>
             {tags[category].map((tag) => (
-              <a
+              <Link
                 className={`tag-${category}`}
                 key={tag}
-                href={`https://e621.net/posts?tags=${encodeURIComponent(tag)}`}
-                target="_blank"
-                rel="noreferrer"
+                to={`/projects/${projectId}?${new URLSearchParams({ q: tag })}`}
               >
                 {tag.replaceAll("_", " ")}
-              </a>
+              </Link>
             ))}
           </section>
         ))}

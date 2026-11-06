@@ -104,7 +104,7 @@ class Workers:
             if not row:
                 return None
             await conn.execute(
-                "UPDATE jobs SET status='running',attempts=attempts+1,lease_until=?,updated_at=? WHERE id=?",
+                "UPDATE jobs SET status='running',attempts=attempts+1,error=NULL,lease_until=?,updated_at=? WHERE id=?",
                 (now + 120, now, row["id"]),
             )
             return {**dict(row), "attempts": row["attempts"] + 1}
@@ -151,7 +151,10 @@ class Workers:
                     # Never persist exception strings containing request URLs or credentials.
                     status = exc.status_code if isinstance(exc, HTTPException) else None
                     permanent = status in {400, 403, 404, 409, 413, 415, 422}
-                    failed = permanent or job["attempts"] >= MAX_JOB_ATTEMPTS
+                    is_download = job["type"] in {"library", "dataset_media"}
+                    # Explicit downloads get an initial attempt plus three retries,
+                    # including HTTP errors; cancellation remains terminal.
+                    failed = (permanent and not is_download) or job["attempts"] >= MAX_JOB_ATTEMPTS
                     message = (
                         str(exc.detail) if isinstance(exc, HTTPException) else f"{type(exc).__name__}: operation failed"
                     )
@@ -168,7 +171,7 @@ class Workers:
                             (
                                 "failed" if failed else "pending",
                                 message[:500],
-                                max(time.time() + 2 ** (job["attempts"] + 1), cooldown["until"]),
+                                max(time.time() + (15 if is_download else 2 ** (job["attempts"] + 1)), cooldown["until"]),
                                 time.time(),
                                 job["id"],
                             ),

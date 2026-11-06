@@ -1,45 +1,35 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
-import { HOLD_DURATION_MS } from "./gestureSettings";
+import { useEffect, useId, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, errorText, mutationId } from "../api/client";
 import type { components } from "../api/schema";
 import { QueryInput } from "./QueryInput";
 import { StudioIcon } from "./StudioIcon";
+import mascotNormal from "../assets/project-mascot-normal.png";
+import mascotBlush from "../assets/project-mascot-blush.png";
 import "./ProjectDock.css";
 
 type ProjectPage = components["schemas"]["ProjectList"];
-type Gesture = { x: number; y: number; row: number | null; top: boolean; axis: "x" | "y" | null };
+type Gesture = { x: number; y: number; row: number | null; axis: "x" | "y" | null };
 
-function Fox() {
-  return <svg className="project-dock-fox" viewBox="0 0 100 90" fill="none" aria-hidden="true">
-    <path className="project-dock-tail" d="M57 66C87 78 95 48 87 36c-2 17-18 11-28 20Z" fill="#e8c446" stroke="#020f23" strokeWidth="3" />
-    <path d="M25 71c0-23 44-23 44 0l-3 9H29Z" fill="#366185" stroke="#020f23" strokeWidth="3" />
-    <path d="m19 37 2-29 24 15h13L81 8l-1 29-9 23-22 12-23-13Z" fill="#e8c446" stroke="#020f23" strokeWidth="3" strokeLinejoin="round" />
-    <path d="m25 29 1-12 13 10Zm39-2 12-10-1 13Z" fill="#1f3c67" />
-    <path d="M25 43c11-3 15 7 24 11 10-5 13-15 26-11L67 59 49 67 32 57Z" fill="#e6edf2" />
-    <path d="m44 51 11 0-5 6Z" fill="#020f23" />
-    <path className="project-dock-wink" d="M32 38h5" stroke="#020f23" strokeWidth="4" strokeLinecap="round" />
-    <path d="m62 37 6 2M48 59q5 5 10-1" stroke="#020f23" strokeWidth="3" strokeLinecap="round" />
-    <path d="m35 75 4-8m18 8-3-8" stroke="#e8c446" strokeWidth="4" strokeLinecap="round" />
-  </svg>;
-}
+const teasingLines = ["Someone’s blushing :3", "Caught you staring OwO", "Behave, cutie >w<", "Feeling shy UwU"] as const;
 
 export function ProjectDock({ activeId, activeName, onSelect, onDeleted }: {
-  activeId: number | null; activeName: string; onSelect: (id: number) => void; onDeleted: (id: number) => void;
+  activeId: number | null; activeName: string; onSelect: (id: number | null) => void; onDeleted: (id: number) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [reaction, setReaction] = useState(0);
+  const [blushing, setBlushing] = useState(false);
   const [composing, setComposing] = useState(false);
   const [name, setName] = useState("");
   const [validation, setValidation] = useState("");
   const [revealed, setRevealed] = useState<number | null>(null);
-  const [pull, setPull] = useState(0);
-  const [holding, setHolding] = useState(false);
+  const [tease, setTease] = useState(0);
   const root = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const gesture = useRef<Gesture | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressClick = useRef(false);
   const creating = useRef(false);
   const request = useRef<{ name: string; request_id: string } | null>(null);
@@ -75,23 +65,33 @@ export function ProjectDock({ activeId, activeName, onSelect, onDeleted }: {
     },
   });
 
-  function resetHold() {
-    if (timer.current !== null) clearTimeout(timer.current);
-    timer.current = null;
-    setHolding(false);
-  }
   function endGesture() {
     gesture.current = null;
-    resetHold();
-    setPull(0);
   }
   function close() {
     endGesture();
+    setClosing(true);
     setOpen(false);
+    reactMascot();
     setComposing(false);
     setRevealed(null);
     trigger.current?.focus();
   }
+  function reactMascot() {
+    setReaction((current) => current + 1);
+    setBlushing(true);
+  }
+  useEffect(() => {
+    if (!blushing) return;
+    const timeout = setTimeout(() => setBlushing(false), 680);
+    return () => clearTimeout(timeout);
+  }, [reaction, blushing]);
+  useEffect(() => {
+    if (!closing) return;
+    // Also complete the exit when animation events are suppressed or interrupted.
+    const timeout = setTimeout(() => setClosing(false), 420);
+    return () => clearTimeout(timeout);
+  }, [closing]);
   function showComposer() {
     endGesture();
     setComposing(true);
@@ -100,7 +100,7 @@ export function ProjectDock({ activeId, activeName, onSelect, onDeleted }: {
     suppressClick.current = false;
     if (composing || !(target instanceof Element) || target.closest(".project-dock-trash, .project-dock-reveal")) return;
     const row = target.closest<HTMLElement>("[data-project-id]");
-    gesture.current = { x, y, row: row ? Number(row.dataset.projectId) : null, top: (list.current?.scrollTop ?? 1) <= 0, axis: null };
+    gesture.current = { x, y, row: row ? Number(row.dataset.projectId) : null, axis: null };
   }
   function move(x: number, y: number) {
     const g = gesture.current;
@@ -108,25 +108,12 @@ export function ProjectDock({ activeId, activeName, onSelect, onDeleted }: {
     const dx = x - g.x;
     const dy = y - g.y;
     if (!g.axis && Math.max(Math.abs(dx), Math.abs(dy)) > 9) g.axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+    if (g.axis) suppressClick.current = true;
     if (g.axis === "x" && g.row !== null) {
-      suppressClick.current = true;
       if (dx < -35) setRevealed(g.row);
       else if (dx > 35) setRevealed(null);
       return true;
     }
-    if (g.axis === "y" && g.top && dy > 0) {
-      suppressClick.current = true;
-      setPull(Math.min(dy, 105));
-      if (dy >= 64) {
-        if (timer.current === null) {
-          setHolding(true);
-          timer.current = setTimeout(showComposer, HOLD_DURATION_MS);
-        }
-      } else resetHold();
-      return true;
-    }
-    resetHold();
-    setPull(0);
     return false;
   }
 
@@ -152,7 +139,6 @@ export function ProjectDock({ activeId, activeName, onSelect, onDeleted }: {
       window.removeEventListener("blur", cancel);
       window.removeEventListener("pointerup", cancel);
       document.removeEventListener("visibilitychange", visibility);
-      if (timer.current !== null) clearTimeout(timer.current);
     };
   }, []);
   useEffect(() => {
@@ -175,19 +161,23 @@ export function ProjectDock({ activeId, activeName, onSelect, onDeleted }: {
       element.removeEventListener("touchmove", update);
       element.removeEventListener("touchend", endGesture);
       element.removeEventListener("touchcancel", endGesture);
-      if (timer.current !== null) clearTimeout(timer.current);
-      timer.current = null;
       gesture.current = null;
     };
   }, [open, composing]);
 
+  useEffect(() => {
+    if (!open) return;
+    const interval = setInterval(() => setTease((current) => (current + 1) % teasingLines.length), 6000);
+    return () => clearInterval(interval);
+  }, [open]);
+
   const rows = projects.data?.pages.flatMap((page) => page.items) ?? [];
-  return <div className="project-dock" ref={root} style={{ "--hold-duration": `${HOLD_DURATION_MS}ms` } as CSSProperties}
+  return <div className="project-dock" ref={root}
     onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape" && open) { event.preventDefault(); close(); } }}
     onKeyUp={(event) => event.stopPropagation()} onKeyPress={(event) => event.stopPropagation()}>
-    {open && <section className="project-dock-panel" ref={panel} id={id} role="dialog" aria-label="Projects" tabIndex={-1}>
-      <header className="project-dock-heading"><div><span className="project-dock-kicker">YOUR LITTLE COLLECTION</span><h2>Pick your next obsession.</h2></div><button type="button" aria-label="Close projects" onClick={close}>×</button></header>
-      <div className="project-dock-tools"><p>Pull down & hold to tempt a new project.</p><button type="button" onClick={showComposer}>+ New project</button></div>
+    {(open || closing) && <section className={`project-dock-panel${closing ? " is-closing" : ""}`} ref={panel} id={id} role="dialog" aria-label="Projects" aria-hidden={!open} inert={!open} tabIndex={-1}
+      onAnimationEnd={(event) => { if (event.target === event.currentTarget && closing) setClosing(false); }}>
+      <header className="project-dock-heading"><h2>{teasingLines[tease]}</h2><button type="button" className="project-dock-new" onClick={showComposer}>+ New project</button></header>
       {composing && <form className="project-dock-composer" onSubmit={(event) => {
         event.preventDefault();
         if (creating.current) return;
@@ -213,14 +203,13 @@ export function ProjectDock({ activeId, activeName, onSelect, onDeleted }: {
         onPointerUp={(event) => { if (event.pointerType !== "touch") endGesture(); }}
         onPointerCancel={endGesture} onLostPointerCapture={endGesture}
         onClickCapture={(event) => { if (suppressClick.current) { event.preventDefault(); event.stopPropagation(); suppressClick.current = false; } }}>
-        <div className={`project-dock-pull ${holding ? "is-holding" : ""}`} style={{ height: pull }} aria-hidden="true"><span>{holding ? "Hold… a new idea is hatching." : "A little further…"}</span><i /></div>
         <div className="project-dock-list-content">
           {projects.isPending && <p role="status">Sniffing out your projects…</p>}
           {projects.isError && <p role="alert" className="project-dock-error">{errorText(projects.error)} <button type="button" onClick={() => void projects.refetch()}>Retry loading</button></p>}
           {!projects.isPending && !projects.isError && rows.length === 0 && <p className="project-dock-empty">Nothing tucked away yet. Start with a tag that catches your eye.</p>}
           {rows.map((project) => <div key={project.id} data-project-id={project.id} className={`project-dock-row ${revealed === project.id ? "is-revealed" : ""} ${activeId === project.id ? "is-active" : ""}`}>
             <button type="button" className="project-dock-trash" aria-label={`Delete project ${project.display_name}`} tabIndex={revealed === project.id ? 0 : -1} aria-hidden={revealed !== project.id} disabled={remove.isPending} onClick={() => remove.mutate(project.id)}><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7" /></svg></button>
-            <div className="project-dock-row-front"><button type="button" className="project-dock-select" aria-current={activeId === project.id ? "true" : undefined} onClick={() => { close(); onSelect(project.id); }}>
+            <div className="project-dock-row-front"><button type="button" className="project-dock-select" aria-pressed={activeId === project.id} onClick={() => { close(); onSelect(activeId === project.id ? null : project.id); }}>
               <span className="project-dock-name">{project.display_name}{activeId === project.id && <small>currently collecting</small>}</span><span className="project-dock-counts"><span className="project-dock-positive" aria-label={`${project.positive} positive`}><StudioIcon name="positive" />{project.positive.toLocaleString()}</span><span className="project-dock-negative" aria-label={`${project.negative} negative`}><StudioIcon name="negative" />{project.negative.toLocaleString()}</span><small>{project.total.toLocaleString()} total</small></span>
             </button><button type="button" className="project-dock-reveal" aria-label={`${revealed === project.id ? "Hide" : "Show"} delete action for ${project.display_name}`} aria-expanded={revealed === project.id} onClick={() => setRevealed(revealed === project.id ? null : project.id)}>⋮</button></div>
           </div>)}
@@ -228,8 +217,13 @@ export function ProjectDock({ activeId, activeName, onSelect, onDeleted }: {
         </div>
       </div>
       {remove.isError && <p className="project-dock-error project-dock-delete-error" role="alert">{errorText(remove.error)} <button type="button" onClick={() => remove.mutate(remove.variables!)}>Retry delete</button></p>}
-      <footer>Swipe left for a little spring cleaning.</footer>
     </section>}
-    <button type="button" className={`project-dock-trigger ${open ? "is-open" : ""}`} ref={trigger} aria-label="Projects" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => open ? close() : setOpen(true)}><Fox /><span><small>PROJECTS</small><strong>{activeId === null ? "Find your fixation" : activeName}</strong></span><span className="project-dock-chevron" aria-hidden="true">{open ? "⌄" : "⌃"}</span></button>
+    <button type="button" className="project-dock-trigger" ref={trigger} title={activeId === null ? "Find your fixation" : activeName} aria-label="Projects" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => {
+      if (open) close();
+      else { setClosing(false); setOpen(true); reactMascot(); }
+    }}><span key={reaction} className={`project-dock-mascot${blushing ? " is-blushing" : ""}`} aria-hidden="true">
+      <img src={mascotNormal} alt="" className="project-dock-mascot-normal" draggable={false} />
+      <img src={mascotBlush} alt="" className="project-dock-mascot-blush" draggable={false} />
+    </span></button>
   </div>;
 }

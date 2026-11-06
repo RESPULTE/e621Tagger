@@ -33,7 +33,7 @@ import {
 } from "../components/Similarity";
 import { Downloads } from "./Downloads";
 
-export function Project() {
+export function Project({ canReview }: { canReview: boolean }) {
   const projectId = Number(useParams().id);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
@@ -207,10 +207,10 @@ export function Project() {
       const state = (
         { "1": "positive", "2": "negative" } as const
       )[event.key as "1"];
-      if (state) {
+      if (state && canReview) {
         event.preventDefault();
         void reviews.edit(projectId, [focusedPost], focusedPost.state === state ? null : state);
-      } else if (event.key.toLowerCase() === "z") {
+      } else if (event.key.toLowerCase() === "z" && canReview) {
         event.preventDefault();
         void reviews.undoLast(projectId, focusedPost);
       } else if (event.key === "Enter") {
@@ -389,13 +389,23 @@ export function Project() {
                       aria-label={`Label filter: ${labelFilter}`}
                       title={`Labels: ${labelFilter}. Show ${labelFilter === "all" ? "positive" : labelFilter === "positive" ? "negative" : "all"} images`}
                       onClick={() => cycleFilter("label", ["all", "positive", "negative"], labelFilter)}
-                    ><StudioIcon name={labelFilter === "all" ? "all" : labelFilter === "positive" ? "positive" : "negative"} /></button>
+                    >
+                      <span className="tagged-filter-icon" aria-hidden="true">
+                        {labelFilter === "all" ? ">w<" : <StudioIcon name={labelFilter === "positive" ? "positive" : "negative"} />}
+                      </span>
+                      <span>Tag status</span>
+                    </button>
                     <button
                       className={`tagged-filter filter-${favoriteFilter}`}
                       aria-label={`Favourite filter: ${favoriteFilter}`}
                       title={`Favourites: ${favoriteFilter}. Show ${favoriteFilter === "all" ? "favourited" : favoriteFilter === "favourited" ? "unfavourited" : "all"} images`}
                       onClick={() => cycleFilter("favorite", ["all", "favourited", "unfavourited"], favoriteFilter)}
-                    ><StudioIcon name={favoriteFilter === "all" ? "all" : "paw"} /></button>
+                    >
+                      <span className="tagged-filter-icon" aria-hidden="true">
+                        {favoriteFilter === "all" ? ">w<" : <StudioIcon name="paw" />}
+                      </span>
+                      <span>Favourite</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -522,7 +532,7 @@ export function Project() {
                                     : (state ?? "")}
                                 </span>
                               </div>
-                              <div className="quick-labels">
+                              {canReview && <div className="quick-labels">
                                 {(
                                   ["positive", "negative"] as const
                                 ).map((value) => (
@@ -543,7 +553,7 @@ export function Project() {
                                     <StudioIcon name={value} />
                                   </button>
                                 ))}
-                              </div>
+                              </div>}
                             </article>
                           );
                         })}
