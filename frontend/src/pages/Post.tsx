@@ -12,6 +12,7 @@ import {
 import { ReviewButtons, useReviews } from "../components/Reviews";
 import { TagSidebar } from "../components/TagSidebar";
 import { artistName } from "../components/artworkName";
+import { PoolNavigation } from "../components/PoolNavigation";
 import { ProgressiveImage } from "../components/ProgressiveImage";
 import { AnimatedMedia } from "../components/AnimatedMedia";
 import { useMediaSamples, type MediaSample } from "../components/mediaSamples";
@@ -20,6 +21,7 @@ import type { SimilarSearch } from "../components/Similarity";
 
 type NavigationState = {
   ids?: number[];
+  poolId?: number;
   gallery?: string;
   similarity?: Candidate["similarity"];
 };
@@ -89,6 +91,10 @@ export function Post({ canReview }: { canReview: boolean }) {
         }
       : navigation.similarity;
   const post = query.data ? { ...query.data, similarity: context } : undefined;
+  // A hidden or deleted member may no longer report its pools. Keep the
+  // collection the user is stepping through available at that position.
+  const pools = new Set(post?.pools);
+  if (navigation.poolId && (!post || post.unavailable)) pools.add(navigation.poolId);
   const samples = useMediaSamples(projectId, post);
   useEffect(() => {
     setFocused((current) => {
@@ -194,6 +200,10 @@ export function Post({ canReview }: { canReview: boolean }) {
             Next / skip →
           </button>
         </div>
+        {Array.from(pools, poolId => (
+          <PoolNavigation key={poolId} poolId={poolId} postId={currentId} projectId={projectId}
+            gallery={gallery} ids={navigation.ids} />
+        ))}
         <header className="artwork-heading">
           <div>
             {canReview && <span className="eyebrow">

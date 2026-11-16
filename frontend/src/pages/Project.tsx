@@ -6,7 +6,11 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Link,
@@ -30,6 +34,7 @@ import {
   useSimilarity,
   similarityCandidates,
 } from "../components/Similarity";
+import { FavoritePool } from "../components/FavoritePool";
 import { Downloads } from "./Downloads";
 
 const scrollPositions = new Map<string, { offset: number; expires: number }>();
@@ -117,6 +122,7 @@ export function Project({ canReview }: { canReview: boolean }) {
     gcTime: 5 * 60_000,
     retry: false,
   });
+  const poolId = candidates.data?.pages[0]?.pool_id;
   const items =
     tab === "similarity"
       ? similarityCandidates(similarity.detail.error ? undefined : similarity.detail.data)
@@ -407,15 +413,22 @@ export function Project({ canReview }: { canReview: boolean }) {
                   }}
                 />
               ) : tab === "query" ? (
-                <form className="additional-search" onSubmit={search}>
-                  <QueryInput
-                    label="Discovery query"
-                    value={draft ?? query}
-                    onChange={setDraft}
-                    placeholder="Search e621…"
-                  />
-                  <button disabled={!(draft ?? query).trim()}>Search</button>
-                </form>
+                <div className="query-search-tools">
+                  <form className="additional-search" onSubmit={search}>
+                    <QueryInput
+                      label="Discovery query"
+                      value={draft ?? query}
+                      onChange={setDraft}
+                      placeholder="Search e621…"
+                    />
+                    <button type="submit" disabled={!(draft ?? query).trim()}>
+                      Search
+                    </button>
+                  </form>
+                  {poolId != null && (draft === null || draft.trim() === query.trim()) && (
+                    <FavoritePool key={poolId} poolId={poolId} openDownloads={() => switchTab("downloads")} />
+                  )}
+                </div>
               ) : (
                 <div className="tagged-actions">
                   <span>{candidates.data?.pages[0]?.total ?? 0} reviewed</span>

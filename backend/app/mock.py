@@ -9,6 +9,8 @@ from pathlib import Path
 import httpx
 from PIL import Image, ImageDraw
 
+DEMO_POOL = {"id": 1, "name": "Studio_demo_collection", "post_ids": [999, 997, 1000]}
+
 
 @lru_cache(maxsize=256)
 def artwork(post_id: int, preview=False):
@@ -51,6 +53,7 @@ def post(post_id, *, checksummed=True):
     gif = post_id == 1005
     return {
         "id": post_id,
+        "pools": [1] if post_id in DEMO_POOL["post_ids"] else [],
         "rating": ["s", "q", "e"][post_id % 3],
         "created_at": "2026-10-01T10:00:00Z",
         "score": {"total": post_id % 200, "up": post_id % 200 + 5, "down": -5},
@@ -85,6 +88,11 @@ def post(post_id, *, checksummed=True):
 def transport(request):
     path, params = request.url.path, request.url.params
     if request.url.host == "e621.net":
+        if path == "/pools.json":
+            name = params.get("search[name_matches]", "")
+            return httpx.Response(200, json=[DEMO_POOL] if name.casefold() == DEMO_POOL["name"].casefold() else [])
+        if path.startswith("/pools/"):
+            return httpx.Response(200, json=DEMO_POOL) if path == "/pools/1.json" else httpx.Response(404)
         if path == "/tags/autocomplete.json":
             term = params.get("search[name_matches]", "")
             tags = [

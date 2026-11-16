@@ -2283,6 +2283,88 @@
         }
       }
     },
+    "/api/pools/{pool_id}": {
+      "get": {
+        "summary": "Pool Detail",
+        "operationId": "pool_detail_api_pools__pool_id__get",
+        "parameters": [
+          {
+            "name": "pool_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Pool Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pool"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pools/{pool_id}/favorite": {
+      "post": {
+        "summary": "Favorite Pool",
+        "operationId": "favorite_pool_api_pools__pool_id__favorite_post",
+        "parameters": [
+          {
+            "name": "pool_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 9223372036854775807,
+              "exclusiveMinimum": 0,
+              "title": "Pool Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoolFavoriteResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/datasets/{dataset_id}/media": {
       "post": {
         "summary": "Queue Export",
@@ -2698,6 +2780,13 @@
       },
       "Candidate": {
         "properties": {
+          "pools": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Pools"
+          },
           "sample_summary": {
             "$ref": "#/components/schemas/SampleSummary"
           },
@@ -2895,6 +2984,17 @@
       },
       "CandidatePage": {
         "properties": {
+          "pool_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pool Id"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/Candidate"
@@ -3542,6 +3642,55 @@
           "request_id"
         ],
         "title": "Mutation"
+      },
+      "Pool": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "post_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Post Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "post_ids"
+        ],
+        "title": "Pool"
+      },
+      "PoolFavoriteResult": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "queued": {
+            "type": "integer",
+            "title": "Queued"
+          },
+          "saved": {
+            "type": "integer",
+            "title": "Saved"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "queued",
+          "saved"
+        ],
+        "title": "PoolFavoriteResult"
       },
       "ProjectCreate": {
         "properties": {

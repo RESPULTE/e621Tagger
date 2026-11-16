@@ -23,6 +23,7 @@ from .media import Media
 from .media_samples import router as media_samples_router
 from .mock import SyntheticImageSearch
 from .mock import transport as mock_transport
+from .pools import router as pools_router
 from .processing_machine import ProcessingMachine
 from .processing_machine import router as processing_machine_router
 from .similarity import Similarity
@@ -162,6 +163,7 @@ await self.registration.unregister();for(const client of await self.clients.matc
     app.include_router(similarity_router)
     app.include_router(processing_machine_router)
     app.include_router(library_router)
+    app.include_router(pools_router)
     app.include_router(downloads_router)
 
     @app.get("/{path:path}")

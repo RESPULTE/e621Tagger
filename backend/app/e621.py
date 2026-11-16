@@ -146,6 +146,23 @@ class E621:
                 self.inflight.pop(key, None)
                 self.queue.task_done()
 
+    async def named_pool(self, name):
+        rows = await self.request("/pools.json", {"search[name_matches]": name, "limit": 100})
+        if not isinstance(rows, list):
+            raise HTTPException(502, "Invalid upstream pool search")
+        for row in rows:
+            if isinstance(row, dict) and str(row.get("name", "")).casefold() == name.casefold():
+                return await self.pool(row["id"])
+        return None
+
+    async def pool(self, pool_id):
+        pool = await self.request(f"/pools/{pool_id}.json")
+        if (not isinstance(pool, dict) or pool.get("id") != pool_id or not isinstance(pool.get("name"), str)
+                or not isinstance(pool.get("post_ids"), list)
+                or any(type(i) is not int or not 0 < i < 2**63 for i in pool["post_ids"])):
+            raise HTTPException(502, "Invalid upstream pool")
+        return {"id": pool_id, "name": pool["name"], "post_ids": list(dict.fromkeys(pool["post_ids"]))}
+
     async def cache_tags(self, tags):
         now = time.time()
         async with self.db.transaction() as conn:

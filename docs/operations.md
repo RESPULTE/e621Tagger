@@ -109,3 +109,17 @@ Schema v6 and the image-only worker must be released with a verified backup and 
 `python -m backend.migrate_favourites --data-root /data --library-root /library --report /data/backups/favourite-inbox-migration.json --apply` requires the application to be stopped: it takes the same exclusive database process lock. Without `--apply` it validates and describes the plan. It verifies every Studio-owned original/sidecar and rejects destination collisions, hard-links originals into the existing same-filesystem Inbox, updates only their ownership manifests, removes the verified old names and deletes owned JSON/TXT/XMP sidecars. The fsynced report makes interrupted moves resumable. It never selects files by a broad extension glob. Manual/replaced files and review/dataset records are preserved.
 
 The current deployment uses host `/media/vector/jellyfin-data/Inbox`, visible as `/existing-adult/Inbox` through Nextcloud furry's Inbox mount and within Stash's `/media/vector/jellyfin-data` library root. Nextcloud's service maps to host UID1000; Studio runs as UID10001. Keep their existing permissions, adding only the Inbox access Studio requires. Older code that ignores recorded destinations cannot safely manage migrated favourites: any rollback must restore both paths and ownership records together.
+
+## e621 pool albums
+
+In a post viewer, select a pool name to open its ordered Query gallery. The arrows beside the name step through the pool independently of the current search results. **Favourite pool** queues every member of an exact `pool:<id>` or `pool:<name>` search. Downloads shows the status of individual originals. Repeating the action retries failed members and reuses existing saves.
+
+Studio stores each album under `<library root>/pool/Pool-<id>/`. Filenames begin with the member’s position when saved. A post shared by multiple pools uses hard links. Removing its global favourite removes its Studio-owned album entries too.
+
+For automatic Stashy albums, point Studio at the Stash instance used by the client and configure these server environment variables in the library Compose override:
+
+- `STUDIO_STASH_URL` is the Stash base URL reachable from the Studio container.
+- `STUDIO_STASH_API_KEY` is a Stash API key with scan and gallery permissions.
+- `STUDIO_STASH_LIBRARY_PATH` is the path to the shared collection **as Stash sees it**. The existing installation uses `/media/vector/jellyfin-data`. The Stash service needs read access to the pool directory and its files.
+
+After publication, Studio queues a scoped Stash scan and associates indexed images and video scenes with the same gallery. Open **Galleries** in Stashy to view it. Stash indexing runs separately from the media download. Repeating **Favourite pool** also schedules another indexing pass. With the Stash connection unset, Studio writes the native `.forcegallery` marker so an ordinary Stash library scan can group images by folder. Mixed-media and video-only albums use the configured API connection.

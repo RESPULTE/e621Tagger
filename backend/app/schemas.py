@@ -116,7 +116,20 @@ class SampleSummary(BaseModel):
     total: int = 0
 
 
+class Pool(BaseModel):
+    id: int
+    name: str
+    post_ids: list[int]
+
+
+class PoolFavoriteResult(BaseModel):
+    total: int
+    queued: int
+    saved: int
+
+
 class Candidate(BaseModel):
+    pools: list[int] = Field(default_factory=list)
     sample_summary: SampleSummary = Field(default_factory=SampleSummary)
     similarity: SimilarityContext | None = None
     post_id: int
@@ -143,6 +156,7 @@ class Candidate(BaseModel):
 
 
 class CandidatePage(BaseModel):
+    pool_id: int | None = None
     items: list[Candidate]
     next_cursor: str | None
     total: int

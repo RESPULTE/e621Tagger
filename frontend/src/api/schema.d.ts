@@ -723,6 +723,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pools/{pool_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pool Detail */
+        get: operations["pool_detail_api_pools__pool_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pools/{pool_id}/favorite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Favorite Pool */
+        post: operations["favorite_pool_api_pools__pool_id__favorite_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/datasets/{dataset_id}/media": {
         parameters: {
             query?: never;
@@ -887,6 +921,8 @@ export interface components {
         };
         /** Candidate */
         Candidate: {
+            /** Pools */
+            pools?: number[];
             sample_summary?: components["schemas"]["SampleSummary"];
             similarity?: components["schemas"]["SimilarityContext"] | null;
             /** Post Id */
@@ -943,6 +979,8 @@ export interface components {
         };
         /** CandidatePage */
         CandidatePage: {
+            /** Pool Id */
+            pool_id?: number | null;
             /** Items */
             items: components["schemas"]["Candidate"][];
             /** Next Cursor */
@@ -1198,6 +1236,24 @@ export interface components {
              * Format: uuid
              */
             request_id: string;
+        };
+        /** Pool */
+        Pool: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Post Ids */
+            post_ids: number[];
+        };
+        /** PoolFavoriteResult */
+        PoolFavoriteResult: {
+            /** Total */
+            total: number;
+            /** Queued */
+            queued: number;
+            /** Saved */
+            saved: number;
         };
         /** ProjectCreate */
         ProjectCreate: {
@@ -3038,6 +3094,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SaveState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pool_detail_api_pools__pool_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pool_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Pool"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    favorite_pool_api_pools__pool_id__favorite_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pool_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PoolFavoriteResult"];
                 };
             };
             /** @description Validation Error */

@@ -22,12 +22,18 @@ from fastapi import Path as APIPath
 from backend.filesystem import cancel_and_join, disk, sync_directory
 
 from . import auth, schemas
-from .jobs import enqueue
+from .jobs import enqueue, persist_post, queue_album
 from .reviews import fingerprint, receipt, save_receipt
+from .stash_albums import pool_directory
 
 router = APIRouter(prefix="/api", dependencies=[Depends(auth.require_session)])
 PositiveId = Annotated[int, APIPath(gt=0, le=2**63 - 1)]
 EXTENSIONS = {"jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "webm", "mp4"}
+ACTIVE_SAVE_STATUSES = {"queued", "downloading", "publishing", "retrying", "saved"}
+
+
+def pool_filename(base, pool_id, position):
+    return f"{position:06}_p{pool_id}_{base}"
 
 
 def state(post_id, row=None):
@@ -51,9 +57,8 @@ async def queue_intent(conn, post_id, version, wanted, *, source=None, context=N
     )
     # Superseded queued work must not delay the intent that cancels it.
     await conn.execute(
-        "UPDATE jobs SET status='done',result_json=? WHERE type='library' AND status='pending' "
-        "AND json_extract(payload_json,'$.post_id')=?",
-        (json.dumps({"outcome": "superseded"}), post_id),
+        "UPDATE jobs SET status='done',result_json=? WHERE job_key=? AND status='pending'",
+        (json.dumps({"outcome": "superseded"}), f"library:{post_id}:{version - 1}"),
     )
     return await enqueue(conn, "library", f"library:{post_id}:{version}", {
         **(context or {}), "post_id": post_id, "version": version, "source": source,
@@ -110,20 +115,40 @@ class Library:
             else "Smut folder is offline or not configured. Review remains available.",
         }
 
-    def destination(self, record=None):
+    def destination(self, record=None, *, create=False):
         # The collection marker/identity stays at its mounted root. Each file
         # manifest records its destination so enabling Inbox preserves older
         # top-level saves and their deletion/recovery paths.
         directory = record.get("directory", "") if record is not None else self.settings.library_subdirectory
-        if not isinstance(directory, str) or (directory and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,99}", directory)):
-            raise conflict("Saved destination is invalid; files were preserved")
         if self.root is None:
             raise HTTPException(409, "Smut folder saving is not configured")
-        destination = self.root / directory
-        if not destination.is_dir() or self.root.is_symlink() or destination.is_symlink():
+        if not isinstance(directory, str) or not re.fullmatch(
+            r"(?:[A-Za-z0-9][A-Za-z0-9_-]{0,99}|pool/Pool-[1-9][0-9]*)?", directory
+        ):
+            raise conflict("Saved destination is invalid; files were preserved")
+        destination = self.root
+        if not destination.is_dir() or destination.is_symlink():
             raise HTTPException(503, "Save destination is missing or unsafe; existing files were preserved")
-        if destination.stat().st_dev != self.root.stat().st_dev:
-            raise HTTPException(409, "Save destination must share the collection filesystem")
+        device = destination.stat().st_dev
+        create_album = create and directory.startswith("pool/")
+        for part in Path(directory).parts:
+            destination = destination / part
+            if create_album and not destination.is_symlink():
+                destination.mkdir(exist_ok=True)
+            if destination.is_symlink() or not destination.is_dir():
+                raise HTTPException(503, "Save destination is missing or unsafe; existing files were preserved")
+            if destination.stat().st_dev != device:
+                raise conflict("Save destination must share the collection filesystem")
+        if create_album:
+            # Folder markers are native Stash scan controls. The API bridge
+            # builds one named gallery covering both scenes and images.
+            marker = destination / (".nogallery" if self.settings.stash_url else ".forcegallery")
+            try:
+                marker.open("xb").close()
+                sync_directory(destination)
+            except FileExistsError:
+                if not regular(marker):
+                    raise conflict("Pool gallery marker is unsafe") from None
         return destination
 
     async def prepare_root(self):
@@ -237,8 +262,13 @@ class Library:
                     await self.clear_staging_journal(conn, record["token"])
             await self.finish(job, post_id, version, "idle")
             return
+        albums = payload.get("albums", {})
         if record:
             if await disk(self.recover_for_save, record):
+                if self.add_album_links(record, albums):
+                    async with self.db.transaction() as conn:
+                        await conn.execute("UPDATE saved_media SET record_json=? WHERE post_id=?",
+                                           (json.dumps(record), post_id))
                 await self.publish(record)
                 await self.finish(job, post_id, version, "saved")
                 return
@@ -250,20 +280,28 @@ class Library:
                 await self.clear_staging_journal(conn, record["token"])
         await self.clean_staging(job["id"])
         await self.set_status(post_id, version, "downloading")
-        snapshot = payload.get("source") or await self.db.one("SELECT * FROM posts WHERE post_id=?", (post_id,))
+        snapshot = payload.get("source")
+        if not albums and snapshot is None:
+            snapshot = await self.db.one("SELECT * FROM posts WHERE post_id=?", (post_id,))
         post = (await self.source.request(f"/posts/{post_id}.json", background=True))["post"]
         file = post.get("file") or {}
         md5, ext = file.get("md5", ""), file.get("ext", "")
-        if post.get("id") != post_id or not re.fullmatch("[a-f0-9]{32}", md5) or ext not in EXTENSIONS:
+        if post.get("id") != post_id or not re.fullmatch("[a-f0-9]{32}", md5 or "") or ext not in EXTENSIONS:
             raise HTTPException(415, "This post has no supported checksummed original")
         if post.get("flags", {}).get("deleted") or not file.get("url"):
             raise HTTPException(404, "Original is unavailable")
-        if md5 != snapshot["md5"] or file["url"] != snapshot["file_url"]:
+        if snapshot and (md5 != snapshot["md5"] or file["url"] != snapshot["file_url"]):
             raise conflict("Post original changed since this view; refresh before saving")
         self.media.validate_url(file["url"])
         directory = self.settings.library_subdirectory
-        destination = self.destination({"directory": directory})
         base = f"e621_{post_id}_{md5}"
+        if albums:
+            async with self.db.transaction() as conn:
+                await persist_post(conn, post)
+            pool_id, position = next(iter(albums.items()))
+            directory = pool_directory(pool_id)
+            base = pool_filename(base, pool_id, position)
+        destination = self.destination({"directory": directory}, create=True)
         names = [base + "." + ext]
         if any((destination / name).exists() or (destination / name).is_symlink() for name in names):
             raise conflict("A matching filename already exists; Studio will not overwrite or adopt it")
@@ -296,6 +334,7 @@ class Library:
             record = {"schema_version": 1, "root_id": root_id, "token": token, "files": entries, "original": names[0]}
             if directory:
                 record["directory"] = directory
+            self.add_album_links(record, albums)
             async with self.db.transaction() as conn:
                 current = await (
                     await conn.execute("SELECT version,wanted,status FROM saved_media WHERE post_id=?", (post_id,))
@@ -411,12 +450,32 @@ class Library:
             for name in names
         ]
 
+    def add_album_links(self, record, albums):
+        original = next(entry for entry in record["files"] if entry["name"] == record["original"])
+        directories = {entry.get("directory", record.get("directory")) for entry in record["files"]}
+        changed = False
+        for pool_id, position in albums.items():
+            directory = pool_directory(pool_id)
+            if directory in directories:
+                continue
+            folder = self.destination({"directory": directory}, create=True)
+            base = original["name"][original["name"].index("e621_"):]
+            name = pool_filename(base, pool_id, position)
+            if (folder / name).exists() or (folder / name).is_symlink():
+                raise conflict("An album filename already exists; Studio will not overwrite or adopt it")
+            record["files"].append({**original, "directory": directory, "name": name})
+            changed = True
+        return changed
+
+    def entry_path(self, record, entry):
+        return self.destination(entry if "directory" in entry else record) / entry["name"]
+
     def paths(self, record):
         if not re.fullmatch("[a-f0-9]{32}", record["token"]):
             raise conflict()
         for entry in record["files"]:
             if not re.fullmatch(
-                r"e621_[1-9][0-9]*_[a-f0-9]{32}\.(jpg|jpeg|png|gif|webp|avif|bmp|webm|mp4|json|txt|xmp)", entry["name"]
+                r"(?:[0-9]{6,}_p[1-9][0-9]*_)?e621_[1-9][0-9]*_[a-f0-9]{32}\.(jpg|jpeg|png|gif|webp|avif|bmp|webm|mp4|json|txt|xmp)", entry["name"]
             ):
                 raise conflict()
         stage = self.root / ".hydra-studio-tmp" / record["token"]
@@ -439,17 +498,18 @@ class Library:
 
     def publish_files(self, record):
         stage = self.paths(record)
-        root = self.destination(record)
         # Hard-linking never replaces another file, even if one appears
         # after the preflight. Older multi-file journals remain recoverable.
-        entries = sorted(record["files"], key=lambda entry: entry["name"] == record["original"])
+        entries = sorted(record["files"], key=lambda entry: ("directory" in entry, entry["name"] == record["original"]))
         for entry in entries:
-            destination = root / entry["name"]
+            destination = self.entry_path(record, entry)
             if destination.exists() or destination.is_symlink():
                 self.verify(destination, entry)
                 continue
             source = stage / entry["name"]
-            if not source.exists():
+            if "directory" in entry:
+                source = self.destination(record) / record["original"]
+            elif not source.exists():
                 source = stage / (".remove-" + entry["name"])
             self.verify(source, entry)
             try:
@@ -459,25 +519,25 @@ class Library:
             except OSError:
                 raise HTTPException(507, "Smut folder could not safely publish the saved files") from None
 
-        sync_directory(root)
+        for directory in {self.entry_path(record, e).parent for e in record["files"]}:
+            sync_directory(directory)
 
     def remove_files(self, record):
         stage = self.paths(record)
-        root = self.destination(record)
         stage.mkdir(mode=0o700, exist_ok=True)
         sync_directory(stage.parent)
         # Check everything before starting. Quarantine each name atomically,
         # then recheck its identity: unlinking a verified pathname directly can
         # delete an external replacement made between verification and unlink.
         for entry in record["files"]:
-            destination = root / entry["name"]
+            destination = self.entry_path(record, entry)
             quarantine = stage / (".remove-" + entry["name"])
             if quarantine.exists() or quarantine.is_symlink():
                 self.verify(quarantine, entry)
             if destination.exists() or destination.is_symlink():
                 self.verify(destination, entry)
         for entry in record["files"]:
-            destination = root / entry["name"]
+            destination = self.entry_path(record, entry)
             quarantine = stage / (".remove-" + entry["name"])
             if quarantine.exists():
                 # A crash after quarantine but before acknowledgement resumes
@@ -498,7 +558,7 @@ class Library:
                 try:
                     os.link(quarantine, destination, follow_symlinks=False)
                     quarantine.unlink()
-                    sync_directory(root)
+                    sync_directory(destination.parent)
                     sync_directory(stage)
                 except OSError:
                     raise conflict(
@@ -507,24 +567,27 @@ class Library:
                 raise
         # Make removal of visible names durable before deleting recovery links
         # or clearing the database manifest. Missing files are already removed.
-        sync_directory(root)
+        for directory in {self.entry_path(record, e).parent for e in record["files"]}:
+            sync_directory(directory)
         sync_directory(stage)
         self.clean_record_stage(record)
 
     def recover_for_save(self, record):
         stage = self.paths(record)
-        root = self.destination(record)
         complete = True
         for entry in record["files"]:
             present = False
             for path in (
-                root / entry["name"],
+                self.entry_path(record, entry),
                 stage / entry["name"],
                 stage / (".remove-" + entry["name"]),
             ):
                 if path.exists() or path.is_symlink():
                     self.verify(path, entry)
                     present = True
+            if not present and "directory" in entry:
+                # An interrupted publication can recreate this link from the original.
+                present = regular(self.destination(record) / record["original"]) or regular(stage / record["original"])
             complete = complete and present
         if not complete:
             self.remove_files(record)
@@ -583,6 +646,11 @@ class Library:
                 )
             await self.done_job(conn, job, status)
             if status == "saved":
+                if self.settings.stash_url:
+                    payload = json.loads(job["payload_json"])
+                    for pool_id in payload.get("albums", {}):
+                        await queue_album(conn, pool_id, (payload.get("display") or {}).get("search_tag")
+                                          if len(payload["albums"]) == 1 else None)
                 if snapshot and snapshot["record_json"]:
                     await self.clear_staging_journal(conn, json.loads(snapshot["record_json"])["token"])
                 await conn.execute("DELETE FROM download_partials WHERE job_id=?", (job["id"],))
@@ -608,7 +676,6 @@ async def saved_state(post_id: PositiveId, request: Request):
 @router.put("/projects/{project_id}/library/{post_id}", response_model=schemas.SaveState)
 async def set_saved(project_id: PositiveId, post_id: PositiveId, body: schemas.SaveMutation, request: Request):
     db = request.app.state.db
-    from .jobs import persist_post
     from .projects import require_active_project, require_project
 
     project = await require_project(db, project_id)
@@ -645,7 +712,7 @@ async def set_saved(project_id: PositiveId, post_id: PositiveId, body: schemas.S
             body.wanted
             and old
             and old["wanted"]
-            and old["status"] in {"queued", "downloading", "publishing", "retrying", "saved"}
+            and old["status"] in ACTIVE_SAVE_STATUSES
         ):
             if body.source_md5 and old["record_json"]:
                 original = json.loads(old["record_json"])["original"]

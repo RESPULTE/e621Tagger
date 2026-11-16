@@ -4,8 +4,12 @@ import asyncio
 import json
 import logging
 import time
+from uuid import uuid4
 
 from fastapi import HTTPException
+
+from .feed import post_row
+from .stash_albums import sync_album
 
 logger = logging.getLogger(__name__)
 MAX_JOB_ATTEMPTS = 4
@@ -30,32 +34,32 @@ async def enqueue(conn, job_type, key, payload):
     return cursor.lastrowid
 
 
+async def queue_album(conn, pool_id, name=None):
+    # A completion arriving during a scan needs another pass. Coalesce all
+    # other completions into the single pending pass for this pool.
+    pending = await (await conn.execute(
+        "SELECT id FROM jobs WHERE type='stash_pool' AND status='pending' "
+        "AND json_extract(payload_json,'$.pool_id')=?", (int(pool_id),)
+    )).fetchone()
+    if pending:
+        await conn.execute("UPDATE jobs SET available_at=? WHERE id=?", (time.time() + 5, pending[0]))
+        return
+    payload = {"pool_id": int(pool_id), "name": name}
+    job_id = await enqueue(conn, "stash_pool", f"stash-pool:{pool_id}:{uuid4().hex}", payload)
+    await conn.execute("UPDATE jobs SET available_at=? WHERE id=?", (time.time() + 5, job_id))
+
+
 async def persist_post(conn, post):
-    file, preview, sample = post.get("file") or {}, post.get("preview") or {}, post.get("sample") or {}
-    values = (
-        post["id"],
-        post.get("rating"),
-        file.get("md5"),
-        json.dumps(post.get("tags", {})),
-        post.get("score", {}).get("total", 0),
-        post.get("created_at"),
-        file.get("ext"),
-        file.get("width"),
-        file.get("height"),
-        preview.get("url"),
-        sample.get("url"),
-        file.get("url"),
-        sample.get("alternates", {}).get("variants", {}).get("mp4", {}).get("url"),
-        int(post.get("flags", {}).get("deleted", False)),
-        time.time(),
-    )
     await conn.execute(
-        "INSERT INTO posts VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(post_id) DO UPDATE SET "
+        "INSERT INTO posts(post_id,rating,md5,tags_json,score,posted_at,media_ext,width,height,preview_url,"
+        "sample_url,file_url,video_url,unavailable,fetched_at) VALUES(:post_id,:rating,:md5,:tags_json,:score,"
+        ":posted_at,:media_ext,:width,:height,:preview_url,:sample_url,:file_url,:video_url,:unavailable,:fetched_at) "
+        "ON CONFLICT(post_id) DO UPDATE SET "
         "rating=excluded.rating,md5=excluded.md5,tags_json=excluded.tags_json,score=excluded.score,"
         "posted_at=excluded.posted_at,media_ext=excluded.media_ext,width=excluded.width,height=excluded.height,"
         "preview_url=excluded.preview_url,sample_url=excluded.sample_url,file_url=excluded.file_url,"
         "video_url=excluded.video_url,unavailable=excluded.unavailable,fetched_at=excluded.fetched_at",
-        values,
+        post_row(post),
     )
 
 
@@ -84,6 +88,8 @@ class Workers:
                 asyncio.create_task(self._loop("downloads"), name=f"download-{i}")
                 for i in range(self.source.settings.download_concurrency)
             ]
+        if self.source.settings.stash_url:
+            self.tasks.append(asyncio.create_task(self._loop("stash_pool"), name="stash-pool-albums"))
         self.tasks += [asyncio.create_task(self._loop("preview"), name=f"preview-{i}") for i in range(media_count)]
 
     async def close(self):
@@ -103,6 +109,17 @@ class Workers:
             ).fetchone()
             if not row:
                 return None
+            if job_type == "stash_pool":
+                pool_id = json.loads(row["payload_json"])["pool_id"]
+                pending = await (await conn.execute(
+                    "SELECT 1 FROM jobs j, json_each(j.payload_json,'$.albums') album "
+                    "WHERE j.type='library' AND j.status IN ('pending','running') AND album.key=? LIMIT 1",
+                    (str(pool_id),),
+                )).fetchone()
+                if pending:
+                    # One scoped scan after the batch settles, including any retries.
+                    await conn.execute("UPDATE jobs SET available_at=? WHERE id=?", (now + 5, row["id"]))
+                    return None
             await conn.execute(
                 "UPDATE jobs SET status='running',attempts=attempts+1,error=NULL,lease_until=?,updated_at=? WHERE id=?",
                 (now + 120, now, row["id"]),
@@ -139,7 +156,10 @@ class Workers:
                                 self.downloads.process(job, payload), timeout=self.source.settings.library_timeout
                             )
                     else:
-                        await self.media.download_preview(payload["post_id"])
+                        if job_type == "stash_pool":
+                            await sync_album(self.source.settings, payload)
+                        else:
+                            await self.media.download_preview(payload["post_id"])
                         async with self.db.transaction() as conn:
                             await conn.execute(
                                 "UPDATE jobs SET status='done',lease_until=NULL,result_json='{}',updated_at=? WHERE id=?",

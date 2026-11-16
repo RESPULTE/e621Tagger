@@ -1,6 +1,7 @@
 """Expiring source metadata for browsing. Only explicit reviews/saves reach SQLite."""
 
 import json
+import re
 import time
 from collections import OrderedDict
 
@@ -133,7 +134,7 @@ class Feed:
                         for key in ("version", "wanted", "present", "status", "error", "updated_at")
                     }
                 )
-        return decode_candidate({**saved, **post_row(post)})
+        return {**decode_candidate({**saved, **post_row(post)}), "pools": post.get("pools", [])}
 
     async def search_posts(self, query, *, cursor=None, limit=50, post_ids=None):
         """Use e621's query parser for both discovery and restricted image results."""
@@ -168,7 +169,25 @@ class Feed:
         from .api import clean_query
 
         query = clean_query(query)
-        posts = await self.search_posts(query, cursor=cursor, limit=limit)
+        pool = None
+        term = re.fullmatch(r"pool:([^\s*?]+)", query, re.I)
+        if term:
+            identifier = term[1]
+            pool = (await self.source.pool(int(identifier)) if identifier.isascii() and identifier.isdecimal()
+                    else await self.source.named_pool(identifier))
+        if pool:
+            ids = pool["post_ids"]
+            if cursor is not None and cursor not in ids:
+                raise HTTPException(409, "Pool changed; refresh the search")
+            start = ids.index(cursor) + 1 if cursor is not None else 0
+            members = ids[start:start + limit]
+            posts = await self.search_posts("id:" + ",".join(map(str, members)), limit=limit) if members else []
+            by_id = {post["id"]: post for post in posts}
+            posts = [by_id[i] for i in members if i in by_id]
+            next_cursor = str(members[-1]) if start + limit < len(ids) else None
+        else:
+            posts = await self.search_posts(query, cursor=cursor, limit=limit)
+            next_cursor = str(min(p["id"] for p in posts)) if len(posts) == limit else None
         for post in posts:
             prior = self.context(project_id, post["id"])
             if prior and prior[2] == "embedding" and query.startswith("id:"):
@@ -177,7 +196,8 @@ class Feed:
                 self.remember(post, query, kind, project_id)
         return {
             "items": [await self.candidate(project_id, post, query) for post in posts],
-            "next_cursor": str(min(p["id"] for p in posts)) if len(posts) == limit else None,
+            "next_cursor": next_cursor,
+            "pool_id": pool["id"] if pool else None,
             "total": len(posts),
         }
 
