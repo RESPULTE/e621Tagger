@@ -67,7 +67,8 @@ test("downloads show upvotes and delete favourites with heart cache reconciliati
   await page.getByRole("tab", { name: "Downloads", exact: true }).click();
   const complete = page.getByRole("article", { name: "Post 999 favourite", exact: true });
   await expect(complete.getByText("123 upvotes", { exact: true })).toBeVisible();
-  await expect(complete.getByText("dragon", { exact: true })).toBeVisible();
+  await expect(complete.getByText("dragon", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Search tag unavailable", { exact: true })).toHaveCount(0);
   await expect(complete.getByRole("img")).toHaveAttribute("src", "/api/media/999/preview");
   await expect(complete.getByRole("progressbar")).toHaveCount(0);
   await expect(complete.getByText("Completed", { exact: true })).toHaveCSS("color", "rgb(156, 229, 173)");
@@ -110,7 +111,7 @@ test("real favourite download deletion removes its row and resets the gallery he
   const row = page.getByRole("article", { name: "Post 998 favourite", exact: true });
   await expect(row.getByText("Completed", { exact: true })).toBeVisible();
   await expect(row.getByText("203 upvotes", { exact: true })).toBeVisible();
-  await expect(row.getByText(project.display_name, { exact: true })).toBeVisible();
+  await expect(row.getByText(project.display_name, { exact: true })).toHaveCount(0);
   await expect(row.getByRole("img")).toHaveAttribute("src", "/api/media/998/preview");
   await row.getByRole("button", { name: "Delete post 998 favourite", exact: true }).click();
   await expect(row).toHaveCount(0);

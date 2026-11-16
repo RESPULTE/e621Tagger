@@ -77,6 +77,7 @@ test('deselecting keeps browse context and media actions without reviews', async
   await expect(page).toHaveURL(viewerUrl);
   await expect(page.getByRole('button', { name: 'Projects', exact: true })).toHaveAttribute('title', 'Find your fixation');
   await expect(page.locator('.detail-review')).toHaveCount(0);
+  await expect(page.locator('.artwork-heading .eyebrow')).toHaveCount(0);
   await expect(page.locator('.quick-labels')).toHaveCount(0);
   await expect(page.locator('.media-stage')).toBeVisible();
 
@@ -109,6 +110,7 @@ test('deselecting keeps browse context and media actions without reviews', async
   await dock(page);
   await row.locator('.project-dock-select').click();
   await expect(positive).toBeVisible();
+  await expect(page.locator('.artwork-heading .eyebrow')).toBeVisible();
   await dock(page);
   await row.locator('.project-dock-select').click();
   await page.reload();
@@ -120,6 +122,15 @@ test('deselecting keeps browse context and media actions without reviews', async
   await expect(page).toHaveURL(new RegExp(`${path}(?:\\?.*)?$`));
   await expect(page.getByRole('button', { name: 'Open post 999', exact: true })).toBeVisible();
   await expect(page.locator('.quick-labels')).toHaveCount(0);
+  await expect(page.locator('.project-heading')).toHaveCount(0);
+  await expect(page.getByLabel('Review totals', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Dataset export', exact: true })).toHaveCount(0);
+
+  await dock(page);
+  await row.locator('.project-dock-select').click();
+  await expect(page.locator('.project-heading h1')).toHaveText(project.display_name.replaceAll('_', ' '));
+  await expect(page.getByLabel('Review totals', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Dataset export', exact: true })).toBeVisible();
 
   await page.setViewportSize({ width: 320, height: 740 });
   await dock(page);

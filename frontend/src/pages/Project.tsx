@@ -281,7 +281,7 @@ export function Project({ canReview }: { canReview: boolean }) {
   return (
     <div className="workspace gallery-layout">
       <main className="main-content gallery-content">
-        <div className="project-heading">
+        {canReview && <div className="project-heading">
           <h1>
             {project.data?.display_name.replaceAll("_", " ") ?? "Project"}
           </h1>
@@ -298,7 +298,7 @@ export function Project({ canReview }: { canReview: boolean }) {
             ))}
           </div>
           <Link className="export-button" to={`/projects/${projectId}/datasets`} aria-label="Dataset export" title="Dataset export"><StudioIcon name="export" /><span>Export</span></Link>
-        </div>
+        </div>}
         <nav className="project-tabs" role="tablist" aria-label="Project views">
           {(["query", "tagged", "similarity", "downloads"] as const).map(
             (value, i) => (

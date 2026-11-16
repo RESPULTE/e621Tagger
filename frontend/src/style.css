@@ -1351,7 +1351,6 @@ footer {
 .download-state.pending { color: #f4d18a; }
 .download-state.failed { color: #ffa5ad; }
 .download-metadata { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 5px; color: #b5c9db; font-size: 12px; }
-.download-tag { overflow-wrap: anywhere; color: #b9dbff; }
 .download-progress { display: flex; align-items: center; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
 .download-progress progress { min-width: 100px; flex: 1; height: 8px; }
 .download-progress button { font-size: 12px; }

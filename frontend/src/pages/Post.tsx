@@ -196,9 +196,9 @@ export function Post({ canReview }: { canReview: boolean }) {
         </div>
         <header className="artwork-heading">
           <div>
-            <span className="eyebrow">
+            {canReview && <span className="eyebrow">
               {project.data?.display_name.replaceAll("_", " ") ?? "Artwork"}
-            </span>
+            </span>}
             <h1>{artistName(post?.tags.artist)}</h1>
             {post && (
               <p className="artwork-facts">

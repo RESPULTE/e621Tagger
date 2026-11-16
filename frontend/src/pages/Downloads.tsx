@@ -85,7 +85,6 @@ export function Downloads() {
               </div>
               <div className="download-metadata">
                 <span>{job.upvotes != null ? `${job.upvotes.toLocaleString()} upvotes` : "Upvotes unavailable"}</span>
-                <span className="download-tag" title={job.search_tag ?? undefined}>{job.search_tag ?? "Search tag unavailable"}</span>
                 {exporting && <span>Dataset export · {job.destination}</span>}
               </div>
               <div className="download-progress">
